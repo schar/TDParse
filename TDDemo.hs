@@ -5,7 +5,7 @@ module TDDemo where
 
 import Prelude hiding (and)
 
-import TDPretty ( prettyParse )
+import TDPretty
 import TDParseCFG
 
 
