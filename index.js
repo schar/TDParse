@@ -6447,6 +6447,16 @@
       return "LL";
     }
   };
+  var URIsSymbol = {
+    reflectSymbol: function() {
+      return "UR";
+    }
+  };
+  var ULIsSymbol = {
+    reflectSymbol: function() {
+      return "UL";
+    }
+  };
   var AIsSymbol = {
     reflectSymbol: function() {
       return "A";
@@ -6540,6 +6550,26 @@
       return new LL2(value0);
     };
     return LL2;
+  }();
+  var UR = /* @__PURE__ */ function() {
+    function UR2(value0) {
+      this.value0 = value0;
+    }
+    ;
+    UR2.create = function(value0) {
+      return new UR2(value0);
+    };
+    return UR2;
+  }();
+  var UL = /* @__PURE__ */ function() {
+    function UL2(value0) {
+      this.value0 = value0;
+    }
+    ;
+    UL2.create = function(value0) {
+      return new UL2(value0);
+    };
+    return UL2;
   }();
   var A = /* @__PURE__ */ function() {
     function A2(value0) {
@@ -6861,7 +6891,7 @@
         return new Comb(x.value0.value0, x.value0.value1.value0, x.value0.value1.value1);
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 126, column 1 - line 126, column 30): " + [x.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 125, column 1 - line 125, column 30): " + [x.constructor.name]);
     },
     from: function(x) {
       if (x instanceof Lex) {
@@ -6872,7 +6902,7 @@
         return new Inr(new Product(x.value0, new Product(x.value1, x.value2)));
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 126, column 1 - line 126, column 30): " + [x.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 125, column 1 - line 125, column 30): " + [x.constructor.name]);
     }
   };
   var genericShow1 = /* @__PURE__ */ genericShow(genericSem_);
@@ -6903,22 +6933,30 @@
       }
       ;
       if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0 instanceof Inl)))))) {
-        return new A(x.value0.value0.value0.value0.value0.value0.value0);
+        return new UR(x.value0.value0.value0.value0.value0.value0.value0);
       }
       ;
       if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0 instanceof Inl))))))) {
-        return new J(x.value0.value0.value0.value0.value0.value0.value0.value0);
+        return new UL(x.value0.value0.value0.value0.value0.value0.value0.value0);
       }
       ;
       if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inl)))))))) {
-        return new Eps(x.value0.value0.value0.value0.value0.value0.value0.value0.value0);
+        return new A(x.value0.value0.value0.value0.value0.value0.value0.value0.value0);
       }
       ;
-      if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr)))))))) {
-        return new D(x.value0.value0.value0.value0.value0.value0.value0.value0.value0);
+      if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inl))))))))) {
+        return new J(x.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0);
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 140, column 1 - line 140, column 31): " + [x.constructor.name]);
+      if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inl)))))))))) {
+        return new Eps(x.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0);
+      }
+      ;
+      if (x instanceof Inr && (x.value0 instanceof Inr && (x.value0.value0 instanceof Inr && (x.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && (x.value0.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr && x.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0 instanceof Inr)))))))))) {
+        return new D(x.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0.value0);
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 139, column 1 - line 139, column 31): " + [x.constructor.name]);
     },
     from: function(x) {
       if (x instanceof FA) {
@@ -6945,29 +6983,37 @@
         return new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0))))));
       }
       ;
-      if (x instanceof A) {
+      if (x instanceof UR) {
         return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0)))))));
       }
       ;
-      if (x instanceof J) {
+      if (x instanceof UL) {
         return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0))))))));
       }
       ;
-      if (x instanceof Eps) {
+      if (x instanceof A) {
         return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0)))))))));
       }
       ;
-      if (x instanceof D) {
-        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(x.value0)))))))));
+      if (x instanceof J) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0))))))))));
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 140, column 1 - line 140, column 31): " + [x.constructor.name]);
+      if (x instanceof Eps) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x.value0)))))))))));
+      }
+      ;
+      if (x instanceof D) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(x.value0)))))))))));
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 139, column 1 - line 139, column 31): " + [x.constructor.name]);
     }
   };
   var genericShow3 = /* @__PURE__ */ genericShow(genericMode_);
   var showMode = {
     show: function(t) {
-      return genericShow3(genericShowSum2(genericShowSum1(genericShowSum22(genericShowSum3(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(LRIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(LLIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(AIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(JIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(EpsIsSymbol))(genericShowConstructor(genericShowArgsArgument(showMode))(DIsSymbol)))))))))))(t);
+      return genericShow3(genericShowSum2(genericShowSum1(genericShowSum22(genericShowSum3(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(LRIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(LLIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(URIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(ULIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(AIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(JIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showMode))(EpsIsSymbol))(genericShowConstructor(genericShowArgsArgument(showMode))(DIsSymbol)))))))))))))(t);
     }
   };
   var genericShowArgsProduct1 = /* @__PURE__ */ genericShowArgsProduct(/* @__PURE__ */ genericShowArgsArgument(showMode));
@@ -7128,6 +7174,14 @@
         return lam(l)(lam(r)(app(app(make_var("fmap"))(lam(a)(app(app(modeTerm(v.value0))(a))(r))))(l)));
       }
       ;
+      if (v instanceof UL) {
+        return lam(l)(lam(r)(app(app(modeTerm(v.value0))(lam(a)(app(r)(app(make_var("pure"))(a)))))(l)));
+      }
+      ;
+      if (v instanceof UR) {
+        return lam(l)(lam(r)(app(app(modeTerm(v.value0))(lam(a)(app(l)(app(make_var("pure"))(a)))))(r)));
+      }
+      ;
       if (v instanceof A) {
         return lam(l)(lam(r)(app(app(make_var("(<*>)"))(app(app(make_var("fmap"))(modeTerm(v.value0)))(l)))(r)));
       }
@@ -7144,7 +7198,7 @@
         return lam(l)(lam(r)(app(app(app(modeTerm(v.value0))(l))(r))(lam(a)(a))));
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 271, column 12 - line 303, column 50): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 274, column 12 - line 312, column 50): " + [v.constructor.name]);
     };
   }();
   var semTerm = function(v) {
@@ -7156,7 +7210,7 @@
       return app(app(modeTerm(v.value0))(semTerm(v.value1)))(semTerm(v.value2));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 263, column 1 - line 263, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 266, column 1 - line 266, column 23): " + [v.constructor.name]);
   };
   var getProofType = function(v) {
     return v.value2;
@@ -7259,7 +7313,7 @@
         }
         ;
         return Nil.value;
-      }())(function() {
+      }())(append12(function() {
         if (l instanceof Eff && (r instanceof Eff && applicative(l.value0))) {
           return bind3(combine(l.value1)(r.value1))(function(v) {
             return bind3(combineFs(l.value0)(r.value0))(function(h) {
@@ -7269,7 +7323,23 @@
         }
         ;
         return Nil.value;
-      }()))))(new Cons(addD, new Cons(addEps, new Cons(addJ, new Cons(pure4, Nil.value))))));
+      }())(append12(function() {
+        if (l instanceof Arr && l.value0 instanceof Eff) {
+          return mapFlipped2(combine(new Arr(l.value0.value1, l.value1))(r))(function(v) {
+            return new Tuple(new UR(v.value0), v.value1);
+          });
+        }
+        ;
+        return Nil.value;
+      }())(function() {
+        if (r instanceof Arr && r.value0 instanceof Eff) {
+          return mapFlipped2(combine(l)(new Arr(r.value0.value1, r.value1)))(function(v) {
+            return new Tuple(new UL(v.value0), v.value1);
+          });
+        }
+        ;
+        return Nil.value;
+      }()))))))(new Cons(addD, new Cons(addEps, new Cons(addJ, new Cons(pure4, Nil.value))))));
     };
   };
   var synsem = function(v) {
@@ -7287,7 +7357,7 @@
       });
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 181, column 1 - line 181, column 28): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 180, column 1 - line 180, column 28): " + [v.constructor.name]);
   };
   var prove = function(cfg) {
     return function(lex) {
@@ -7737,15 +7807,15 @@
         return text4(show4(v));
       }
       ;
-      throw new Error("Failed pattern match at TDPretty (line 59, column 1 - line 59, column 33): " + [norm.constructor.name, v.constructor.name]);
+      throw new Error("Failed pattern match at TDPretty (line 60, column 1 - line 60, column 33): " + [norm.constructor.name, v.constructor.name]);
     };
   };
   var showProof = function(disp) {
-    var $94 = render3(100);
-    return function($95) {
-      return $94(function(v) {
+    var $96 = render3(100);
+    return function($97) {
+      return $96(function(v) {
         return append5(v)(text4("\n"));
-      }(disp($95)));
+      }(disp($97)));
     };
   };
   var showMode2 = function(v) {
@@ -7773,6 +7843,14 @@
       return appendWithSpace2(text4("$\\uparrow\\comb{R}$,"))(showMode2(v.value0));
     }
     ;
+    if (v instanceof UL) {
+      return appendWithSpace2(text4("$\\eta\\comb{L}$,"))(showMode2(v.value0));
+    }
+    ;
+    if (v instanceof UR) {
+      return appendWithSpace2(text4("$\\eta\\comb{R}$,"))(showMode2(v.value0));
+    }
+    ;
     if (v instanceof A) {
       return appendWithSpace2(text4("$\\comb{A},$"))(showMode2(v.value0));
     }
@@ -7789,7 +7867,7 @@
       return appendWithSpace2(text4("$\\downarrow$,"))(showMode2(v.value0));
     }
     ;
-    throw new Error("Failed pattern match at TDPretty (line 46, column 12 - line 57, column 50): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDPretty (line 46, column 12 - line 58, column 50): " + [v.constructor.name]);
   };
   var prettyF = function(a) {
     return function(v) {

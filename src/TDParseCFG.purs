@@ -3,11 +3,10 @@
 
 module TDParseCFG where
 
-import Data.Maybe
 import Data.List
+import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
-import Data.Traversable (sequence)
 import Prelude hiding ((#))
 
 import Control.Alternative (guard)
@@ -17,13 +16,13 @@ import Data.Generic.Rep (class Generic)
 import Data.Maybe (fromMaybe)
 import Data.Show.Generic (genericShow)
 import Data.String.Utils (words)
+import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
 import LambdaCalc (Term, make_var, (#), (^))
 import Memo (memo)
 import Unsafe.Coerce (unsafeCoerce)
 import Utils ((<**>))
-import Web.DOM.Document (doctype)
 
 {- Datatypes for syntactic and semantic composition-}
 
@@ -131,7 +130,7 @@ instance Show Sem where
 data Mode
   = FA | BA | PM | FC -- Base        > < ^
   | LR Mode | LL Mode -- Functor     <$>
-  -- | Z Mode            -- VFS         Z
+  | UR Mode | UL Mode -- Applicative pure
   | A Mode            -- Applicative <*>
   | J Mode            -- Monad       join
   | Eps Mode          -- Adjoint     counit
@@ -186,6 +185,9 @@ synsem (Branch l r) = do
   op /\ ty <- combine lty rty
   pure $ Proof (lstr <> " " <> rstr) (Comb op lval rval) ty (lp:rp:Nil)
 
+prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
+prove cfg lex input = concatMap synsem <$> parse cfg lex input
+
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Ty -> Ty -> List (Mode /\ Ty)
 modes = case _,_ of
@@ -231,12 +233,13 @@ combine l r = join $
                                               pure (A op /\ Eff h c)
        _      , _                       -> Nil
 
---   -- this is only if you want to see some derivations in the Variable-Free style
---   -- ++ [ (Z op, i :-> d)
---   --    | a :-> i :-> b <- [l]
---   --    , Eff (R i) c <- [r]
---   --    , (op, d) <- combine (a :-> b) c
---   --    ]
+  <> case l,r of
+       Eff f a :-> b, _ -> combine (a :-> b) r <#> \(op /\ c) -> (UR op /\ c)
+       _            , _ -> Nil
+
+  <> case l,r of
+       _, Eff f a :-> b -> combine l (a :-> b) <#> \(op /\ c) -> (UL op /\ c)
+       _,             _ -> Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
@@ -287,6 +290,12 @@ modeTerm = case _ of
          -- \L r -> (\a -> op a r) <$> L
   LR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
 
+         -- \l R -> op (\a -> r (pure a)) l
+  UL op  -> l ^ r ^ modeTerm op # (a ^ r # (make_var "pure" # a)) # l
+
+         -- \L r -> op (\a -> l (pure a)) r
+  UR op  -> l ^ r ^ modeTerm op # (a ^ l # (make_var "pure" # a)) # r
+
          -- \L R -> op <$> L <*> R
   A op   -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
 
@@ -306,5 +315,3 @@ modeTerm = case _ of
     l = make_var "l"
     r = make_var "r"
     a = make_var "a"
-
-prove cfg lex input = concatMap synsem <$> parse cfg lex input
