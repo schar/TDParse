@@ -59,6 +59,8 @@ showMode = \case
   FC     -> "\\comb{FC}"
   LL op  -> "$\\uparrow$\\comb{L}," <+> showMode op
   LR op  -> "$\\uparrow$\\comb{R}," <+> showMode op
+  UL op  -> text "$\\eta\\comb{L}$," <+> showMode op
+  UR op  -> text "$\\eta\\comb{R}$," <+> showMode op
   A op   -> "\\comb{A}," <+> showMode op
   J op   -> "$\\mu$," <+> showMode op
   -- Z op   -> "\\comb{Z}," <+> showMode op

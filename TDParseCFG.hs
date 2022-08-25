@@ -93,6 +93,7 @@ data Sem
 data Mode
   = FA | BA | PM | FC -- Base        > < ^
   | LR Mode | LL Mode -- Functor     <$>
+  | UR Mode | UL Mode -- Applicative pure
   -- | Z Mode            -- VFS         Z
   | A Mode            -- Applicative <*>
   | J Mode            -- Monad       join
@@ -185,6 +186,21 @@ combine l r = join $
      , (op, c) <- combine l b
      ]
 
+  -- if the left daughter requests something Functorial, try to find an
+  -- `op` that would combine it with a `pure`ified right daughter
+  ++ [ (UR op, c)
+     | Eff f a :-> b <- [l]
+     , applicative f
+     , (op, c) <- combine (a :-> b) r
+     ]
+
+  -- vice versa if the right daughter requests something Functorial
+  ++ [ (UL op, c)
+     | Eff f a :-> b <- [r]
+     , applicative f
+     , (op, c) <- combine l (a :-> b)
+     ]
+
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
   ++ [ (A op, Eff h c)
@@ -264,6 +280,12 @@ modeTerm = \case
 
          -- \L r -> (\a -> op a r) <$> L
   LR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
+
+         -- \l R -> op (\a -> r (pure a)) l
+  UL op  -> l ^ r ^ modeTerm op # (a ^ r # (make_var "pure" # a)) # l
+
+         -- \L r -> op (\a -> l (pure a)) r
+  UR op  -> l ^ r ^ modeTerm op # (a ^ l # (make_var "pure" # a)) # r
 
          -- \L R -> op <$> L <*> R
   A op   -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
