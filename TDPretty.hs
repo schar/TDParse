@@ -44,9 +44,12 @@ prettyProof (Proof phrase val ty daughters) =
         [a, b] -> "  " <> (details $+$ prettyProof a $+$ prettyProof b)
         _      -> "  wrong number of daughters somehow"
 
+prettyParse' :: CFG -> (Proof -> Bool) -> Phrase -> [Doc]
+prettyParse' cfg p =
+  map (\x -> "\n" <+> prettyProof x) . filter p . concatMap synsem . parse cfg
+
 prettyParse :: CFG -> Phrase -> [Doc]
-prettyParse cfg s =
-  map (\x -> "\n" <+> prettyProof x) (concatMap synsem $ parse cfg s)
+prettyParse cfg = prettyParse' cfg (const True)
 
 showMode :: Mode -> Doc
 showMode = \case
@@ -84,16 +87,16 @@ semTrees' norm = map tree . concatMap synsem
     forest = \case
       Proof word v@(Lex w) ty _ ->
         "[" <>
-        "$" <> label v
-        "\\texttt{" <> prettyTy " -> " ty <> "}$" <>
+        "$" <> label v "\\texttt{" <>
+        prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
         "\\comb{Lex}" $+$
         brackets ("\\texttt{" <> text (show w) <> "}") <> "]"
 
-      Proof phrase v@(Comp op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _ _) ty [l, r] ->
         "[" <>
-        "$" <> label v
-        "\\texttt{" <> prettyTy " -> " ty <> "}$" <>
+        "$" <> label v "\\texttt{" <>
+        prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
         braces (showMode op) $+$
         forest l $+$ forest r $+$ "]"
@@ -104,8 +107,9 @@ semTrees' norm = map tree . concatMap synsem
       | norm = ("\\texttt{" <> showVal norm v <> "}:" <+>)
       | otherwise = id
 
-semTrees :: [Syn] -> IO ()
+semTrees, denTrees :: [Syn] -> IO ()
 semTrees = mapM_ print . punctuate "\n" . semTrees' False
+denTrees = mapM_ print . punctuate "\n" . semTrees' True
 
 -- Proofs with some normalization
 -- Requires bussproofs with \EnableBpAbbreviations, \strut for vert spacing
@@ -118,15 +122,15 @@ semProofs = mapM_ print . punctuate "\n" . map proofTree . concatMap synsem
       Proof word v@(Lex w) ty _ ->
         "\\AXC{\\strut$\\text{" <> text w <> "}" <> "\\vdash " <>
         "\\texttt{" <> showVal True v <> "}" <> ":" <+>
-        "\\texttt{" <> prettyTy " -> " ty <> "}$}"
+        "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
-      Proof phrase v@(Comp op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _ _) ty [l, r] ->
         bp l $+$
         bp r $+$
         "\\RightLabel{\\tiny " <> showMode op <> "}" $+$
         "\\BIC{\\strut$\\text{" <> text phrase <> "}" <+>
         "\\vdash" <+>
         "\\texttt{" <> showVal True v <> "}:" <+>
-        "\\texttt{" <> prettyTy " -> " ty <> "}$}"
+        "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       _ -> "\\AXC{wrong number of daughters}"

@@ -4,22 +4,25 @@
 module TDParseCFG where
 
 import Prelude hiding ((<>), (^), and)
+import Control.Monad (join)
 import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo ( memo )
 import Data.Function ( (&) )
+import Control.Applicative ( (<**>) )
 
 
 {- Datatypes for syntactic and semantic composition-}
 
 -- some syntactic categories
 data Cat
-  = CP -- full Clauses
+  = CP | Cmp -- Clauses and Complementizers
   | CorP | Cor -- Coordinators and Coordination Phrases
   | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show-- , Read
+           )
 
 -- semantic types
 infixr :->
@@ -27,7 +30,8 @@ data Type
   = E | T             -- Base types
   | Type :-> Type     -- Functions
   | Eff F Type        -- F-ectful
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show-- , Read
+           )
 
 
 {- Syntactic parsing -}
@@ -82,10 +86,10 @@ parse cfg ws = snd <$> memo (protoParse cfg) (0, length ws - 1, ws)
 -- two other semantic objects
 data Sem
   = Lex String
-  | Comp Mode Sem Sem
+  | Comb Mode Sem Sem
   deriving (Show)
 
--- Modes of composition
+-- Modes of combination
 data Mode
   = FA | BA | PM | FC -- Base        > < ^
   | LR Mode | LL Mode -- Functor     <$>
@@ -98,7 +102,8 @@ data Mode
 
 -- Effects
 data F = S | R Type | W Type | C Type Type
-  deriving (Eq, Show, Read)
+  deriving (Eq, Show-- , Read
+           )
 
 -- convenience constructors
 effS     = Eff S
@@ -143,7 +148,7 @@ data Proof = Proof String Sem Type [Proof]
 synsem :: Syn -> [Proof]
 synsem (Leaf s t)   = [Proof s (Lex s) t []]
 synsem (Branch l r) =
-  [ Proof (lstr ++ " " ++ rstr) (Comp op lval rval) ty [lp, rp]
+  [ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
   | lp@(Proof lstr lval lty _) <- synsem l
   , rp@(Proof rstr rval rty _) <- synsem r
   , (op, ty) <- combine lty rty
@@ -160,7 +165,7 @@ modes = curry $ \case
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
 combine :: Type -> Type -> [(Mode, Type)]
-combine l r =
+combine l r = join $
 
   -- for starters, try the basic modes of combination
   modes l r
@@ -199,7 +204,11 @@ combine l r =
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
-  & addD . addEps . addJ
+  <**> [addD, addEps, addJ, return]
+
+-- closeUnder :: [a -> [a]] -> [a] -> [a]
+-- closeUnder fs = concat . takeWhile (not . null) . iterate (\xs -> join $ fs <*> xs)
+-- close f xs = concat $ unfoldr (\xs -> if null xs then Nothing else Just (xs, f xs)) xs
 
 -- Make sure that two Effects can compatibly be sequenced
 -- (only relevant to A and J modes)
@@ -211,34 +220,27 @@ combineFs = curry $ \case
   (C i j, C j' k) | j == j' -> [C i k]
   _                         -> []
 
-addJ :: [(Mode, Type)] -> [(Mode, Type)]
-addJ e = e ++
-  [ (J op, Eff h a)
-  | (op, Eff f (Eff g a)) <- e
-  , monad f
-  , h <- combineFs f g
-  ]
+addJ :: (Mode, Type) -> [(Mode, Type)]
+addJ = \case
+  (op, Eff f (Eff g a)) | monad f -> [(J op, Eff h a) | h <- combineFs f g]
+  _                               -> []
 
-addEps :: [(Mode, Type)] -> [(Mode, Type)]
-addEps e = e ++
-  [ (Eps op, a)
-  | (op, Eff f (Eff g a)) <- e
-  , adjoint f g
-  ]
+addEps :: (Mode, Type) -> [(Mode, Type)]
+addEps = \case
+  (op, Eff f (Eff g a)) | adjoint f g -> [(Eps op, a)]
+  _                                   -> []
 
-addD :: [(Mode, Type)] -> [(Mode, Type)]
-addD e = e ++
-  [ (D op, i)
-  | (op, Eff (C i a) a') <- e
-  , a == a'
-  ]
+addD :: (Mode, Type) -> [(Mode, Type)]
+addD = \case
+  (op, Eff (C i a) a') | a == a' -> [(D op, i)]
+  _                              -> []
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
 semTerm (Lex w)       = make_var w
-semTerm (Comp op l r) = modeTerm op # semTerm l # semTerm r
+semTerm (Comb op l r) = modeTerm op # semTerm l # semTerm r
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
@@ -252,7 +254,7 @@ modeTerm = \case
   BA     -> l ^ r ^ r # l
 
          -- \l r a -> l a `and` r a
-  PM     -> l ^ r ^ a ^ make_var "and" # (l # a) # (r # a)
+  PM     -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
 
          -- \l r a -> l (r a)
   FC     -> l ^ r ^ a ^ l # (r # a)

@@ -238,6 +238,7 @@ substitution. Therefore, we can use the same function 'subst'.
 >                                     then bump_color x_uniq_st_v x_occur_body
 >                                     else x_uniq_st_v
 >                    in (x_unique,subst body x (Var x'))
+>                    -- in (x_unique,subst body x (Var x_unique))
 >            else (x,body)
 >        bump_color (VC color name) (VC color' _) =
 >                                      (VC ((max color color')+1) name)
@@ -602,9 +603,9 @@ LC> -- c (c (c (c (c (c (c (c (c (c (...))))))))))
 >    expectd (fst $ mweval $ a ^ (x ^ a ^ x # a) # a)
 >	   (z^z),
 >    expectd (fst $ mweval $ a ^ (x ^ b ^ x # a) # a)
->          (a^b^a#a),
->    expect (show $ mweval $ a ^ (x ^ a ^ x # a) # a)
->           "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
+>          (a^b^a#a)
+>    -- , expect (show $ mweval $ a ^ (x ^ a ^ x # a) # a)
+>    --        "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
 >    ]
 >
 > all_tests = and [ free_var_tests, alpha_comparison_tests,
