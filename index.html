@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-framework="purescript"><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Effect-driven parsing</title>
+<meta name="description" content="Effect-driven parsing">
+<meta property="og:title" content="Effect-driven parsing">
+<meta property="og:description" content="Effect-driven parsing">
+<link rel="stylesheet" href="site_files/style.css">
+<script>
+MathJax = {
+  tex: {
+    inlineMath: [['$', '$'], ['\\(', '\\)']]
+  }
+};
+</script>
+<script type="text/javascript" id="MathJax-script" async
+  src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+</script>
+<script>
+window.MathJax = {
+    loader: {load: ['[tex]/color', '[tex]/bussproofs', '[tex]/textmacros', '[tex]/textcomp']},
+    tex: {
+        packages: {'[+]': ['color', 'bussproofs', 'textmacros']},
+        textmacros: {packages: {'[+]': ['textcomp']}},
+        macros: {
+            comb: ["\\mathbfsf{#1}", 1]
+        }
+    }
+};
+</script>
+<style>
+  #parser {font-size: 14px};
+</style>
+
+</head>
+
+<body>
+  <main>
+    <section id="home">
+    <h1>Effect-driven interpretation</h1>
+    <div id="parser">
+    </div>
+    </section>
+  </main>
+</body>
+<script src="index.js"></script>
+
+<div style="display: block; opacity: 1; color-scheme: light;"></div>
+</html>
