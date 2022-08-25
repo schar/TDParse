@@ -23,10 +23,8 @@ import Web.HTML.Event.EventTypes (offline)
 
 -- | The model represents the state of the app
 type Model =
-  { phraseInput :: String
-  , currentPhrase :: String
-  , typeInput :: String
-  , typeOfInterest :: Proof -> Boolean
+  { currentPhrase :: String,
+    typeOfInterest :: Proof -> Boolean
   , currentProofs :: Maybe (Array Proof)
   }
 
@@ -38,10 +36,8 @@ data Message
 -- | Initial state of the app
 init :: Model
 init =
-  { phraseInput: ""
-  , currentPhrase: ""
-  , typeInput: ""
-  , typeOfInterest: const true
+  { currentPhrase: "",
+    typeOfInterest: const true
   , currentProofs: Just []
   }
 
@@ -56,25 +52,27 @@ displayProof p = "$$" <> showProof prettyProofBuss p <> "$$"
 -- | `update` is called to handle events
 update :: Model -> Message -> Model /\ Array (Aff (Maybe Message))
 update model = case _ of
-  PhraseInput ("Enter" /\ s) -> model { phraseInput = "", currentPhrase = s, currentProofs = proofs s }
-                                /\ [liftEffect $ typeset >>= \_ -> pure Nothing]
+  PhraseInput ("Enter" /\ s) -> model { currentPhrase = s, currentProofs = proofs s }
+                                /\ [ liftEffect $ typeset $> Nothing,
+                                     liftEffect $ clearPhrase $> Nothing
+                                   ]
 
-  PhraseInput (_       /\ s) -> model { phraseInput = s, currentProofs = Just [] }
+  PhraseInput (_       /\ s) -> model { currentProofs = Just [] }
                                 /\ []
 
   TypeInput (_       /\ t) ->
     case tyParse t of
-      Left _   -> model { typeInput = t, typeOfInterest = const true }
+      Left _   -> model { typeOfInterest = const true }
                   /\ [liftEffect $ typeset >>= \_ -> pure Nothing]
-      Right ty -> model { typeInput = t, typeOfInterest = (_ == ty) <<< getProofType }
+      Right ty -> model { typeOfInterest = (_ == ty) <<< getProofType }
                   /\ [liftEffect $ typeset >>= \_ -> pure Nothing]
 
 -- | `view` updates the app markup whenever the model is updated
 view :: Model -> Html Message
 view model =
   HE.div_
-    [ HE.input [HA.type' "text", HA.placeholder "Enter a sentence", HA.value model.phraseInput, HA.onKeyup PhraseInput]
-    , HE.input [HA.type' "text", HA.placeholder "Filter by type", HA.value model.typeInput, HA.onKeyup TypeInput]
+    [ HE.input [HA.type' "text", HA.id "phraseInput", HA.placeholder "Enter a sentence", HA.onKeyup PhraseInput],
+      HE.input [HA.type' "text", HA.id "typeInput", HA.placeholder "Filter by type", HA.onKeyup TypeInput]
     , HE.p "current" [HE.text $ "Showing parses for: " <> model.currentPhrase]
     , HE.div "parses" $
       map (\p -> HE.div [HA.id "parse", HA.style {paddingBottom: "24px"}] [HE.text p]) $
@@ -84,8 +82,8 @@ view model =
 -- | Mount the application on the given selector
 main :: Effect Unit
 main = mount_ (QuerySelector "#parser")
-       { init: init /\ []
-       , subscribe: []
+       { init: init /\ [],
+         subscribe: []
        , update
        , view
        }

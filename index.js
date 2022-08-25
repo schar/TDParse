@@ -199,20 +199,20 @@
 
   // output/Data.Array/foreign.js
   var replicateFill = function(count) {
-    return function(value2) {
+    return function(value) {
       if (count < 1) {
         return [];
       }
       var result = new Array(count);
-      return result.fill(value2);
+      return result.fill(value);
     };
   };
   var replicatePolyfill = function(count) {
-    return function(value2) {
+    return function(value) {
       var result = [];
       var n = 0;
       for (var i = 0; i < count; i++) {
-        result[n++] = value2;
+        result[n++] = value;
       }
       return result;
     };
@@ -1572,14 +1572,14 @@
           return function(f) {
             return function(b) {
               var result = [];
-              var value2 = b;
+              var value = b;
               while (true) {
-                var maybe2 = f(value2);
+                var maybe2 = f(value);
                 if (isNothing2(maybe2))
                   return result;
                 var tuple = fromJust6(maybe2);
                 result.push(fst2(tuple));
-                value2 = snd2(tuple);
+                value = snd2(tuple);
               }
             };
           };
@@ -1596,14 +1596,14 @@
           return function(f) {
             return function(b) {
               var result = [];
-              var value2 = b;
+              var value = b;
               while (true) {
-                var tuple = f(value2);
+                var tuple = f(value);
                 result.push(fst2(tuple));
                 var maybe2 = snd2(tuple);
                 if (isNothing2(maybe2))
                   return result;
-                value2 = fromJust6(maybe2);
+                value = fromJust6(maybe2);
               }
             };
           };
@@ -2868,8 +2868,8 @@
       if (aff.tag === Aff.Pure.tag) {
         return Aff.Pure(f(aff._1));
       } else {
-        return Aff.Bind(aff, function(value2) {
-          return Aff.Pure(f(value2));
+        return Aff.Bind(aff, function(value) {
+          return Aff.Pure(f(value));
         });
       }
     };
@@ -3402,8 +3402,8 @@
   var styleData = 1;
   var propertyData = 3;
   function createProperty_(name2) {
-    return function(value2) {
-      return [propertyData, name2, value2];
+    return function(value) {
+      return [propertyData, name2, value];
     };
   }
   function createStyle(object) {
@@ -3915,7 +3915,6 @@
   var id = /* @__PURE__ */ createProperty("id");
   var placeholder = /* @__PURE__ */ createProperty("placeholder");
   var type$prime = /* @__PURE__ */ createProperty("type");
-  var value = /* @__PURE__ */ createProperty("value");
   var caseify = function(name$prime) {
     if (name$prime === toUpper(name$prime)) {
       return toLower(name$prime);
@@ -4017,11 +4016,11 @@
       };
     };
   }
-  function text(value2) {
+  function text(value) {
     return {
       nodeType: textNode,
       node: void 0,
-      text: value2
+      text: value
     };
   }
   function fromNodeData(allData) {
@@ -5665,8 +5664,8 @@
   }();
 
   // output/Foreign/foreign.js
-  var isArray = Array.isArray || function(value2) {
-    return Object.prototype.toString.call(value2) === "[object Array]";
+  var isArray = Array.isArray || function(value) {
+    return Object.prototype.toString.call(value) === "[object Array]";
   };
 
   // output/Foreign/index.js
@@ -5835,8 +5834,8 @@
     return function(event) {
       return function __do() {
         var down = key(event)();
-        var value2 = nodeValue(event)();
-        return Just.create(constructor(new Tuple(down, value2)));
+        var value = nodeValue(event)();
+        return Just.create(constructor(new Tuple(down, value)));
       };
     };
   };
@@ -5853,6 +5852,9 @@
   var typeset = function() {
     MathJax.typesetClear();
     MathJax.typeset();
+  };
+  var clearPhrase = function() {
+    document.getElementById("phraseInput").value = "";
   };
 
   // output/Control.Monad.State.Trans/index.js
@@ -31003,6 +31005,7 @@
   var map13 = /* @__PURE__ */ map(functorMaybe);
   var fromFoldable8 = /* @__PURE__ */ fromFoldable(foldableList);
   var liftEffect3 = /* @__PURE__ */ liftEffect(monadEffectAff);
+  var voidLeft4 = /* @__PURE__ */ voidLeft(functorEffect);
   var eq4 = /* @__PURE__ */ eq(eqTy);
   var arrayToNodeData2 = /* @__PURE__ */ arrayToNodeData(htmlToHtml);
   var div_2 = /* @__PURE__ */ div_(arrayToNodeData2);
@@ -31042,23 +31045,16 @@
     return function(v) {
       if (v instanceof PhraseInput && v.value0.value0 === "Enter") {
         return new Tuple({
-          phraseInput: "",
           currentPhrase: v.value0.value1,
           currentProofs: proofs(v.value0.value1),
-          typeInput: model.typeInput,
           typeOfInterest: model.typeOfInterest
-        }, [liftEffect3(function __do() {
-          var v12 = typeset();
-          return Nothing.value;
-        })]);
+        }, [liftEffect3(voidLeft4(typeset)(Nothing.value)), liftEffect3(voidLeft4(clearPhrase)(Nothing.value))]);
       }
       ;
       if (v instanceof PhraseInput) {
         return new Tuple({
-          phraseInput: v.value0.value1,
           currentProofs: new Just([]),
           currentPhrase: model.currentPhrase,
-          typeInput: model.typeInput,
           typeOfInterest: model.typeOfInterest
         }, []);
       }
@@ -31067,11 +31063,9 @@
         var v1 = tyParse(v.value0.value1);
         if (v1 instanceof Left) {
           return new Tuple({
-            typeInput: v.value0.value1,
             typeOfInterest: $$const(true),
             currentPhrase: model.currentPhrase,
-            currentProofs: model.currentProofs,
-            phraseInput: model.phraseInput
+            currentProofs: model.currentProofs
           }, [liftEffect3(function __do() {
             var v2 = typeset();
             return Nothing.value;
@@ -31080,32 +31074,28 @@
         ;
         if (v1 instanceof Right) {
           return new Tuple({
-            typeInput: v.value0.value1,
             typeOfInterest: function($46) {
               return function(v3) {
                 return eq4(v3)(v1.value0);
               }(getProofType($46));
             },
             currentPhrase: model.currentPhrase,
-            currentProofs: model.currentProofs,
-            phraseInput: model.phraseInput
+            currentProofs: model.currentProofs
           }, [liftEffect3(function __do() {
             var v2 = typeset();
             return Nothing.value;
           })]);
         }
         ;
-        throw new Error("Failed pattern match at Main (line 66, column 5 - line 70, column 67): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 64, column 5 - line 68, column 67): " + [v1.constructor.name]);
       }
       ;
-      throw new Error("Failed pattern match at Main (line 58, column 16 - line 70, column 67): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Main (line 54, column 16 - line 68, column 67): " + [v.constructor.name]);
     };
   };
   var init3 = /* @__PURE__ */ function() {
     return {
-      phraseInput: "",
       currentPhrase: "",
-      typeInput: "",
       typeOfInterest: $$const(true),
       currentProofs: new Just([])
     };
@@ -31114,7 +31104,7 @@
     return "$$" + (showProof(prettyProofBuss)(p1) + "$$");
   };
   var view = function(model) {
-    return div_2([input2([type$prime("text"), placeholder("Enter a sentence"), value(model.phraseInput), onKeyup(PhraseInput.create)]), input2([type$prime("text"), placeholder("Filter by type"), value(model.typeInput), onKeyup(TypeInput.create)]), p2("current")([text("Showing parses for: " + model.currentPhrase)]), div4("parses")(map14(function(p1) {
+    return div_2([input2([type$prime("text"), id("phraseInput"), placeholder("Enter a sentence"), onKeyup(PhraseInput.create)]), input2([type$prime("text"), id("typeInput"), placeholder("Filter by type"), onKeyup(TypeInput.create)]), p2("current")([text("Showing parses for: " + model.currentPhrase)]), div4("parses")(map14(function(p1) {
       return div1([id("parse"), style2({
         paddingBottom: "24px"
       })])([text(p1)]);
