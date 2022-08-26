@@ -52,7 +52,7 @@ update :: Model -> Message -> Model /\ Array (Aff (Maybe Message))
 update model = case _ of
   PhraseInput ("Enter" /\ s) ->
                   model { currentPhrase = s, currentProofs = proofs (toUnfoldable $ fst model.lex) s }
-                  /\ [liftEffect $ typeset $> clearPhrase $> Nothing]
+                  /\ [liftEffect $ typeset *> clearPhrase $> Nothing]
 
   PhraseInput (_ /\ s) ->
                   model { currentProofs = Just [] }
@@ -71,9 +71,9 @@ update model = case _ of
   AddLex ("Enter" /\ s) ->
     case lexParse s of
       Left e   -> model
-                  /\ [liftEffect $ typeset $> lexFeedback e $> Nothing]
+                  /\ [liftEffect $ lexFeedback e $> Nothing]
       Right l  -> model { lex = (l : fst model.lex) /\ (snd model.lex) }
-                  /\ [liftEffect $ typeset $> lexFeedback "" $> Nothing]
+                  /\ [liftEffect $ typeset *> lexFeedback "" $> Nothing]
 
   AddLex (_ /\ s) ->
                   model

@@ -1157,6 +1157,7 @@
     };
   });
   var functorEffect = /* @__PURE__ */ $lazy_functorEffect(20);
+  var applyEffect = /* @__PURE__ */ $lazy_applyEffect(23);
 
   // output/Effect.Ref/foreign.js
   var _new = function(val) {
@@ -1523,13 +1524,13 @@
     return dict.foldr;
   };
   var traverse_ = function(dictApplicative) {
-    var applySecond5 = applySecond(dictApplicative.Apply0());
+    var applySecond6 = applySecond(dictApplicative.Apply0());
     var pure11 = pure(dictApplicative);
     return function(dictFoldable) {
       var foldr22 = foldr(dictFoldable);
       return function(f) {
         return foldr22(function($449) {
-          return applySecond5(f($449));
+          return applySecond6(f($449));
         })(pure11(unit));
       };
     };
@@ -32114,6 +32115,7 @@
   var toUnfoldable8 = /* @__PURE__ */ toUnfoldable(unfoldableList);
   var liftEffect3 = /* @__PURE__ */ liftEffect(monadEffectAff);
   var voidLeft6 = /* @__PURE__ */ voidLeft(functorEffect);
+  var applySecond5 = /* @__PURE__ */ applySecond(applyEffect);
   var eq4 = /* @__PURE__ */ eq(eqTy);
   var map16 = /* @__PURE__ */ map(functorTuple);
   var not2 = /* @__PURE__ */ not(heytingAlgebraBoolean);
@@ -32186,7 +32188,7 @@
           currentProofs: proofs(toUnfoldable8(fst(model.lex)))(v.value0.value1),
           lex: model.lex,
           typeOfInterest: model.typeOfInterest
-        }, [liftEffect3(voidLeft6(voidLeft6(typeset)(clearPhrase))(Nothing.value))]);
+        }, [liftEffect3(voidLeft6(applySecond5(typeset)(clearPhrase))(Nothing.value))]);
       }
       ;
       if (v instanceof PhraseInput) {
@@ -32211,10 +32213,10 @@
         ;
         if (v1 instanceof Right) {
           return new Tuple({
-            typeOfInterest: function($79) {
+            typeOfInterest: function($80) {
               return function(v3) {
                 return eq4(v3)(v1.value0);
-              }(getProofType($79));
+              }(getProofType($80));
             },
             currentPhrase: model.currentPhrase,
             currentProofs: model.currentProofs,
@@ -32237,7 +32239,7 @@
       if (v instanceof AddLex && v.value0.value0 === "Enter") {
         var v1 = lexParse2(v.value0.value1);
         if (v1 instanceof Left) {
-          return new Tuple(model, [liftEffect3(voidLeft6(voidLeft6(typeset)(lexFeedback(v1.value0)))(Nothing.value))]);
+          return new Tuple(model, [liftEffect3(voidLeft6(lexFeedback(v1.value0))(Nothing.value))]);
         }
         ;
         if (v1 instanceof Right) {
@@ -32246,7 +32248,7 @@
             currentPhrase: model.currentPhrase,
             currentProofs: model.currentProofs,
             typeOfInterest: model.typeOfInterest
-          }, [liftEffect3(voidLeft6(voidLeft6(typeset)(lexFeedback("")))(Nothing.value))]);
+          }, [liftEffect3(voidLeft6(applySecond5(typeset)(lexFeedback("")))(Nothing.value))]);
         }
         ;
         throw new Error("Failed pattern match at Main (line 72, column 5 - line 76, column 73): " + [v1.constructor.name]);
@@ -32281,8 +32283,8 @@
     }), placeholder("Enter a sentence"), onKeyup(PhraseInput.create)]), input2([type$prime("text"), id("typeInput"), placeholder("Filter by type"), onKeyup(TypeInput.create)]), button2([onClick(ToggleLex.value), style2({
       width: "100px"
     })])([text(function() {
-      var $77 = snd(model.lex);
-      if ($77) {
+      var $78 = snd(model.lex);
+      if ($78) {
         return "hide";
       }
       ;
@@ -32292,15 +32294,15 @@
         paddingBottom: "24px"
       })])([text(p22)]);
     })(fromMaybe(pure10("No parse"))(mapFlipped1(model.currentProofs)(function() {
-      var $80 = map23(displayProof);
-      var $81 = filter(model.typeOfInterest);
-      return function($82) {
-        return $80($81($82));
+      var $81 = map23(displayProof);
+      var $82 = filter(model.typeOfInterest);
+      return function($83) {
+        return $81($82($83));
       };
     }())))), div1([id("lexicon"), style2({
       visibility: function() {
-        var $78 = snd(model.lex);
-        if ($78) {
+        var $79 = snd(model.lex);
+        if ($79) {
           return "visible";
         }
         ;
