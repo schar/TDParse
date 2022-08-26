@@ -23,7 +23,7 @@ prettyTy :: Doc -> Ty -> Doc
 prettyTy a = case _ of
   E           -> text "e"
   T           -> text "t"
-  (Eff f t)   -> prettyF a f <+> showParam a t
+  (Eff f t)   -> prettyF a f <+> prettyParam a t
   (t1 :-> t2) ->
     case t1 of
       t3 :-> t4 -> parens (prettyTy a t1) <> a <> prettyTy a t2
@@ -32,13 +32,16 @@ prettyTy a = case _ of
 prettyF :: Doc -> F -> Doc
 prettyF a = case _ of
   S     -> text "S"
-  R r   -> text "R" -- <+> showParam a r
-  W w   -> text "W" -- <+> showParam a w
-  C r o -> text "C" -- <+> showParam a r <+> showParam a o
+  R r   -> text "R" -- <+> prettyParam a r
+  W w   -> text "W" -- <+> prettyParam a w
+  C r o -> text "C" -- <+> prettyParam a r <+> prettyParam a o
 
-showParam a r@(t1 :-> t2) = parens (prettyTy a r)
-showParam a r@(Eff f t)   = parens (prettyTy a r)
-showParam a r             = prettyTy a r
+prettyParam a r@(_ :-> _) = parens (prettyTy a r)
+prettyParam a r@(Eff _ _) = parens (prettyTy a r)
+prettyParam a r           = prettyTy a r
+
+showTy :: Doc -> Ty -> String
+showTy a = render 100 <<< prettyTy a
 
 arrow = text " -> "
 

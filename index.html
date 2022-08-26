@@ -8,11 +8,10 @@
 <meta property="og:title" content="Effect-driven parsing">
 <meta property="og:description" content="Effect-driven parsing">
 <link rel="stylesheet" href="site_files/style.css">
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/gh/aaaakshat/cm-web-fonts@latest/fonts.css">
 <script>
 MathJax = {
-  tex: {
-    inlineMath: [['$', '$'], ['\\(', '\\)']]
-  }
+  tex: {inlineMath: [['$', '$'], ['\\(', '\\)']]}
 };
 </script>
 <script type="text/javascript" id="MathJax-script" async
@@ -31,7 +30,18 @@ window.MathJax = {
 };
 </script>
 <style>
-  #parser {font-size: 14px};
+  body {font-family: "MJXTEX", monospace;}
+  #content {width: 90%; display: flex;}
+  #lexicon {width: auto; flex:none; order:1; margin-right: 12px}
+  #parses {
+      flex:auto;
+      min-width: 12em;
+      order:2;
+      overflow:auto;
+      border: 2px solid;
+  }
+  .parse {/* font-size: 12px; */ padding-bottom: 24px;}
+  .lexitem {/* font-size: 14px; */ font-family: "MJXTEX-T", monospace;}
 </style>
 
 </head>

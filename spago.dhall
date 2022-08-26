@@ -32,8 +32,6 @@ to generate this file without the comments in this block.
   , "transformers"
   , "tuples"
   , "unsafe-coerce"
-  , "web-dom"
-  , "web-html"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

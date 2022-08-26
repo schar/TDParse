@@ -47,7 +47,7 @@ lexicon =
   : ("some"      /\ singleton ( "some"      /\ Det   /\ ((E :-> T) :-> effS E)           ))
   : ("someone"   /\ singleton ( "someone"   /\ DP    /\ (effC T T E)                     ))
   : ("someone2"  /\ singleton ( "someone2"  /\ DP    /\ (effS (effW E E))                ))
-  : ("someone3"  /\ singleton ( "someone"   /\ DP    /\ (effS E)                         ))
+  : ("someone3"  /\ singleton ( "someone3"  /\ DP    /\ (effS E)                         ))
   : ("everyone"  /\ singleton ( "everyone"  /\ DP    /\ (effC T T E)                     ))
   : ("everyone2" /\ singleton ( "everyone2" /\ DP    /\ (effC T T (effW E E))            ))
   : ("tr"        /\ singleton ( "tr"        /\ DP    /\ (effR E E)                       ))

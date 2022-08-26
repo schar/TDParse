@@ -164,7 +164,7 @@
     return dict.pure;
   };
   var when = function(dictApplicative) {
-    var pure14 = pure(dictApplicative);
+    var pure13 = pure(dictApplicative);
     return function(v) {
       return function(v1) {
         if (v) {
@@ -172,7 +172,7 @@
         }
         ;
         if (!v) {
-          return pure14(unit);
+          return pure13(unit);
         }
         ;
         throw new Error("Failed pattern match at Control.Applicative (line 63, column 1 - line 63, column 63): " + [v.constructor.name, v1.constructor.name]);
@@ -181,10 +181,10 @@
   };
   var liftA1 = function(dictApplicative) {
     var apply2 = apply(dictApplicative.Apply0());
-    var pure14 = pure(dictApplicative);
+    var pure13 = pure(dictApplicative);
     return function(f) {
       return function(a) {
-        return apply2(pure14(f))(a);
+        return apply2(pure13(f))(a);
       };
     };
   };
@@ -274,7 +274,7 @@
     };
   };
   var sortByImpl = function() {
-    function mergeFromTo(compare4, fromOrdering, xs1, xs2, from3, to2) {
+    function mergeFromTo(compare4, fromOrdering, xs1, xs2, from3, to3) {
       var mid;
       var i;
       var j;
@@ -282,15 +282,15 @@
       var x;
       var y;
       var c;
-      mid = from3 + (to2 - from3 >> 1);
+      mid = from3 + (to3 - from3 >> 1);
       if (mid - from3 > 1)
         mergeFromTo(compare4, fromOrdering, xs2, xs1, from3, mid);
-      if (to2 - mid > 1)
-        mergeFromTo(compare4, fromOrdering, xs2, xs1, mid, to2);
+      if (to3 - mid > 1)
+        mergeFromTo(compare4, fromOrdering, xs2, xs1, mid, to3);
       i = from3;
       j = mid;
       k = from3;
-      while (i < mid && j < to2) {
+      while (i < mid && j < to3) {
         x = xs2[i];
         y = xs2[j];
         c = fromOrdering(compare4(x)(y));
@@ -305,7 +305,7 @@
       while (i < mid) {
         xs1[k++] = xs2[i++];
       }
-      while (j < to2) {
+      while (j < to3) {
         xs1[k++] = xs2[j++];
       }
     }
@@ -458,12 +458,12 @@
   // output/Control.Monad/index.js
   var ap = function(dictMonad) {
     var bind7 = bind(dictMonad.Bind1());
-    var pure10 = pure(dictMonad.Applicative0());
+    var pure11 = pure(dictMonad.Applicative0());
     return function(f) {
       return function(a) {
         return bind7(f)(function(f$prime) {
           return bind7(a)(function(a$prime) {
-            return pure10(f$prime(a$prime));
+            return pure11(f$prime(a$prime));
           });
         });
       };
@@ -1216,7 +1216,7 @@
 
   // output/Data.Array.ST/foreign.js
   var sortByImpl2 = function() {
-    function mergeFromTo(compare4, fromOrdering, xs1, xs2, from3, to2) {
+    function mergeFromTo(compare4, fromOrdering, xs1, xs2, from3, to3) {
       var mid;
       var i;
       var j;
@@ -1224,15 +1224,15 @@
       var x;
       var y;
       var c;
-      mid = from3 + (to2 - from3 >> 1);
+      mid = from3 + (to3 - from3 >> 1);
       if (mid - from3 > 1)
         mergeFromTo(compare4, fromOrdering, xs2, xs1, from3, mid);
-      if (to2 - mid > 1)
-        mergeFromTo(compare4, fromOrdering, xs2, xs1, mid, to2);
+      if (to3 - mid > 1)
+        mergeFromTo(compare4, fromOrdering, xs2, xs1, mid, to3);
       i = from3;
       j = mid;
       k = from3;
-      while (i < mid && j < to2) {
+      while (i < mid && j < to3) {
         x = xs2[i];
         y = xs2[j];
         c = fromOrdering(compare4(x)(y));
@@ -1247,7 +1247,7 @@
       while (i < mid) {
         xs1[k++] = xs2[i++];
       }
-      while (j < to2) {
+      while (j < to3) {
         xs1[k++] = xs2[j++];
       }
     }
@@ -1264,6 +1264,41 @@
       };
     };
   }();
+
+  // output/Data.HeytingAlgebra/foreign.js
+  var boolConj = function(b1) {
+    return function(b2) {
+      return b1 && b2;
+    };
+  };
+  var boolDisj = function(b1) {
+    return function(b2) {
+      return b1 || b2;
+    };
+  };
+  var boolNot = function(b) {
+    return !b;
+  };
+
+  // output/Data.HeytingAlgebra/index.js
+  var not = function(dict) {
+    return dict.not;
+  };
+  var disj = function(dict) {
+    return dict.disj;
+  };
+  var heytingAlgebraBoolean = {
+    ff: false,
+    tt: true,
+    implies: function(a) {
+      return function(b) {
+        return disj(heytingAlgebraBoolean)(not(heytingAlgebraBoolean)(a))(b);
+      };
+    },
+    conj: boolConj,
+    disj: boolDisj,
+    not: boolNot
+  };
 
   // output/Data.Foldable/foreign.js
   var foldrArray = function(f) {
@@ -1312,6 +1347,13 @@
   }();
   var snd = function(v) {
     return v.value1;
+  };
+  var functorTuple = {
+    map: function(f) {
+      return function(m) {
+        return new Tuple(m.value0, f(m.value1));
+      };
+    }
   };
   var fst = function(v) {
     return v.value0;
@@ -1407,13 +1449,13 @@
   };
   var traverse_ = function(dictApplicative) {
     var applySecond5 = applySecond(dictApplicative.Apply0());
-    var pure10 = pure(dictApplicative);
+    var pure11 = pure(dictApplicative);
     return function(dictFoldable) {
       var foldr22 = foldr(dictFoldable);
       return function(f) {
         return foldr22(function($449) {
           return applySecond5(f($449));
-        })(pure10(unit));
+        })(pure11(unit));
       };
     };
   };
@@ -1530,13 +1572,13 @@
     }
     return function(apply2) {
       return function(map15) {
-        return function(pure10) {
+        return function(pure11) {
           return function(f) {
             return function(array) {
               function go(bot, top3) {
                 switch (top3 - bot) {
                   case 0:
-                    return pure10([]);
+                    return pure11([]);
                   case 1:
                     return map15(array1)(f(array[bot]));
                   case 2:
@@ -1647,6 +1689,7 @@
   };
 
   // output/Data.Array/index.js
+  var intercalate1 = /* @__PURE__ */ intercalate2(foldableArray);
   var append2 = /* @__PURE__ */ append(semigroupArray);
   var zip = /* @__PURE__ */ function() {
     return zipWith(Tuple.create);
@@ -1709,6 +1752,9 @@
   var singleton2 = function(a) {
     return [a];
   };
+  var intercalate3 = function(dictMonoid) {
+    return intercalate1(dictMonoid);
+  };
   var fromFoldable = function(dictFoldable) {
     return fromFoldableImpl(foldr(dictFoldable));
   };
@@ -1758,10 +1804,10 @@
   };
   var many = function(dictAlternative) {
     var alt7 = alt(dictAlternative.Plus1().Alt0());
-    var pure14 = pure(dictAlternative.Applicative0());
+    var pure13 = pure(dictAlternative.Applicative0());
     return function(dictLazy) {
       return function(v) {
-        return alt7(some(dictAlternative)(dictLazy)(v))(pure14([]));
+        return alt7(some(dictAlternative)(dictLazy)(v))(pure13([]));
       };
     };
   };
@@ -1965,7 +2011,7 @@
       var Apply0 = dictApplicative.Apply0();
       var map15 = map(Apply0.Functor0());
       var lift22 = lift2(Apply0);
-      var pure14 = pure(dictApplicative);
+      var pure13 = pure(dictApplicative);
       return function(f) {
         var $298 = map15(foldl2(flip(Cons.create))(Nil.value));
         var $299 = foldl2(function(acc) {
@@ -1973,7 +2019,7 @@
           return function($302) {
             return $301(f($302));
           };
-        })(pure14(Nil.value));
+        })(pure13(Nil.value));
         return function($300) {
           return $298($299($300));
         };
@@ -2945,10 +2991,10 @@
     var catchError1 = catchError(dictMonadError);
     var Monad0 = dictMonadError.MonadThrow0().Monad0();
     var map15 = map(Monad0.Bind1().Apply0().Functor0());
-    var pure10 = pure(Monad0.Applicative0());
+    var pure11 = pure(Monad0.Applicative0());
     return function(a) {
       return catchError1(map15(Right.create)(a))(function($52) {
-        return pure10(Left.create($52));
+        return pure11(Left.create($52));
       });
     };
   };
@@ -3327,6 +3373,11 @@
       };
     };
   };
+  var split = function(sep) {
+    return function(s) {
+      return s.split(sep);
+    };
+  };
   var toLower = function(s) {
     return s.toLowerCase();
   };
@@ -3400,11 +3451,15 @@
 
   // output/Flame.Html.Attribute.Internal/foreign.js
   var styleData = 1;
+  var classData = 2;
   var propertyData = 3;
   function createProperty_(name2) {
     return function(value) {
       return [propertyData, name2, value];
     };
+  }
+  function createClass(array) {
+    return [classData, array];
   }
   function createStyle(object) {
     return [styleData, object];
@@ -3901,11 +3956,28 @@
   var toStyleList = function(dict) {
     return dict.toStyleList;
   };
+  var to = function(dict) {
+    return dict.to;
+  };
   var style = function(dictToStyleList) {
     var toStyleList1 = toStyleList(dictToStyleList);
     return function(record) {
       return createStyle(toStyleList1(record));
     };
+  };
+  var stringClassList = {
+    to: /* @__PURE__ */ function() {
+      var $41 = filter(function() {
+        var $44 = not(heytingAlgebraBoolean);
+        return function($45) {
+          return $44($$null($45));
+        };
+      }());
+      var $42 = split(" ");
+      return function($43) {
+        return $41($42($43));
+      };
+    }()
   };
   var createProperty = function(name1) {
     return function(value1) {
@@ -3945,6 +4017,13 @@
     ;
     throw new Error("Failed pattern match at Flame.Html.Attribute.Internal (line 92, column 1 - line 92, column 28): " + [name$prime.constructor.name]);
   };
+  var class$prime = function(dictToClassList) {
+    var $129 = map5(caseify);
+    var $130 = to(dictToClassList);
+    return function($131) {
+      return createClass($129($130($131)));
+    };
+  };
   var recordStyleList = function() {
     return {
       toStyleList: function() {
@@ -3966,7 +4045,7 @@
   var textNode = 1;
   var elementNode = 2;
   var styleData2 = 1;
-  var classData = 2;
+  var classData2 = 2;
   var propertyData2 = 3;
   var attributeData = 4;
   var keyData = 7;
@@ -4035,7 +4114,7 @@
             for (let key2 in dataOne)
               nodeData.styles[key2] = dataOne[key2];
             break;
-          case classData:
+          case classData2:
             if (nodeData.classes === void 0)
               nodeData.classes = [];
             nodeData.classes = nodeData.classes.concat(dataOne);
@@ -4122,6 +4201,11 @@
   var p = function(dictToNode) {
     return function(dictToNode1) {
       return createElement("p")(dictToNode)(dictToNode1);
+    };
+  };
+  var button = function(dictToNode) {
+    return function(dictToNode1) {
+      return createElement("button")(dictToNode)(dictToNode1);
     };
   };
   var arrayToNodeData = function(dictToNode) {
@@ -4352,11 +4436,11 @@
       var Alt0 = dictAlternative.Plus1().Alt0();
       var alt7 = alt(Alt0);
       var map15 = map(Alt0.Functor0());
-      var pure10 = pure(dictAlternative.Applicative0());
+      var pure11 = pure(dictAlternative.Applicative0());
       return function(p3) {
         var go = function(acc) {
-          return bind13(alt7(map15(Loop.create)(p3))(pure10(new Done(unit))))(function(aa) {
-            return pure10(bimap2(function(v) {
+          return bind13(alt7(map15(Loop.create)(p3))(pure11(new Done(unit))))(function(aa) {
+            return pure11(bimap2(function(v) {
               return new Cons(v, acc);
             })(function(v) {
               return reverse2(acc);
@@ -4381,10 +4465,10 @@
   };
   var many2 = function(dictAlternative) {
     var alt7 = alt(dictAlternative.Plus1().Alt0());
-    var pure10 = pure(dictAlternative.Applicative0());
+    var pure11 = pure(dictAlternative.Applicative0());
     return function(dictLazy) {
       return function(v) {
-        return alt7(some2(dictAlternative)(dictLazy)(v))(pure10(Nil.value));
+        return alt7(some2(dictAlternative)(dictLazy)(v))(pure11(Nil.value));
       };
     };
   };
@@ -5810,7 +5894,13 @@
   };
 
   // output/Flame.Html.Event/foreign.js
+  var messageEventData = 5;
   var rawEventData = 6;
+  function createEvent_(name2) {
+    return function(message2) {
+      return [messageEventData, name2, message2];
+    };
+  }
   function createRawEvent_(name2) {
     return function(handler) {
       return [rawEventData, name2, handler];
@@ -5847,6 +5937,12 @@
   var onKeyup = function(constructor) {
     return createRawEvent("keyup")(keyInput(constructor));
   };
+  var createEvent = function(name2) {
+    return function(message2) {
+      return createEvent_(name2)(message2);
+    };
+  };
+  var onClick = /* @__PURE__ */ createEvent("click");
 
   // output/Mathjax/foreign.js
   var typeset = function() {
@@ -5910,11 +6006,11 @@
     };
   };
   var applicativeStateT = function(dictMonad) {
-    var pure10 = pure(dictMonad.Applicative0());
+    var pure11 = pure(dictMonad.Applicative0());
     return {
       pure: function(a) {
         return function(s) {
-          return pure10(new Tuple(a, s));
+          return pure11(new Tuple(a, s));
         };
       },
       Apply0: function() {
@@ -5923,12 +6019,12 @@
     };
   };
   var monadStateStateT = function(dictMonad) {
-    var pure10 = pure(dictMonad.Applicative0());
+    var pure11 = pure(dictMonad.Applicative0());
     var monadStateT1 = monadStateT(dictMonad);
     return {
       state: function(f) {
         return function($200) {
-          return pure10(f($200));
+          return pure11(f($200));
         };
       },
       Monad0: function() {
@@ -5938,7 +6034,7 @@
   };
 
   // output/Data.Show.Generic/foreign.js
-  var intercalate4 = function(separator) {
+  var intercalate5 = function(separator) {
     return function(xs) {
       return xs.join(separator);
     };
@@ -5985,7 +6081,7 @@
             return ctor;
           }
           ;
-          return "(" + (intercalate4(" ")(append3([ctor])(v1)) + ")");
+          return "(" + (intercalate5(" ")(append3([ctor])(v1)) + ")");
         }
       };
     };
@@ -6370,7 +6466,7 @@
     var discard1 = discard2(dictBind);
     return function(dictMonadState) {
       var gets2 = gets(dictMonadState);
-      var pure10 = pure(dictMonadState.Monad0().Applicative0());
+      var pure11 = pure(dictMonadState.Monad0().Applicative0());
       var modify_2 = modify_(dictMonadState);
       return function(dictOrd) {
         var ordTuple2 = ordTuple(dictOrd);
@@ -6382,12 +6478,12 @@
             return function(v) {
               return bind7(gets2(lookup5(new Tuple(v.value0, v.value1.value0))))(function(v1) {
                 if (v1 instanceof Just) {
-                  return pure10(v1.value0);
+                  return pure11(v1.value0);
                 }
                 ;
                 return bind7(f(v))(function(y) {
                   return discard1(modify_2(insert5(new Tuple(v.value0, v.value1.value0))(y)))(function() {
-                    return pure10(y);
+                    return pure11(y);
                   });
                 });
               });
@@ -7076,7 +7172,7 @@
     var pure22 = pure(Applicative0);
     var Bind1 = dictMonad.Bind1();
     var bind22 = bind(Bind1);
-    var map23 = map(Bind1.Apply0().Functor0());
+    var map24 = map(Bind1.Apply0().Functor0());
     var traverse12 = traverse2(Applicative0);
     return function(v) {
       return function(v1) {
@@ -7106,7 +7202,7 @@
               return pure4(new Tuple(new Tuple(v3.value0, new Tuple((v3.value0 + i | 0) - 1 | 0, v4.value0)), new Tuple(v3.value0 + i | 0, new Tuple(v3.value1.value0, v4.value1))));
             });
           };
-          return map23(concat2)(traverse12(help)(bisect(v2)));
+          return map24(concat2)(traverse12(help)(bisect(v2)));
         };
       };
     };
@@ -7809,7 +7905,7 @@
         return text4(show4(v));
       }
       ;
-      throw new Error("Failed pattern match at TDPretty (line 60, column 1 - line 60, column 33): " + [norm.constructor.name, v.constructor.name]);
+      throw new Error("Failed pattern match at TDPretty (line 63, column 1 - line 63, column 33): " + [norm.constructor.name, v.constructor.name]);
     };
   };
   var showProof = function(disp) {
@@ -7869,7 +7965,7 @@
       return appendWithSpace2(text4("$\\downarrow$,"))(showMode2(v.value0));
     }
     ;
-    throw new Error("Failed pattern match at TDPretty (line 46, column 12 - line 58, column 50): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDPretty (line 49, column 12 - line 61, column 50): " + [v.constructor.name]);
   };
   var prettyF = function(a) {
     return function(v) {
@@ -7892,7 +7988,32 @@
       throw new Error("Failed pattern match at TDPretty (line 33, column 13 - line 37, column 20): " + [v.constructor.name]);
     };
   };
-  var showParam = function(a) {
+  var prettyTy = function(a) {
+    return function(v) {
+      if (v instanceof E) {
+        return text4("e");
+      }
+      ;
+      if (v instanceof T) {
+        return text4("t");
+      }
+      ;
+      if (v instanceof Eff) {
+        return appendWithSpace2(prettyF(a)(v.value0))(prettyParam(a)(v.value1));
+      }
+      ;
+      if (v instanceof Arr) {
+        if (v.value0 instanceof Arr) {
+          return append5(parens(prettyTy(a)(v.value0)))(append5(a)(prettyTy(a)(v.value1)));
+        }
+        ;
+        return append5(prettyTy(a)(v.value0))(append5(a)(prettyTy(a)(v.value1)));
+      }
+      ;
+      throw new Error("Failed pattern match at TDPretty (line 23, column 14 - line 30, column 55): " + [v.constructor.name]);
+    };
+  };
+  var prettyParam = function(a) {
     return function(v) {
       if (v instanceof Arr) {
         return parens(prettyTy(a)(v));
@@ -7905,29 +8026,11 @@
       return prettyTy(a)(v);
     };
   };
-  var prettyTy = function(a) {
-    return function(v) {
-      if (v instanceof E) {
-        return text4("e");
-      }
-      ;
-      if (v instanceof T) {
-        return text4("t");
-      }
-      ;
-      if (v instanceof Eff) {
-        return appendWithSpace2(prettyF(a)(v.value0))(showParam(a)(v.value1));
-      }
-      ;
-      if (v instanceof Arr) {
-        if (v.value0 instanceof Arr) {
-          return append5(parens(prettyTy(a)(v.value0)))(append5(a)(prettyTy(a)(v.value1)));
-        }
-        ;
-        return append5(prettyTy(a)(v.value0))(append5(a)(prettyTy(a)(v.value1)));
-      }
-      ;
-      throw new Error("Failed pattern match at TDPretty (line 23, column 14 - line 30, column 55): " + [v.constructor.name]);
+  var showTy = function(a) {
+    var $102 = render3(100);
+    var $103 = prettyTy(a);
+    return function($104) {
+      return $102($103($104));
     };
   };
   var arrow = /* @__PURE__ */ text4(" -> ");
@@ -8014,7 +8117,7 @@
     };
   };
   var lexicon = /* @__PURE__ */ function() {
-    return new Cons(new Tuple("ann", singleton7(new Tuple("ann", new Tuple(DP.value, E.value)))), new Cons(new Tuple("mary", singleton7(new Tuple("mary", new Tuple(DP.value, effW(E.value)(E.value))))), new Cons(new Tuple("maryaling", singleton7(new Tuple("(m--ling)", new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("sassyacat", singleton7(new Tuple("(s--cat)", new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("left", singleton7(new Tuple("left", new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("whistled", singleton7(new Tuple("whistled", new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("saw", singleton7(new Tuple("saw", new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("chased", singleton7(new Tuple("chased", new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("said", singleton7(new Tuple("said", new Tuple(AV.value, new Arr(T.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("gave", singleton7(new Tuple("gave", new Tuple(DV.value, new Arr(E.value, new Arr(E.value, new Arr(E.value, T.value))))))), new Cons(new Tuple("she", singleton7(new Tuple("she", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("her", singleton7(new Tuple("her", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("she2", singleton7(new Tuple("she2", new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("her2", singleton7(new Tuple("her2", new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("mom", singleton7(new Tuple("mom", new Tuple(TN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("the", singleton7(new Tuple("the", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), E.value))))), new Cons(new Tuple("very", singleton7(new Tuple("very", new Tuple(Deg.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value)))))), new Cons(new Tuple("every", singleton7(new Tuple("every", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effC(T.value)(T.value)(E.value)))))), new Cons(new Tuple("everyP", singleton7(new Tuple("everyP", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), new Arr(new Arr(E.value, T.value), T.value)))))), new Cons(new Tuple("big", singleton7(new Tuple("big", new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("happy", singleton7(new Tuple("happy", new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("dog", singleton7(new Tuple("dog", new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("cat", singleton7(new Tuple("cat", new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("near", singleton7(new Tuple("near", new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("some", singleton7(new Tuple("some", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(E.value)))))), new Cons(new Tuple("someone", singleton7(new Tuple("someone", new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("someone2", singleton7(new Tuple("someone2", new Tuple(DP.value, effS(effW(E.value)(E.value)))))), new Cons(new Tuple("someone3", singleton7(new Tuple("someone", new Tuple(DP.value, effS(E.value))))), new Cons(new Tuple("everyone", singleton7(new Tuple("everyone", new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("everyone2", singleton7(new Tuple("everyone2", new Tuple(DP.value, effC(T.value)(T.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("tr", singleton7(new Tuple("tr", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("and", singleton7(new Tuple("and", new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("with", singleton7(new Tuple("with", new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("eclo", singleton7(new Tuple("eclo", new Tuple(Cmp.value, new Arr(effS(T.value), T.value))))), Nil.value))))))))))))))))))))))))))))))))));
+    return new Cons(new Tuple("ann", singleton7(new Tuple("ann", new Tuple(DP.value, E.value)))), new Cons(new Tuple("mary", singleton7(new Tuple("mary", new Tuple(DP.value, effW(E.value)(E.value))))), new Cons(new Tuple("maryaling", singleton7(new Tuple("(m--ling)", new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("sassyacat", singleton7(new Tuple("(s--cat)", new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("left", singleton7(new Tuple("left", new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("whistled", singleton7(new Tuple("whistled", new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("saw", singleton7(new Tuple("saw", new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("chased", singleton7(new Tuple("chased", new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("said", singleton7(new Tuple("said", new Tuple(AV.value, new Arr(T.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("gave", singleton7(new Tuple("gave", new Tuple(DV.value, new Arr(E.value, new Arr(E.value, new Arr(E.value, T.value))))))), new Cons(new Tuple("she", singleton7(new Tuple("she", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("her", singleton7(new Tuple("her", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("she2", singleton7(new Tuple("she2", new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("her2", singleton7(new Tuple("her2", new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("mom", singleton7(new Tuple("mom", new Tuple(TN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("the", singleton7(new Tuple("the", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), E.value))))), new Cons(new Tuple("very", singleton7(new Tuple("very", new Tuple(Deg.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value)))))), new Cons(new Tuple("every", singleton7(new Tuple("every", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effC(T.value)(T.value)(E.value)))))), new Cons(new Tuple("everyP", singleton7(new Tuple("everyP", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), new Arr(new Arr(E.value, T.value), T.value)))))), new Cons(new Tuple("big", singleton7(new Tuple("big", new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("happy", singleton7(new Tuple("happy", new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("dog", singleton7(new Tuple("dog", new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("cat", singleton7(new Tuple("cat", new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("near", singleton7(new Tuple("near", new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("some", singleton7(new Tuple("some", new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(E.value)))))), new Cons(new Tuple("someone", singleton7(new Tuple("someone", new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("someone2", singleton7(new Tuple("someone2", new Tuple(DP.value, effS(effW(E.value)(E.value)))))), new Cons(new Tuple("someone3", singleton7(new Tuple("someone3", new Tuple(DP.value, effS(E.value))))), new Cons(new Tuple("everyone", singleton7(new Tuple("everyone", new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("everyone2", singleton7(new Tuple("everyone2", new Tuple(DP.value, effC(T.value)(T.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("tr", singleton7(new Tuple("tr", new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("and", singleton7(new Tuple("and", new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("with", singleton7(new Tuple("with", new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("eclo", singleton7(new Tuple("eclo", new Tuple(Cmp.value, new Arr(effS(T.value), T.value))))), Nil.value))))))))))))))))))))))))))))))))));
   }();
 
   // output/Parsing/index.js
@@ -8257,7 +8360,7 @@
   var runParserT$prime = function(dictMonadRec) {
     var Monad0 = dictMonadRec.Monad0();
     var map15 = map(Monad0.Bind1().Apply0().Functor0());
-    var pure14 = pure(Monad0.Applicative0());
+    var pure13 = pure(Monad0.Applicative0());
     var tailRecM4 = tailRecM(dictMonadRec);
     return function(state1) {
       return function(v) {
@@ -8278,7 +8381,7 @@
             ;
             if (v1 instanceof Stop) {
               $tco_done = true;
-              return pure14(new Done(new Tuple(v1.value1, v1.value0)));
+              return pure13(new Done(new Tuple(v1.value1, v1.value0)));
             }
             ;
             throw new Error("Failed pattern match at Parsing (line 144, column 13 - line 150, column 32): " + [v1.constructor.name]);
@@ -8411,14 +8514,14 @@
     return $$try3(alt2(applySecond2($$try3(p3))(fail("Negated parser succeeded")))(pure6(unit)));
   };
   var choice = function(dictFoldable) {
-    var go = function(p1) {
+    var go = function(p12) {
       return function(v) {
         if (v instanceof Nothing) {
-          return new Just(p1);
+          return new Just(p12);
         }
         ;
         if (v instanceof Just) {
-          return new Just(alt2(p1)(v.value0));
+          return new Just(alt2(p12)(v.value0));
         }
         ;
         throw new Error("Failed pattern match at Parsing.Combinators (line 357, column 11 - line 359, column 32): " + [v.constructor.name]);
@@ -31007,17 +31110,24 @@
   var liftEffect3 = /* @__PURE__ */ liftEffect(monadEffectAff);
   var voidLeft4 = /* @__PURE__ */ voidLeft(functorEffect);
   var eq4 = /* @__PURE__ */ eq(eqTy);
+  var map14 = /* @__PURE__ */ map(functorTuple);
+  var not2 = /* @__PURE__ */ not(heytingAlgebraBoolean);
+  var intercalate6 = /* @__PURE__ */ intercalate3(monoidString);
+  var mapFlipped3 = /* @__PURE__ */ mapFlipped(functorArray);
   var arrayToNodeData2 = /* @__PURE__ */ arrayToNodeData(htmlToHtml);
   var div_2 = /* @__PURE__ */ div_(arrayToNodeData2);
   var arrayToNodeData1 = /* @__PURE__ */ arrayToNodeData(nodeDataToNodedata);
   var input2 = /* @__PURE__ */ input(arrayToNodeData1);
+  var style2 = /* @__PURE__ */ style(/* @__PURE__ */ recordStyleList());
+  var button2 = /* @__PURE__ */ button(arrayToNodeData1)(arrayToNodeData2);
   var p2 = /* @__PURE__ */ p(stringToNodeData)(arrayToNodeData2);
   var div4 = /* @__PURE__ */ div3(stringToNodeData)(arrayToNodeData2);
-  var map14 = /* @__PURE__ */ map(functorArray);
+  var map23 = /* @__PURE__ */ map(functorArray);
   var div1 = /* @__PURE__ */ div3(arrayToNodeData1)(arrayToNodeData2);
-  var style2 = /* @__PURE__ */ style(/* @__PURE__ */ recordStyleList());
-  var pure13 = /* @__PURE__ */ pure(applicativeArray);
-  var mapFlipped3 = /* @__PURE__ */ mapFlipped(functorMaybe);
+  var class$prime2 = /* @__PURE__ */ class$prime(stringClassList);
+  var pure10 = /* @__PURE__ */ pure(applicativeArray);
+  var mapFlipped1 = /* @__PURE__ */ mapFlipped(functorMaybe);
+  var p1 = /* @__PURE__ */ p(arrayToNodeData1)(arrayToNodeData2);
   var PhraseInput = /* @__PURE__ */ function() {
     function PhraseInput2(value0) {
       this.value0 = value0;
@@ -31038,6 +31148,13 @@
     };
     return TypeInput2;
   }();
+  var ToggleLex = /* @__PURE__ */ function() {
+    function ToggleLex2() {
+    }
+    ;
+    ToggleLex2.value = new ToggleLex2();
+    return ToggleLex2;
+  }();
   var proofs = function(s) {
     return map13(fromFoldable8)(prove(productions)(lexicon)(s));
   };
@@ -31047,14 +31164,16 @@
         return new Tuple({
           currentPhrase: v.value0.value1,
           currentProofs: proofs(v.value0.value1),
+          lex: model.lex,
           typeOfInterest: model.typeOfInterest
-        }, [liftEffect3(voidLeft4(typeset)(Nothing.value)), liftEffect3(voidLeft4(clearPhrase)(Nothing.value))]);
+        }, [liftEffect3(voidLeft4(voidLeft4(typeset)(clearPhrase))(Nothing.value))]);
       }
       ;
       if (v instanceof PhraseInput) {
         return new Tuple({
           currentProofs: new Just([]),
           currentPhrase: model.currentPhrase,
+          lex: model.lex,
           typeOfInterest: model.typeOfInterest
         }, []);
       }
@@ -31065,56 +31184,89 @@
           return new Tuple({
             typeOfInterest: $$const(true),
             currentPhrase: model.currentPhrase,
-            currentProofs: model.currentProofs
-          }, [liftEffect3(function __do() {
-            var v2 = typeset();
-            return Nothing.value;
-          })]);
+            currentProofs: model.currentProofs,
+            lex: model.lex
+          }, [liftEffect3(voidLeft4(typeset)(Nothing.value))]);
         }
         ;
         if (v1 instanceof Right) {
           return new Tuple({
-            typeOfInterest: function($46) {
+            typeOfInterest: function($64) {
               return function(v3) {
                 return eq4(v3)(v1.value0);
-              }(getProofType($46));
+              }(getProofType($64));
             },
             currentPhrase: model.currentPhrase,
-            currentProofs: model.currentProofs
-          }, [liftEffect3(function __do() {
-            var v2 = typeset();
-            return Nothing.value;
-          })]);
+            currentProofs: model.currentProofs,
+            lex: model.lex
+          }, [liftEffect3(voidLeft4(typeset)(Nothing.value))]);
         }
         ;
-        throw new Error("Failed pattern match at Main (line 64, column 5 - line 68, column 67): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 61, column 5 - line 65, column 55): " + [v1.constructor.name]);
       }
       ;
-      throw new Error("Failed pattern match at Main (line 54, column 16 - line 68, column 67): " + [v.constructor.name]);
+      if (v instanceof ToggleLex) {
+        return new Tuple({
+          lex: map14(not2)(model.lex),
+          currentPhrase: model.currentPhrase,
+          currentProofs: model.currentProofs,
+          typeOfInterest: model.typeOfInterest
+        }, [liftEffect3(voidLeft4(typeset)(Nothing.value))]);
+      }
+      ;
+      throw new Error("Failed pattern match at Main (line 51, column 16 - line 68, column 55): " + [v.constructor.name]);
     };
   };
   var init3 = /* @__PURE__ */ function() {
     return {
       currentPhrase: "",
       typeOfInterest: $$const(true),
-      currentProofs: new Just([])
+      currentProofs: new Just([]),
+      lex: new Tuple(fromFoldable8(lexicon), false)
     };
   }();
-  var displayProof = function(p1) {
-    return "$$" + (showProof(prettyProofBuss)(p1) + "$$");
+  var displayProof = function(p22) {
+    return "$$" + (showProof(prettyProofBuss)(p22) + "$$");
+  };
+  var displayLexItem = function(v) {
+    return v.value0 + (": " + intercalate6("; ")(mapFlipped3(fromFoldable8(v.value1))(function(v1) {
+      return showTy(arrow)(v1.value1.value1);
+    })));
   };
   var view = function(model) {
-    return div_2([input2([type$prime("text"), id("phraseInput"), placeholder("Enter a sentence"), onKeyup(PhraseInput.create)]), input2([type$prime("text"), id("typeInput"), placeholder("Filter by type"), onKeyup(TypeInput.create)]), p2("current")([text("Showing parses for: " + model.currentPhrase)]), div4("parses")(map14(function(p1) {
-      return div1([id("parse"), style2({
+    return div_2([input2([type$prime("text"), id("phraseInput"), style2({
+      width: "500px"
+    }), placeholder("Enter a sentence"), onKeyup(PhraseInput.create)]), input2([type$prime("text"), id("typeInput"), placeholder("Filter by type"), onKeyup(TypeInput.create)]), button2([onClick(ToggleLex.value), style2({
+      width: "100px"
+    })])([text(function() {
+      var $62 = snd(model.lex);
+      if ($62) {
+        return "hide";
+      }
+      ;
+      return "show";
+    }() + " lexicon")]), p2("current")([text("Showing parses for: " + model.currentPhrase)]), div4("content")([div4("parses")(map23(function(p22) {
+      return div1([class$prime2("parse"), style2({
         paddingBottom: "24px"
-      })])([text(p1)]);
-    })(fromMaybe(pure13("No parse"))(mapFlipped3(model.currentProofs)(function() {
-      var $47 = map14(displayProof);
-      var $48 = filter(model.typeOfInterest);
-      return function($49) {
-        return $47($48($49));
+      })])([text(p22)]);
+    })(fromMaybe(pure10("No parse"))(mapFlipped1(model.currentProofs)(function() {
+      var $65 = map23(displayProof);
+      var $66 = filter(model.typeOfInterest);
+      return function($67) {
+        return $65($66($67));
       };
-    }()))))]);
+    }())))), div1([id("lexicon"), style2({
+      visibility: function() {
+        var $63 = snd(model.lex);
+        if ($63) {
+          return "visible";
+        }
+        ;
+        return "collapse";
+      }()
+    })])(map23(function(l) {
+      return p1([class$prime2("lexitem")])([text(displayLexItem(l))]);
+    })(fst(model.lex)))])]);
   };
   var main = /* @__PURE__ */ function() {
     return mount_("#parser")({
