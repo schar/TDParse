@@ -5,4 +5,7 @@ var typeset = function () {
 var clearPhrase = function () {
   document.getElementById("phraseInput").value = "";
 };
-export{typeset, clearPhrase};
+var lexFeedback = function (m) {
+  document.getElementById("lexFeedback").textContent = m;
+};
+export{typeset, clearPhrase, lexFeedback};

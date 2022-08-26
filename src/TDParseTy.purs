@@ -1,15 +1,27 @@
 module TDParseTy where
 
-import Prelude hiding (between)
+import Data.Either
+import Data.Tuple
 import Parsing
-import Parsing.Expr
 import Parsing.Combinators
-import Parsing.Language (haskellDef)
-import Parsing.Token (makeTokenParser)
-import Control.Lazy (fix)
+import Parsing.Expr
+import Prelude hiding (between)
 import TDParseCFG
 
+import Control.Lazy (fix)
+import Data.Enum (enumFromTo)
+import Parsing.Language (haskellDef)
+import Parsing.Token (makeTokenParser)
 
+
+
+-- The lexer
+tokenParser = makeTokenParser haskellDef
+parens      = tokenParser.parens
+symbol      = tokenParser.symbol
+whiteSpace  = tokenParser.whiteSpace
+identifier  = tokenParser.identifier
+comma       = tokenParser.comma
 
 effCons = choice [ mkOp "C" (effC T T), mkOp "S" effS, mkOp "W" (effW E), mkOp "R" (effR E) ]
 atom = choice [ mkOp "e" E, mkOp "E" E, mkOp "t" T, mkOp "T" T ]
@@ -22,14 +34,24 @@ table = [ [ prefix effCons ]
         , [ binary "->" Arr AssocRight ]
         ]
 
-exp p = buildExprParser table (atom <|> parens p)
+tyExp p = buildExprParser table (atom <|> parens p <|> fail "Unrecognized type")
+tyParser = whiteSpace *> fix tyExp
 
-expr = whiteSpace *> fix exp
+tyParse t = runParser t tyParser
 
--- The lexer
-tokenParser = makeTokenParser haskellDef
-parens      = tokenParser.parens
-symbol      = tokenParser.symbol
-whiteSpace  = tokenParser.whiteSpace
+cats :: Array (Tuple String Cat)
+cats = map (\c -> Tuple (show c) c) $ enumFromTo bottom top
 
-tyParse t = runParser t expr
+catParser = choice $ map (\(Tuple s c) -> symbol s $> c) cats
+
+lexParser = parens do
+  s <- identifier
+  void comma
+  c <- catParser <|> fail "Unrecognized category"
+  void comma
+  t <- tyParser <|> fail "Unrecognized type"
+  pure $ Tuple s (pure $ Tuple s (Tuple c t))
+
+lexParse w = case runParser w lexParser of
+  Left e  -> Left (parseErrorMessage e)
+  Right a -> Right a

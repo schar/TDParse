@@ -33,6 +33,7 @@ data Message
   = PhraseInput (Key /\ String)
   | TypeInput (Key /\ String)
   | ToggleLex
+  | AddLex (Key /\ String)
 
 -- | Initial state of the app
 init :: Model
@@ -43,14 +44,14 @@ init =
   , lex: fromFoldable Demo.lexicon /\ false
   }
 
-proofs :: String -> Maybe (Array Proof)
-proofs s = fromFoldable <$> prove Demo.productions Demo.lexicon s
+proofs :: Lexicon -> String -> Maybe (Array Proof)
+proofs l s = fromFoldable <$> prove Demo.productions l s
 
 -- | `update` is called to handle events
 update :: Model -> Message -> Model /\ Array (Aff (Maybe Message))
 update model = case _ of
   PhraseInput ("Enter" /\ s) ->
-                  model { currentPhrase = s, currentProofs = proofs s }
+                  model { currentPhrase = s, currentProofs = proofs (toUnfoldable $ fst model.lex) s }
                   /\ [liftEffect $ typeset $> clearPhrase $> Nothing]
 
   PhraseInput (_ /\ s) ->
@@ -66,6 +67,17 @@ update model = case _ of
 
   ToggleLex ->    model { lex = not <$> model.lex }
                   /\ [liftEffect $ typeset $> Nothing]
+
+  AddLex ("Enter" /\ s) ->
+    case lexParse s of
+      Left e   -> model
+                  /\ [liftEffect $ typeset $> lexFeedback e $> Nothing]
+      Right l  -> model { lex = (l : fst model.lex) /\ (snd model.lex) }
+                  /\ [liftEffect $ typeset $> lexFeedback "" $> Nothing]
+
+  AddLex (_ /\ s) ->
+                  model
+                  /\ []
 
 -- | `view` updates the app markup whenever the model is updated
 view :: Model -> Html Message
@@ -87,6 +99,14 @@ view model =
           map (\p -> HE.div [HA.class' "parse", HA.style {paddingBottom: "24px"}] [HE.text p]) $
             fromMaybe (pure "No parse") $ model.currentProofs <#> (map displayProof <<< filter model.typeOfInterest)
       , HE.div [HA.id "lexicon", HA.style {visibility: if snd (model.lex) then "visible" else "collapse"}] $
+          [HE.p [HA.style {marginBottom: "0px"}] [HE.text "Add item: ", HE.span' "lexFeedback"]]
+          <>
+          [ HE.input
+            [ HA.type' "text", HA.id "lexname", HA.style {marginBottom: "2em"}, HA.placeholder "(name, cat, type)"
+            , HA.onKeyup AddLex
+            ]
+          ]
+          <>
           map (\l -> HE.p [HA.class' "lexitem"] [HE.text $ displayLexItem l]) (fst model.lex)
       ]
     ]

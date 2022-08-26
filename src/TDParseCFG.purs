@@ -11,6 +11,10 @@ import Prelude hiding ((#))
 
 import Control.Alternative (guard)
 import Control.Monad (join)
+import Data.Enum
+import Data.Bounded
+import Data.Bounded.Generic (genericBottom, genericTop)
+import Data.Enum.Generic (genericCardinality, genericFromEnum, genericPred, genericSucc, genericToEnum)
 import Data.Foldable (lookup)
 import Data.Generic.Rep (class Generic)
 import Data.Maybe (fromMaybe)
@@ -36,9 +40,20 @@ data Cat
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
 
 derive instance Eq Cat
+derive instance Ord Cat
 derive instance Generic Cat _
 instance Show Cat where
   show = genericShow
+instance Enum Cat where
+  succ = genericSucc
+  pred = genericPred
+instance Bounded Cat where
+  top = genericTop
+  bottom = genericBottom
+-- instance BoundedEnum Cat where
+--   cardinality = genericCardinality
+--   toEnum = genericToEnum
+--   fromEnum = genericFromEnum
 
 -- semantic types
 data Ty
