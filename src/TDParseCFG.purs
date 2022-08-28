@@ -242,11 +242,11 @@ combine l r = join $
 
 --   -- additionally, if both daughters are Applicative, then see if there's
 --   -- some mode `op` that would combine their underlying types
-  <> case l,r of
-       Eff f a, Eff g b | applicative f -> do (op /\ c) <- combine a b
-                                              h <- combineFs f g
-                                              pure (A op /\ Eff h c)
-       _      , _                       -> Nil
+  -- <> case l,r of
+  --      Eff f a, Eff g b | applicative f -> do (op /\ c) <- combine a b
+  --                                             h <- combineFs f g
+  --                                             pure (A op /\ Eff h c)
+  --      _      , _                       -> Nil
 
   <> case l,r of
        Eff f a :-> b, _ -> combine (a :-> b) r <#> \(op /\ c) -> (UR op /\ c)
