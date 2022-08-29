@@ -269,11 +269,14 @@ addD = \case
 
 sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
 sweepSpurious ops = foldr filter ops [urll, murr, mrmr, mull, mlml]
-  where urll (m,t) = not $ isInfixOf (init $ show (UR (MR FA))) (show m)
-        murr (m,t) = not $ isInfixOf (init $ show (J (MR (MR FA)))) (show m)
-        mrmr (m,t) = not $ isInfixOf (init $ show (J (MR (J (MR FA))))) (show m)
-        mull (m,t) = not $ isInfixOf (init $ show (J (ML (ML FA)))) (show m)
-        mlml (m,t) = not $ isInfixOf (init $ show (J (ML (J (ML FA))))) (show m)
+  where
+    haystack `contains` needle = init (show needle) `isInfixOf` (show haystack)
+
+    urll (m,t) = not $ m `contains` UR (MR FA)
+    murr (m,t) = not $ m `contains` J (MR (MR FA))
+    mrmr (m,t) = not $ m `contains` J (MR (J (MR FA)))
+    mull (m,t) = not $ m `contains` J (ML (ML FA))
+    mlml (m,t) = not $ m `contains` J (ML (J (ML FA)))
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
