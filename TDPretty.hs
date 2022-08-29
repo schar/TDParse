@@ -57,8 +57,8 @@ prettyMode = \case
   FA     -> "\\comb{>}"
   PM     -> "\\comb{PM}"
   FC     -> "\\comb{FC}"
-  FL op  -> "\\comb{L}," <+> prettyMode op
-  FR op  -> "\\comb{R}," <+> prettyMode op
+  ML op  -> "\\comb{L}," <+> prettyMode op
+  MR op  -> "\\comb{R}," <+> prettyMode op
   UL op  -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
   UR op  -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
   A op   -> "\\comb{A}," <+> prettyMode op
