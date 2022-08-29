@@ -4,6 +4,7 @@
 module TDParseCFG where
 
 import Data.List
+import Data.String as DS
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
@@ -50,10 +51,6 @@ instance Enum Cat where
 instance Bounded Cat where
   top = genericTop
   bottom = genericBottom
--- instance BoundedEnum Cat where
---   cardinality = genericCardinality
---   toEnum = genericToEnum
---   fromEnum = genericFromEnum
 
 -- semantic types
 data Ty
@@ -144,7 +141,7 @@ instance Show Sem where
 -- Modes of combination
 data Mode
   = FA | BA | PM | FC -- Base        > < ^
-  | LR Mode | LL Mode -- Functor     <$>
+  | MR Mode | ML Mode -- Functor     map
   | UR Mode | UL Mode -- Applicative pure
   | A Mode            -- Applicative <*>
   | J Mode            -- Monad       join
@@ -153,8 +150,19 @@ data Mode
 derive instance Eq Mode
 derive instance Generic Mode _
 instance Show Mode where
-  show t = genericShow t
-
+  show = case _ of
+    FA      -> ">"
+    BA      -> "<"
+    PM      -> "&"
+    FC      -> "."
+    MR op   -> "R," <> show op
+    ML op   -> "L," <> show op
+    UL op   -> "UL," <> show op
+    UR op   -> "UR," <> show op
+    A op    -> "A," <> show op
+    J op    -> "J," <> show op
+    Eps op  -> "Eps," <> show op
+    D op    -> "D," <> show op
 
 {- Type classes -}
 
@@ -224,7 +232,7 @@ combineFs = case _,_ of
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
 combine :: Ty -> Ty -> List (Mode /\ Ty)
-combine l r = join $
+combine l r = sweepSpurious <<< join $
 
   -- for starters, try the basic modes of combination
   modes l r
@@ -232,12 +240,12 @@ combine l r = join $
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <> case l of
-       Eff f a | functor f -> combine a r <#> \(op /\ c) -> (LR op /\ Eff f c)
+       Eff f a | functor f -> combine a r <#> \(op /\ c) -> (ML op /\ Eff f c)
        _                   -> Nil
 
 --   -- vice versa if the right daughter is Functorial
   <> case r of
-      Eff f b | functor f -> combine l b <#> \(op /\ c) -> (LL op /\ Eff f c)
+      Eff f b | functor f -> combine l b <#> \(op /\ c) -> (MR op /\ Eff f c)
       _                   -> Nil
 
 --   -- additionally, if both daughters are Applicative, then see if there's
@@ -275,7 +283,14 @@ addD = case _ of
   op /\ Eff (C i a) a' | a == a' -> pure (D op /\ i)
   _                              -> Nil
 
-
+sweepSpurious :: List (Mode /\ Ty) -> List (Mode /\ Ty)
+sweepSpurious ops = foldr filter ops [urll, murr, mrmr, mull, mlml]
+  where onlyCs mode   = let m = show mode in DS.Pattern (DS.take (DS.length m - 1) m)
+        urll (m /\ _) = not $ DS.contains (onlyCs (UR (MR FA)))         (show m)
+        murr (m /\ _) = not $ DS.contains (onlyCs (J (MR (MR FA))))     (show m)
+        mrmr (m /\ _) = not $ DS.contains (onlyCs (J (MR (J (MR FA))))) (show m)
+        mull (m /\ _) = not $ DS.contains (onlyCs (J (ML (ML FA))))     (show m)
+        mlml (m /\ _) = not $ DS.contains (onlyCs (J (ML (J (ML FA))))) (show m)
 -- {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
@@ -300,10 +315,10 @@ modeTerm = case _ of
   FC     -> l ^ r ^ a ^ l # (r # a)
 
          -- \l R -> (\a -> op l a) <$> r
-  LL op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # l # a)) # r
+  MR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # l # a)) # r
 
          -- \L r -> (\a -> op a r) <$> L
-  LR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
+  ML op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
 
          -- \l R -> op (\a -> r (pure a)) l
   UL op  -> l ^ r ^ modeTerm op # (a ^ r # (make_var "pure" # a)) # l

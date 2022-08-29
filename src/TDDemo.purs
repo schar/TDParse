@@ -52,8 +52,8 @@ lexicon =
   : ("everyone2" /\ singleton ( "everyone2" /\ DP    /\ (effC T T (effW E E))            ))
   : ("tr"        /\ singleton ( "tr"        /\ DP    /\ (effR E E)                       ))
   : ("and"       /\ singleton ( "and"       /\ Cor   /\ (T :-> T :-> T)                  ))
-  : ("with"      /\ singleton ( "with"      /\ TAdj  /\ (E :-> E :-> T)                  ))
-              {- <> singleton ( "with"      /\ TAdv  /\ (E :-> (E :-> T) :-> E :-> T) )   -}
+  : ("with"      {-/\ singleton ( "with"      /\ TAdj  /\ (E :-> E :-> T)                  )-}
+                 /\ singleton ( "with"      /\ TAdv  /\ (E :-> (E :-> T) :-> E :-> T)    ))
   : ("eclo"      /\ singleton ( "eclo"      /\ Cmp   /\ (effS T :-> T)                   ))
   : Nil
 

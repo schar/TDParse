@@ -51,10 +51,10 @@ showMode = case _ of
   FA     -> text "$\\comb{>}$"
   PM     -> text "$\\comb{PM}$"
   FC     -> text "$\\comb{FC}$"
-  LL op  -> text "$\\uparrow\\comb{L}$," <+> showMode op
-  LR op  -> text "$\\uparrow\\comb{R}$," <+> showMode op
-  UL op  -> text "$\\eta\\comb{L}$," <+> showMode op
-  UR op  -> text "$\\eta\\comb{R}$," <+> showMode op
+  ML op  -> text "$\\comb{L}$," <+> showMode op
+  MR op  -> text "$\\comb{R}$," <+> showMode op
+  UL op  -> text "$\\eta_{\\comb{L}}$," <+> showMode op
+  UR op  -> text "$\\eta_{\\comb{R}}$," <+> showMode op
   A op   -> text "$\\comb{A},$" <+> showMode op
   J op   -> text "$\\mu$," <+> showMode op
   Eps op -> text "$\\epsilon$," <+> showMode op
