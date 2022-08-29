@@ -51,24 +51,24 @@ prettyParse' cfg p =
 prettyParse :: CFG -> Phrase -> [Doc]
 prettyParse cfg = prettyParse' cfg (const True)
 
-showMode :: Mode -> Doc
-showMode = \case
+prettyMode :: Mode -> Doc
+prettyMode = \case
   BA     -> "\\comb{<}"
   FA     -> "\\comb{>}"
   PM     -> "\\comb{PM}"
   FC     -> "\\comb{FC}"
-  LL op  -> "$\\uparrow$\\comb{L}," <+> showMode op
-  LR op  -> "$\\uparrow$\\comb{R}," <+> showMode op
-  UL op  -> text "$\\eta\\comb{L}$," <+> showMode op
-  UR op  -> text "$\\eta\\comb{R}$," <+> showMode op
-  A op   -> "\\comb{A}," <+> showMode op
-  J op   -> "$\\mu$," <+> showMode op
-  -- Z op   -> "\\comb{Z}," <+> showMode op
-  Eps op -> "$\\epsilon$," <+> showMode op
-  D op   -> "$\\downarrow$," <+> showMode op
+  FL op  -> "\\comb{L}," <+> prettyMode op
+  FR op  -> "\\comb{R}," <+> prettyMode op
+  UL op  -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
+  UR op  -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
+  A op   -> "\\comb{A}," <+> prettyMode op
+  J op   -> "$\\mu$," <+> prettyMode op
+  -- Z op   -> "\\comb{Z}," <+> prettyMode op
+  Eps op -> "$\\epsilon$," <+> prettyMode op
+  D op   -> "$\\downarrow$," <+> prettyMode op
 
-showVal :: Bool -> Sem -> Doc
-showVal norm v
+prettyVal :: Bool -> Sem -> Doc
+prettyVal norm v
   | norm      = text $ show_hs (eval (semTerm v)) 100
   | otherwise = text $ show v
 
@@ -100,13 +100,13 @@ semTrees' norm = map tree . concatMap synsem
         "$" <> label v "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
-        braces (showMode op) $+$
+        braces (prettyMode op) $+$
         forest l $+$ forest r $+$ "]"
 
       _ -> "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = ("\\texttt{" <> showVal norm v <> "}:" <+>)
+      | norm = ("\\texttt{" <> prettyVal norm v <> "}:" <+>)
       | otherwise = id
 
 semTrees, denTrees :: [Syn] -> IO ()
@@ -123,16 +123,16 @@ semProofs = mapM_ print . punctuate "\n" . map proofTree . concatMap synsem
     bp = \case
       Proof word v@(Lex w) ty _ ->
         "\\AXC{\\strut$\\text{" <> text w <> "}" <> "\\vdash " <>
-        "\\texttt{" <> showVal True v <> "}" <> ":" <+>
+        "\\texttt{" <> prettyVal True v <> "}" <> ":" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       Proof phrase v@(Comb op _ _) ty [l, r] ->
         bp l $+$
         bp r $+$
-        "\\RightLabel{\\tiny " <> showMode op <> "}" $+$
+        "\\RightLabel{\\tiny " <> prettyMode op <> "}" $+$
         "\\BIC{\\strut$\\text{" <> text phrase <> "}" <+>
         "\\vdash" <+>
-        "\\texttt{" <> showVal True v <> "}:" <+>
+        "\\texttt{" <> prettyVal True v <> "}:" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       _ -> "\\AXC{wrong number of daughters}"

@@ -9,6 +9,7 @@ import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo ( memo )
 import Data.Function ( (&) )
 import Control.Applicative ( (<**>) )
+import Data.List
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -92,14 +93,29 @@ data Sem
 -- Modes of combination
 data Mode
   = FA | BA | PM | FC -- Base        > < ^
-  | LR Mode | LL Mode -- Functor     <$>
+  | FR Mode | FL Mode -- Functor     <$>
   | UR Mode | UL Mode -- Applicative pure
   -- | Z Mode            -- VFS         Z
   | A Mode            -- Applicative <*>
   | J Mode            -- Monad       join
   | Eps Mode          -- Adjoint     counit
   | D Mode            -- Cont        lower
-  deriving (Show)
+
+instance Show Mode where
+  show = \case
+    FA      -> ">"
+    BA      -> "<"
+    PM      -> "&"
+    FC      -> "."
+    FR op   -> "R," ++ show op
+    FL op   -> "L," ++ show op
+    UL op   -> "UL," ++ show op
+    UR op   -> "UR," ++ show op
+    A op    -> "A," ++ show op
+    J op    -> "J," ++ show op
+    Eps op  -> "Eps," ++ show op
+    D op    -> "D," ++ show op
+
 
 -- Effects
 data F = S | R Type | W Type | C Type Type
@@ -166,21 +182,21 @@ modes = curry $ \case
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
 combine :: Type -> Type -> [(Mode, Type)]
-combine l r = join $
+combine l r = sweepSpurious . join $
 
   -- for starters, try the basic modes of combination
   modes l r
 
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
-  ++ [ (LR op, Eff f c)
+  ++ [ (FL op, Eff f c)
      | Eff f a <- [l]
      , functor f
      , (op, c) <- combine a r
      ]
 
   -- vice versa if the right daughter is Functorial
-  ++ [ (LL op, Eff f c)
+  ++ [ (FR op, Eff f c)
      | Eff f b <- [r]
      , functor f
      , (op, c) <- combine l b
@@ -203,13 +219,13 @@ combine l r = join $
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  ++ [ (A op, Eff h c)
-     | Eff f a <- [l]
-     , applicative f
-     , Eff g b <- [r]
-     , h <- combineFs f g
-     , (op, c) <- combine a b
-     ]
+  -- ++ [ (A op, Eff h c)
+  --    | Eff f a <- [l]
+  --    , applicative f
+  --    , Eff g b <- [r]
+  --    , h <- combineFs f g
+  --    , (op, c) <- combine a b
+  --    ]
 
   -- this is only if you want to see some derivations in the Variable-Free style
   -- ++ [ (Z op, i :-> d)
@@ -251,6 +267,14 @@ addD = \case
   (op, Eff (C i a) a') | a == a' -> [(D op, i)]
   _                              -> []
 
+sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
+sweepSpurious ops = foldr filter ops [urll, murr, mrmr, mull, mlml]
+  where urll (m,t) = not $ isInfixOf (init $ show (UR (FR FA))) (show m)
+        murr (m,t) = not $ isInfixOf (init $ show (J (FR (FR FA)))) (show m)
+        mrmr (m,t) = not $ isInfixOf (init $ show (J (FR (J (FR FA))))) (show m)
+        mull (m,t) = not $ isInfixOf (init $ show (J (FL (FL FA)))) (show m)
+        mlml (m,t) = not $ isInfixOf (init $ show (J (FL (J (FL FA))))) (show m)
+
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
@@ -276,10 +300,10 @@ modeTerm = \case
   FC     -> l ^ r ^ a ^ l # (r # a)
 
          -- \l R -> (\a -> op l a) <$> r
-  LL op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # l # a)) # r
+  FR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # l # a)) # r
 
          -- \L r -> (\a -> op a r) <$> L
-  LR op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
+  FL op  -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
 
          -- \l R -> op (\a -> r (pure a)) l
   UL op  -> l ^ r ^ modeTerm op # (a ^ r # (make_var "pure" # a)) # l

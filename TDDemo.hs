@@ -38,13 +38,13 @@ near      = [("near'"      , TAdj   , E :-> E :-> T)                 ]
 some      = [("some'"      , Det    ,(E :-> T) :-> effS E)           ]
 someone   = [("someone'"   , DP     , effC T T E)                    ]
 someone2  = [("someone2'"  , DP     , effS (effW E E))               ]
-someone3  = [("someone'"   , DP     , effS E)                        ]
+someone3  = [("someone3'"  , DP     , effS E)                        ]
 everyone  = [("everyone'"  , DP     , effC T T E)                    ]
 everyone2 = [("everyone2'" , DP     , effC T T (effW E E))           ]
 tr        = [("tr'"        , DP     , effR E E)                      ]
 and       = [("and'"       , Cor    , T :-> T :-> T)                 ]
-with      = [("with'"      , TAdj   , E :-> E :-> T)
-             {-,("with'"      , TAdv   , E :-> (E :-> T) :-> E :-> T)-}   ]
+with      = [{-("with'"      , TAdj   , E :-> E :-> T)-}
+             ("with'"      , TAdv   , E :-> (E :-> T) :-> E :-> T)   ]
 eclo      = [("eclo'"      , Cmp    , effS T :-> T)]
 
 
