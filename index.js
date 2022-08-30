@@ -8424,7 +8424,7 @@
         return lam(l)(lam(r)(app(app(app(modeTerm(v.value0))(l))(r))(lam(a)(a))));
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 372, column 12 - line 410, column 51): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 379, column 12 - line 417, column 51): " + [v.constructor.name]);
     };
   }();
   var semTerm = function(v) {
@@ -8436,7 +8436,7 @@
       return app(app(modeTerm(v.value0))(semTerm(v.value1)))(semTerm(v.value2));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 364, column 1 - line 364, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 371, column 1 - line 371, column 23): " + [v.constructor.name]);
   };
   var modeAsList = function(v) {
     var showF1 = function() {
@@ -8517,7 +8517,7 @@
       }
       ;
       if (v instanceof R) {
-        return false;
+        return true;
       }
       ;
       if (v instanceof W) {
@@ -8588,6 +8588,10 @@
       return !contains2(0)(v.value0)(new J(new ML(S.value, new MR(S.value, FA.value))));
     }, function(v) {
       return !contains2(0)(v.value0)(new J(new ML(S.value, new J(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new A(new ML(S.value, FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new MR(S.value, new A(FA.value))));
     }, function(v) {
       return !one3(commuter)(function(f) {
         return contains2(2)(v.value0)(new J(new MR(f, new ML(f, FA.value))));
@@ -8676,7 +8680,7 @@
         }
         ;
         return Nil.value;
-      }())(function() {
+      }())(append12(function() {
         if (r instanceof Arr && r.value0 instanceof Eff) {
           return mapFlipped2(combine(l)(new Arr(r.value0.value1, r.value1)))(function(v) {
             return new Tuple(new UL(r.value0.value0, v.value0), v.value1);
@@ -8684,7 +8688,17 @@
         }
         ;
         return Nil.value;
-      }())))))(new Cons(addD, new Cons(addEps, new Cons(addJ, new Cons(pure4, Nil.value)))))));
+      }())(function() {
+        if (l instanceof Eff && (r instanceof Eff && applicative(l.value0))) {
+          return bind4(combine(l.value1)(r.value1))(function(v) {
+            return bind4(combineFs(l.value0)(r.value0))(function(h) {
+              return pure4(new Tuple(new A(v.value0), new Eff(h, v.value1)));
+            });
+          });
+        }
+        ;
+        return Nil.value;
+      }()))))))(new Cons(addD, new Cons(addEps, new Cons(addJ, new Cons(pure4, Nil.value)))))));
     };
   };
   var synsem = function(v) {

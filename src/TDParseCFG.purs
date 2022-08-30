@@ -214,7 +214,7 @@ instance Commute Ty where
 instance Commute F where
   commutative = case _ of
     S     -> true
-    R _   -> false
+    R _   -> true
     W w   -> commutative w
     C _ _ -> false
 
@@ -255,8 +255,8 @@ modes = case _,_ of
   a :-> T , b :-> T | a == b -> pure (PM /\ (a :-> T))
   _       , _                -> Nil
 
--- -- Make sure that two Effects can compatibly be sequenced
--- -- (only relevant to A and J modes)
+-- Make sure that two Effects can compatibly be sequenced
+-- (only relevant to A and J modes)
 combineFs :: F -> F -> List F
 combineFs = case _,_ of
   S    , S                -> pure $ S
@@ -279,26 +279,29 @@ combine l r = sweepSpurious <<< join $
        Eff f a | functor f -> combine a r <#> \(op /\ c) -> (ML f op /\ Eff f c)
        _                   -> Nil
 
---   -- vice versa if the right daughter is Functorial
+  -- vice versa if the right daughter is Functorial
   <> case r of
       Eff f b | functor f -> combine l b <#> \(op /\ c) -> (MR f op /\ Eff f c)
       _                   -> Nil
 
---   -- additionally, if both daughters are Applicative, then see if there's
---   -- some mode `op` that would combine their underlying types
-  -- <> case l,r of
-  --      Eff f a, Eff g b | applicative f -> do (op /\ c) <- combine a b
-  --                                             h <- combineFs f g
-  --                                             pure (A op /\ Eff h c)
-  --      _      , _                       -> Nil
-
+  -- if the left daughter requests something Functorial, try to find an
+  -- `op` that would combine it with a `pure`ified right daughter
   <> case l,r of
        Eff f a :-> b, _ -> combine (a :-> b) r <#> \(op /\ c) -> (UR f op /\ c)
        _            , _ -> Nil
 
+  -- vice versa if the right daughter requests something Functorial
   <> case l,r of
        _, Eff f a :-> b -> combine l (a :-> b) <#> \(op /\ c) -> (UL f op /\ c)
        _,             _ -> Nil
+
+  -- additionally, if both daughters are Applicative, then see if there's
+  -- some mode `op` that would combine their underlying types
+  <> case l,r of
+       Eff f a, Eff g b | applicative f -> do (op /\ c) <- combine a b
+                                              h <- combineFs f g
+                                              pure (A op /\ Eff h c)
+       _      , _                       -> Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
@@ -341,6 +344,10 @@ sweepSpurious ops = foldr filter ops
   , \(m /\ _) -> not $ m `contains 0` J (ML S (MR S FA))
   , \(m /\ _) -> not $ m `contains 0` J (ML S (J (MR S FA)))
 
+  -- for commutative effects, could J earlier
+  , \(m /\ _) -> not $ m `contains 0` J (A    (ML S FA))
+  , \(m /\ _) -> not $ m `contains 0` J (MR S (A    FA))
+
   -- for commutative effects, could A instead
   , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (ML f FA))
   , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (J (ML f FA)))
@@ -359,7 +366,7 @@ sweepSpurious ops = foldr filter ops
     commuter = filter commutative atomicEffects
 
 
--- {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
+{- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
 semTerm (Lex w)       = make_var (w <> "'")
