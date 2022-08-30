@@ -47,18 +47,18 @@ arrow = text " -> "
 
 showMode :: Mode -> Doc
 showMode = case _ of
-  BA     -> text "$\\comb{<}$"
-  FA     -> text "$\\comb{>}$"
-  PM     -> text "$\\comb{PM}$"
-  FC     -> text "$\\comb{FC}$"
-  ML op  -> text "$\\comb{L}$," <+> showMode op
-  MR op  -> text "$\\comb{R}$," <+> showMode op
-  UL op  -> text "$\\eta_{\\comb{L}}$," <+> showMode op
-  UR op  -> text "$\\eta_{\\comb{R}}$," <+> showMode op
-  A op   -> text "$\\comb{A},$" <+> showMode op
-  J op   -> text "$\\mu$," <+> showMode op
-  Eps op -> text "$\\epsilon$," <+> showMode op
-  D op   -> text "$\\downarrow$," <+> showMode op
+  BA      -> text "$\\comb{<}$"
+  FA      -> text "$\\comb{>}$"
+  PM      -> text "$\\comb{PM}$"
+  FC      -> text "$\\comb{FC}$"
+  ML _ op -> text "$\\comb{L}$," <+> showMode op
+  MR _ op -> text "$\\comb{R}$," <+> showMode op
+  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> showMode op
+  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> showMode op
+  A op    -> text "$\\comb{A},$" <+> showMode op
+  J op    -> text "$\\mu$," <+> showMode op
+  Eps op  -> text "$\\epsilon$," <+> showMode op
+  D op    -> text "$\\downarrow$," <+> showMode op
 
 showVal :: Boolean -> Sem -> Doc
 showVal norm v

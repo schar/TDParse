@@ -62,7 +62,7 @@ update model = case _ of
     case tyParse t of
       Left _   -> model { typeOfInterest = const true }
                   /\ [liftEffect $ typeset $> Nothing]
-      Right ty -> model { typeOfInterest = (_ == ty) <<< getProofType }
+      Right ty -> model { typeOfInterest = (_ `elem` ty) <<< getProofType }
                   /\ [liftEffect $ typeset $> Nothing]
 
   ToggleLex ->    model { lex = not <$> model.lex }
