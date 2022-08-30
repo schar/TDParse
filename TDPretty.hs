@@ -109,9 +109,22 @@ semTrees' norm = map tree . concatMap synsem
       | norm = ("\\texttt{" <> prettyVal norm v <> "}:" <+>)
       | otherwise = id
 
-semTrees, denTrees :: [Syn] -> IO ()
+semTrees, denTrees, outTrees :: [Syn] -> IO ()
 semTrees = mapM_ print . punctuate "\n" . semTrees' False
 denTrees = mapM_ print . punctuate "\n" . semTrees' True
+outTrees parses =
+  let path = "test/out.tex"
+      preamble =
+        "\\documentclass{article}" $+$
+        "\\usepackage{forest}" $+$
+        "\\usepackage[margin=1in]{geometry}" $+$
+        "\\newcommand{\\comb}[1]{\\textbf{\\textsf{#1}}}" $+$
+        "\\usepackage[T1]{fontenc}" $+$
+        "\\begin{document}\\scriptsize\n"
+      aux = mapM_ (appendFile path . show) . punctuate "\n\n" . semTrees' False
+   in do writeFile path (show preamble)
+         aux parses
+         appendFile path "\n\\end{document}"
 
 -- Proofs with some normalization
 -- Requires bussproofs with \EnableBpAbbreviations, \strut for vert spacing

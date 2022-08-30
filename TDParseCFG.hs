@@ -179,11 +179,13 @@ adjoint _ _         = False
 class Commute f where
   commutative :: f -> Bool
 instance Commute Type where
+  -- commutative as a monoid
   commutative ty = ty == T
 instance Commute F where
+  -- commutative as a monad
   commutative = \case
     S     -> True
-    R _   -> False
+    R _   -> True
     W w   -> commutative w
     C _ _ -> False
 
@@ -270,13 +272,13 @@ combine l r = sweepSpurious . join $
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  -- ++ [ (A op, Eff h c)
-  --    | Eff f a <- [l]
-  --    , applicative f
-  --    , Eff g b <- [r]
-  --    , h <- combineFs f g
-  --    , (op, c) <- combine a b
-  --    ]
+  ++ [ (A op, Eff h c)
+     | Eff f a <- [l]
+     , applicative f
+     , Eff g b <- [r]
+     , h <- combineFs f g
+     , (op, c) <- combine a b
+     ]
 
   -- this is only if you want to see some derivations in the Variable-Free style
   -- ++ [ (Z op, i :-> d)
@@ -311,30 +313,44 @@ addD = \case
 sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
 sweepSpurious ops = foldr filter ops
   [
-  -- UR,R is definitionally equivalent to R,UR, so prefer the latter and eliminate
-  -- these as spurious
-    \(m,_) -> not $ one [S, W E, R E, C T T] $ \f -> m `contains1` UR f (MR f FA)
-                        --    ^    ^    ^ ^ the type indices on these Effects are ignored by the `1` printer
+  -- elim unit rule ambiguity (UR,R == R,UR)
+    \(m,_) -> not $ m `contains0` UR u (MR u FA)
+                                --   ^     ^  the Effects on these modes are
+                                --            ignored by `contains0`
 
-  -- JRR, JRJR, JLL, and JLJL are always spurious (there is another derivation out there where
-  -- the two R's or two L's were joined in the previous step)
-  , \(m,_) -> not $ m `contains0` J (MR S (MR S FA))
-                                  --    ^     ^ the Effects on these modes are ignored by the `0` printer
-  , \(m,_) -> not $ m `contains0` J (MR S (J (MR S FA)))
-  , \(m,_) -> not $ m `contains0` J (ML S (ML S FA))
-  , \(m,_) -> not $ m `contains0` J (ML S (J (ML S FA)))
+  -- could J earlier
+  , \(m,_) -> not $ m `contains0` J (MR u (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (J (ML u FA)))
 
-  -- for commutative effects, inverse scope derivations --- JRL or JRJL --- are spurious
-  -- since they're equivalent to the corresponding surface scope derivations -- JLR or JLJR
+  , \(m,_) -> not $ m `contains0` J (MR u (J (MR u FA)))
+  , \(m,_) -> not $ m `contains0` J (ML u (ML u FA))
+
+  , \(m,_) -> not $ m `contains0` J (A    (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (A    FA))
+
+    -- could A instead
+  , \(m,_) -> not $ m `contains0` J (ML u (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (J (MR u FA)))
+
+  -- for commutative effects, could A instead
   , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (ML f FA))
   , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (J (ML f FA)))
+
+  -- could D . A instead
+  , \(m,_) -> not $ m `contains0` D (ML u (D (MR u FA)))
+
+  -- could J earlier (maybe not desirable if J restricted w/Cont)
+  , \(m,_) -> not $ m `contains0` D (A  (D (MR u FA)))
+  , \(m,_) -> not $ m `contains0` D (ML u (D (A  FA)))
+  , \(m,_) -> not $ m `contains0` D (MR u (D (MR u FA)))
+  , \(m,_) -> not $ m `contains0` D (ML u (D (ML u FA)))
   ]
   where
     contains n haystack needle = modeAsList n needle `isInfixOf` modeAsList n haystack
     [contains0, contains1, contains2] = contains <$> [0,1,2]
     commuter = filter commutative atomicEffects
     one = flip any
-
+    u = undefined
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 

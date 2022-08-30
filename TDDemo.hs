@@ -83,6 +83,7 @@ s4 = [someone, left, and, she2, whistled]
 
 s5 = [every, dog, saw, every, cat]
 
+{- Testing helper function -}
 
 main :: IO ()
 main = mapM_ (print . prettyParse productions) [s1, s2, s3, s4, s5]
