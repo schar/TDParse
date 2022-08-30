@@ -53,19 +53,19 @@ prettyParse cfg = prettyParse' cfg (const True)
 
 prettyMode :: Mode -> Doc
 prettyMode = \case
-  BA     -> "\\comb{<}"
-  FA     -> "\\comb{>}"
-  PM     -> "\\comb{PM}"
-  FC     -> "\\comb{FC}"
-  ML op  -> "\\comb{L}," <+> prettyMode op
-  MR op  -> "\\comb{R}," <+> prettyMode op
-  UL op  -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
-  UR op  -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
-  A op   -> "\\comb{A}," <+> prettyMode op
-  J op   -> "$\\mu$," <+> prettyMode op
-  -- Z op   -> "\\comb{Z}," <+> prettyMode op
-  Eps op -> "$\\epsilon$," <+> prettyMode op
-  D op   -> "$\\downarrow$," <+> prettyMode op
+  BA      -> "\\comb{<}"
+  FA      -> "\\comb{>}"
+  PM      -> "\\comb{\\&}"
+  FC      -> "\\comb{\\circ}"
+  ML _ op -> "\\comb{L}," <+> prettyMode op
+  MR _ op -> "\\comb{R}," <+> prettyMode op
+  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
+  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
+  A op    -> "\\comb{A}," <+> prettyMode op
+  J op    -> "$\\mu$," <+> prettyMode op
+  -- Z op    -> "\\comb{Z}," <+> prettyMode op
+  Eps op  -> "$\\epsilon$," <+> prettyMode op
+  D op    -> "$\\downarrow$," <+> prettyMode op
 
 prettyVal :: Bool -> Sem -> Doc
 prettyVal norm v

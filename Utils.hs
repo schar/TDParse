@@ -21,4 +21,3 @@ pruneTree = fromJust . go
         [] -> Nothing
         (Node x ts) : ts' -> Just $ Node x (ts ++ ts')
     go (Node (Just a) subtree) = Just $ Node a (mapMaybe go subtree)
-
