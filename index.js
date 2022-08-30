@@ -7089,9 +7089,8 @@
   var fromFoldable7 = /* @__PURE__ */ fromFoldable4(foldableArray);
   var pure1 = /* @__PURE__ */ pure(applicativeMaybe);
   var memo2 = /* @__PURE__ */ memo(ordInt)(ordInt);
-  var one3 = /* @__PURE__ */ one2(foldableArray)(heytingAlgebraBoolean);
-  var one1 = /* @__PURE__ */ one2(foldableList)(heytingAlgebraBoolean);
   var foldr3 = /* @__PURE__ */ foldr(foldableArray);
+  var one3 = /* @__PURE__ */ one2(foldableList)(heytingAlgebraBoolean);
   var mapFlipped2 = /* @__PURE__ */ mapFlipped(functorList);
   var join2 = /* @__PURE__ */ join(bindList);
   var flippedApply2 = /* @__PURE__ */ flippedApply(applyList);
@@ -8425,7 +8424,7 @@
         return lam(l)(lam(r)(app(app(app(modeTerm(v.value0))(l))(r))(lam(a)(a))));
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 352, column 12 - line 390, column 51): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 372, column 12 - line 410, column 51): " + [v.constructor.name]);
     };
   }();
   var semTerm = function(v) {
@@ -8437,7 +8436,7 @@
       return app(app(modeTerm(v.value0))(semTerm(v.value1)))(semTerm(v.value2));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 344, column 1 - line 344, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 364, column 1 - line 364, column 23): " + [v.constructor.name]);
   };
   var modeAsList = function(v) {
     var showF1 = function() {
@@ -8570,35 +8569,44 @@
         };
       };
     };
-    var jljl = function(v) {
-      return !contains2(0)(v.value0)(new J(new ML(S.value, new J(new ML(S.value, FA.value)))));
-    };
-    var jmll = function(v) {
-      return !contains2(0)(v.value0)(new J(new ML(S.value, new ML(S.value, FA.value))));
-    };
-    var jmrr = function(v) {
-      return !contains2(0)(v.value0)(new J(new MR(S.value, new MR(S.value, FA.value))));
-    };
-    var jrjr = function(v) {
-      return !contains2(0)(v.value0)(new J(new MR(S.value, new J(new MR(S.value, FA.value)))));
-    };
-    var urmr = function(v) {
-      return !one3([S.value, new W(E.value), new R(E.value), new C(T.value, T.value)])(function(f) {
-        return contains2(1)(v.value0)(new UR(f, new MR(f, FA.value)));
-      });
-    };
     var commuter = filter2(commutative2)(atomicEffects);
-    var jmrl = function(v) {
-      return !one1(commuter)(function(f) {
+    return foldr3(filter2)(ops)([function(v) {
+      return !contains2(0)(v.value0)(new UR(S.value, new MR(S.value, FA.value)));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new MR(S.value, new MR(S.value, FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new ML(S.value, new J(new ML(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new MR(S.value, new J(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new ML(S.value, new ML(S.value, FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new A(new MR(S.value, FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new ML(S.value, new A(FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new ML(S.value, new MR(S.value, FA.value))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new J(new ML(S.value, new J(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !one3(commuter)(function(f) {
         return contains2(2)(v.value0)(new J(new MR(f, new ML(f, FA.value))));
       });
-    };
-    var jrjl = function(v) {
-      return !one1(commuter)(function(f) {
+    }, function(v) {
+      return !one3(commuter)(function(f) {
         return contains2(2)(v.value0)(new J(new MR(f, new J(new ML(f, FA.value)))));
       });
-    };
-    return foldr3(filter2)(ops)([urmr, jmrr, jrjr, jmll, jljl, jmrl, jrjl]);
+    }, function(v) {
+      return !contains2(0)(v.value0)(new D(new ML(S.value, new D(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new D(new A(new D(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new D(new ML(S.value, new D(new A(FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new D(new MR(S.value, new D(new MR(S.value, FA.value)))));
+    }, function(v) {
+      return !contains2(0)(v.value0)(new D(new ML(S.value, new D(new ML(S.value, FA.value)))));
+    }]);
   };
   var applicative = function(v) {
     if (v instanceof W) {

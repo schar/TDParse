@@ -320,23 +320,43 @@ addD = case _ of
   _                              -> Nil
 
 sweepSpurious :: List (Mode /\ Ty) -> List (Mode /\ Ty)
-sweepSpurious ops = foldr filter ops [urmr, jmrr, jrjr, jmll, jljl, jmrl, jrjl]
+sweepSpurious ops = foldr filter ops
+  [
+  -- elim unit rule ambiguity (UR,R == R,UR)
+    \(m /\ _) -> not $ m `contains 0` UR S (MR S FA)
+                                    --   ^     ^  the Effects on these modes are
+                                    --            ignored by `contains 0`
+
+  -- could J earlier
+  , \(m /\ _) -> not $ m `contains 0` J (MR S (MR S FA))
+  , \(m /\ _) -> not $ m `contains 0` J (ML S (J (ML S FA)))
+
+  , \(m /\ _) -> not $ m `contains 0` J (MR S (J (MR S FA)))
+  , \(m /\ _) -> not $ m `contains 0` J (ML S (ML S FA))
+
+  , \(m /\ _) -> not $ m `contains 0` J (A    (MR S FA))
+  , \(m /\ _) -> not $ m `contains 0` J (ML S (A    FA))
+
+    -- could A instead
+  , \(m /\ _) -> not $ m `contains 0` J (ML S (MR S FA))
+  , \(m /\ _) -> not $ m `contains 0` J (ML S (J (MR S FA)))
+
+  -- for commutative effects, could A instead
+  , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (ML f FA))
+  , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (J (ML f FA)))
+
+  -- could D . A instead
+  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (MR S FA)))
+
+  -- could J earlier (maybe not desirable if J restricted w/Cont)
+  , \(m /\ _) -> not $ m `contains 0` D (A  (D (MR S FA)))
+  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (A  FA)))
+  , \(m /\ _) -> not $ m `contains 0` D (MR S (D (MR S FA)))
+  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (ML S FA)))
+  ]
   where
     contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack
     commuter = filter commutative atomicEffects
-
-    urmr (m /\ _) =
-      not $ one [S, W E, R E, C T T] \f -> m `contains 1` UR f (MR f FA)
-                --    ^    ^    ^ ^ the type parameters on these effects are ignored by the `1` printer
-
-    jmrr (m /\ _) = not $ m `contains 0` J (MR S (MR S FA))
-                                         --    ^     ^ the effects on these modes are ignored by the `0` printer
-    jrjr (m /\ _) = not $ m `contains 0` J (MR S (J (MR S FA)))
-    jmll (m /\ _) = not $ m `contains 0` J (ML S (ML S FA))
-    jljl (m /\ _) = not $ m `contains 0` J (ML S (J (ML S FA)))
-
-    jmrl (m /\ _) = not $ one commuter \f -> m `contains 2` J (MR f (ML f FA))
-    jrjl (m /\ _) = not $ one commuter \f -> m `contains 2` J (MR f (J (ML f FA))) -- is this safe?
 
 
 -- {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
