@@ -185,7 +185,7 @@ instance Commute F where
   -- commutative as a monad
   commutative = \case
     S     -> True
-    R _   -> True
+    R _   -> False
     W w   -> commutative w
     C _ _ -> False
 
@@ -331,6 +331,10 @@ sweepSpurious ops = foldr filter ops
     -- could A instead
   , \(m,_) -> not $ m `contains0` J (ML u (MR u FA))
   , \(m,_) -> not $ m `contains0` J (ML u (J (MR u FA)))
+
+  -- for commutative effects, could J earlier
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A    (ML f FA))
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (A    FA))
 
   -- for commutative effects, could A instead
   , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (ML f FA))
