@@ -3,8 +3,6 @@
 
 module TDDemo where
 
-import Prelude hiding (and)
-
 import TDPretty
 import TDParseCFG
 
@@ -43,7 +41,7 @@ someone3  = [("someone3"  , DP     , effS E)                        ]
 everyone  = [("everyone"  , DP     , effC T T E)                    ]
 everyone2 = [("everyone2" , DP     , effC T T (effW E E))           ]
 tr        = [("tr"        , DP     , effR E E)                      ]
-and       = [("and"       , Cor    , T :-> T :-> T)                 ]
+conj      = [("and"       , Cor    , T :-> T :-> T)                 ]
 with      = [{-("with"      , TAdj   , E :-> E :-> T)-}
              ("with"      , TAdv   , E :-> (E :-> T) :-> E :-> T)   ]
 eclo      = [("eclo"      , Cmp    , effS T :-> T)]
@@ -79,7 +77,7 @@ s2 = [she, saw, her, mom]
 
 s3 = [ann, mom, saw, her]
 
-s4 = [someone, left, and, she2, whistled]
+s4 = [someone, left, conj, she2, whistled]
 
 s5 = [every, dog, saw, every, cat]
 
