@@ -118,7 +118,7 @@ data Mode
   | MR F Mode | ML F Mode -- Functor     map
   | UR F Mode | UL F Mode -- Applicative pure
   -- | Z Mode               -- VFS         Z
-  | A Mode                -- Applicative <*>
+  | A F Mode              -- Applicative <*>
   | J Mode                -- Monad       join
   | Eps Mode              -- Adjoint     counit
   | D Mode                -- Cont        lower
@@ -133,7 +133,7 @@ instance Show Mode where
     ML _ op -> "L,"   ++ show op
     UL _ op -> "UL,"  ++ show op
     UR _ op -> "UR,"  ++ show op
-    A op    -> "A,"   ++ show op
+    A  _ op -> "A,"   ++ show op
     J op    -> "J,"   ++ show op
     Eps op  -> "Eps," ++ show op
     D op    -> "D,"   ++ show op
@@ -144,7 +144,7 @@ modeAsList v = \case
   ML f op -> "L"    ++ showF f ++ "," ++ modeAsList v op
   UL f op -> "UL"   ++ showF f ++ "," ++ modeAsList v op
   UR f op -> "UR"   ++ showF f ++ "," ++ modeAsList v op
-  A op    -> "A,"   ++ modeAsList v op
+  A  f op -> "A,"   ++ showF f ++ "," ++ modeAsList v op
   J op    -> "J,"   ++ modeAsList v op
   Eps op  -> "Eps," ++ modeAsList v op
   D op    -> "D,"   ++ modeAsList v op
@@ -272,7 +272,7 @@ combine l r = sweepSpurious . join $
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  ++ [ (A op, Eff h c)
+  ++ [ (A f op, Eff h c)
      | Eff f a <- [l]
      , applicative f
      , Eff g b <- [r]
@@ -325,30 +325,32 @@ sweepSpurious ops = foldr filter ops
   , \(m,_) -> not $ m `contains0` J (ML u (ML u FA))
   , \(m,_) -> not $ m `contains0` J (ML u (J (ML u FA)))
 
-  , \(m,_) -> not $ m `contains0` J (A (MR u FA))
-  , \(m,_) -> not $ m `contains0` J (A (J (MR u FA)))
+  , \(m,_) -> not $ m `contains0` J (A u (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (A u (J (MR u FA)))
 
-  , \(m,_) -> not $ m `contains0` J (ML u (A FA))
-  , \(m,_) -> not $ m `contains0` J (ML u (J (A FA)))
+  , \(m,_) -> not $ m `contains0` J (ML u (A u FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (J (A u FA)))
 
     -- could A instead
   , \(m,_) -> not $ m `contains0` J (ML u (MR u FA))
   , \(m,_) -> not $ m `contains0` J (ML u (J (MR u FA)))
 
   -- for commutative effects, could J earlier
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A    (ML f FA))
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (A    FA))
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A  f (ML f FA))
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (A  f FA))
 
   -- for commutative effects, could A instead
   , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (ML f FA))
   , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (J (ML f FA)))
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A f (A f FA))
+  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A f (J (A f FA)))
 
   -- could D . A instead
   , \(m,_) -> not $ m `contains0` D (ML u (D (MR u FA)))
 
   -- could J earlier (maybe not desirable if J restricted w/Cont)
-  , \(m,_) -> not $ m `contains0` D (A  (D (MR u FA)))
-  , \(m,_) -> not $ m `contains0` D (ML u (D (A  FA)))
+  , \(m,_) -> not $ m `contains0` D (A  u (D (MR u FA)))
+  , \(m,_) -> not $ m `contains0` D (ML u (D (A  u FA)))
   , \(m,_) -> not $ m `contains0` D (MR u (D (MR u FA)))
   , \(m,_) -> not $ m `contains0` D (ML u (D (ML u FA)))
   ]
@@ -395,7 +397,7 @@ modeTerm = \case
   UR _ op -> l ^ r ^ modeTerm op # (a ^ l # (make_var "pure" # a)) # r
 
           -- \L R -> op <$> L <*> R
-  A op    -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
+  A  _ op -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
 
           -- \l r a -> op l (r a) a
   -- Z op   -> l ^ r ^ a ^ modeTerm op # l # (r # a) # a
