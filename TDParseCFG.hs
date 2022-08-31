@@ -320,13 +320,16 @@ sweepSpurious ops = foldr filter ops
 
   -- could J earlier
   , \(m,_) -> not $ m `contains0` J (MR u (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (MR u (J (MR u FA)))
+
+  , \(m,_) -> not $ m `contains0` J (ML u (ML u FA))
   , \(m,_) -> not $ m `contains0` J (ML u (J (ML u FA)))
 
-  , \(m,_) -> not $ m `contains0` J (MR u (J (MR u FA)))
-  , \(m,_) -> not $ m `contains0` J (ML u (ML u FA))
+  , \(m,_) -> not $ m `contains0` J (A (MR u FA))
+  , \(m,_) -> not $ m `contains0` J (A (J (MR u FA)))
 
-  , \(m,_) -> not $ m `contains0` J (A    (MR u FA))
-  , \(m,_) -> not $ m `contains0` J (ML u (A    FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (A FA))
+  , \(m,_) -> not $ m `contains0` J (ML u (J (A FA)))
 
     -- could A instead
   , \(m,_) -> not $ m `contains0` J (ML u (MR u FA))
