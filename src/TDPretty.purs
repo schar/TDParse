@@ -45,23 +45,23 @@ showTy a = render 100 <<< prettyTy a
 
 arrow = text " -> "
 
-showMode :: Mode -> Doc
-showMode = case _ of
+prettyMode :: Mode -> Doc
+prettyMode = case _ of
   BA      -> text "$\\comb{<}$"
   FA      -> text "$\\comb{>}$"
   PM      -> text "$\\comb{PM}$"
   FC      -> text "$\\comb{FC}$"
-  ML _ op -> text "$\\comb{L}$," <+> showMode op
-  MR _ op -> text "$\\comb{R}$," <+> showMode op
-  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> showMode op
-  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> showMode op
-  A op    -> text "$\\comb{A},$" <+> showMode op
-  J op    -> text "$\\mu$," <+> showMode op
-  Eps op  -> text "$\\epsilon$," <+> showMode op
-  D op    -> text "$\\downarrow$," <+> showMode op
+  ML _ op -> text "$\\comb{L}$," <+> prettyMode op
+  MR _ op -> text "$\\comb{R}$," <+> prettyMode op
+  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
+  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
+  A op    -> text "$\\comb{A},$" <+> prettyMode op
+  J op    -> text "$\\mu$," <+> prettyMode op
+  Eps op  -> text "$\\epsilon$," <+> prettyMode op
+  D op    -> text "$\\downarrow$," <+> prettyMode op
 
-showVal :: Boolean -> Sem -> Doc
-showVal norm v
+prettyVal :: Boolean -> Sem -> Doc
+prettyVal norm v
   | norm      = text $ show_hs (eval (semTerm v)) 100
   | otherwise = text $ show v
 
@@ -70,7 +70,7 @@ prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> text " :: " <>
-        prettyTy arrow ty <> text "  = " <> text (show (eval (semTerm val)))
+        prettyTy arrow ty <> text " = " <> text (show (eval (semTerm val)))
    in case daughters of -- no unary inferences
         Nil       -> text "  " <> details
         (a:b:Nil) -> text "  " <> (vcat $ details : prettyProof a : prettyProof b : Nil)
@@ -101,12 +101,12 @@ prettyProofTree norm proof =
         text "[" <>
         text "$" <> label v (text "\\texttt{") <>
         prettyTy arrow ty <> text "}$" <>
-        vcat (text "\\\\" : braces (showMode op) : forest l : forest r : text "]" : Nil)
+        vcat (text "\\\\" : braces (prettyMode op) : forest l : forest r : text "]" : Nil)
 
       _ -> text "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = \x -> text "\\texttt{" <> showVal norm v <> text "}:" <+> x
+      | norm = \x -> text "\\texttt{" <> prettyVal norm v <> text "}:" <+> x
       | otherwise = identity
 
 prettyProofBuss :: Proof -> Doc
@@ -116,15 +116,15 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
       Proof word v@(Lex w) ty _ ->
         text "\\AXC{$\\mathstrut\\text{" <> text w <> text "}" <>
         text "\\vdash " <>
-        text "\\texttt{" <> showVal true v <> text "}" <> text ":" <+>
+        text "\\texttt{" <> prettyVal true v <> text "}" <> text ":" <+>
         text "\\texttt{" <> prettyTy arrow ty <> text "}$}"
 
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
         vcat (bp l : bp r :
-          (text "\\RightLabel{\\small " <> showMode op <> text "}") :
+          (text "\\RightLabel{\\small " <> prettyMode op <> text "}") :
           (text "\\BIC{$\\mathstrut\\text{" <> text phrase <> text "}" <+>
           text "\\vdash" <+>
-          text "\\texttt{" <> showVal true v <> text "}:" <+>
+          text "\\texttt{" <> prettyVal true v <> text "}:" <+>
           text "\\texttt{" <> prettyTy arrow ty <> text "}$}") :
           Nil)
 
@@ -133,16 +133,16 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = render 100 <<< (_ <> text "\n") <<< disp
 
-prettyParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
-prettyParse' cfg lex p disp input = go <$> parse cfg lex input
+showParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
+showParse' cfg lex p disp input = go <$> parse cfg lex input
   where
     go = toUnfoldable <<< map (showProof disp) <<< filter p <<< concatMap synsem
 
-prettyParse cfg lex = prettyParse' cfg lex (const true) prettyProof
-prettyParseTree' norm cfg lex p = prettyParse' cfg lex p (prettyProofTree norm)
-prettyParseTree cfg lex = prettyParse' cfg lex (const true) (prettyProofTree false)
-prettyParseBuss' cfg lex p = prettyParse' cfg lex p prettyProofBuss
-prettyParseBuss cfg lex = prettyParse' cfg lex (const true) prettyProofBuss
+showParse cfg lex = showParse' cfg lex (const true) prettyProof
+showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
+showParseTree cfg lex = showParse' cfg lex (const true) (prettyProofTree false)
+showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
+showParseBuss cfg lex = showParse' cfg lex (const true) prettyProofBuss
 
 -- -- Proofs with some normalization
 -- -- Requires bussproofs with \EnableBpAbbreviations, \strut for vert spacing
