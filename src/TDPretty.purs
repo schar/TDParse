@@ -3,17 +3,21 @@
 
 module TDPretty where
 
-import TDParseCFG
-import LambdaCalc
-import Prelude
 import Data.List
 import Data.Maybe
-import Effect ( Effect )
-import Effect.Console ( log )
-import Data.Foldable ( traverse_ )
-import Text.Pretty ( Doc ) as PP
+import LambdaCalc
+import Prelude
+import TDParseCFG
 import Text.Pretty
-import Text.Pretty.String ( parens, brackets, braces )
+
+import Data.Foldable (traverse_)
+import Effect (Effect)
+import Effect.Console (log)
+import Flame (QuerySelector(..), Html, Key, mount_)
+import Flame.Html.Attribute as HA
+import Flame.Html.Element as HE
+import Text.Pretty (Doc) as PP
+import Text.Pretty.String (parens, brackets, braces)
 
 type Doc = PP.Doc String
 
@@ -51,14 +55,14 @@ prettyMode = case _ of
   FA      -> text "$\\comb{>}$"
   PM      -> text "$\\comb{PM}$"
   FC      -> text "$\\comb{FC}$"
-  ML _ op -> text "$\\comb{L}$," <+> prettyMode op
-  MR _ op -> text "$\\comb{R}$," <+> prettyMode op
+  ML _ op -> text "$\\comb{L}$,"         <+> prettyMode op
+  MR _ op -> text "$\\comb{R}$,"         <+> prettyMode op
   UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
   UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
-  A  _ op -> text "$\\comb{A},$" <+> prettyMode op
-  J op    -> text "$\\mu$," <+> prettyMode op
-  Eps op  -> text "$\\epsilon$," <+> prettyMode op
-  D op    -> text "$\\downarrow$," <+> prettyMode op
+  A  _ op -> text "$\\comb{A},$"         <+> prettyMode op
+  J op    -> text "$\\mu$,"              <+> prettyMode op
+  Eps op  -> text "$\\epsilon$,"         <+> prettyMode op
+  D op    -> text "$\\downarrow$,"       <+> prettyMode op
 
 prettyVal :: Boolean -> Sem -> Doc
 prettyVal norm v
@@ -129,6 +133,34 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
           Nil)
 
       _ -> text "\\AXC{wrong number of daughters}"
+
+prettyProofHTML :: forall m. Proof -> Html m
+prettyProofHTML proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
+  where
+    html = case _ of
+      Proof word v@(Lex w) ty _ ->
+        HE.li_
+          [ HE.div [HA.class' "tf-nc"]
+              [ HE.span [HA.class' "type"] [HE.text $ showTy arrow ty]
+              , HE.br
+              , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
+              ]
+          , HE.ul [HA.class' "parse-lex"]
+              [ HE.li_ [HE.span [HA.class' "type"] [HE.text $ show w]] ]
+          ]
+
+      Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
+        HE.li_
+          [ HE.div [HA.class' "tf-nc"]
+              [ HE.span [HA.class' "type"] [HE.text $ showTy arrow ty]
+              , HE.br
+              , HE.span [HA.class' "mode"] [HE.text $ show op]
+              ]
+          , HE.ul_ [ html l, html r ]
+          ]
+
+      _ -> HE.li_ [ HE.span [HA.class' "tf-nc"] [HE.text $ "wrong number of daughters"] ]
+
 
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = render 100 <<< (_ <> text "\n") <<< disp

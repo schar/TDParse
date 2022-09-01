@@ -51,8 +51,10 @@ proofs l s = fromFoldable <$> prove Demo.productions l s
 update :: Model -> Message -> Model /\ Array (Aff (Maybe Message))
 update model = case _ of
   PhraseInput ("Enter" /\ s) ->
-                  model { currentPhrase = s, currentProofs = proofs (toUnfoldable $ fst model.lex) s }
-                  /\ [liftEffect $ typeset *> clearPhrase $> Nothing]
+                  model { currentPhrase = "\"" <> s <> "\""
+                        , currentProofs = proofs (toUnfoldable $ fst model.lex) s
+                        }
+                  /\ [liftEffect $ clearPhrase $> Nothing]
 
   PhraseInput (_ /\ s) ->
                   model { currentProofs = Just [] }
@@ -61,19 +63,19 @@ update model = case _ of
   TypeInput (_ /\ t) ->
     case tyParse t of
       Left _   -> model { typeOfInterest = const true }
-                  /\ [liftEffect $ typeset $> Nothing]
+                  /\ []
       Right ty -> model { typeOfInterest = (_ `elem` ty) <<< getProofType }
-                  /\ [liftEffect $ typeset $> Nothing]
+                  /\ []
 
   ToggleLex ->    model { lex = not <$> model.lex }
-                  /\ [liftEffect $ typeset $> Nothing]
+                  /\ []
 
   AddLex ("Enter" /\ s) ->
     case lexParse s of
       Left e   -> model
                   /\ [liftEffect $ lexFeedback e $> Nothing]
       Right l  -> model { lex = (l : fst model.lex) /\ (snd model.lex) }
-                  /\ [liftEffect $ typeset *> lexFeedback "" $> Nothing]
+                  /\ [liftEffect $ lexFeedback "" $> Nothing]
 
   AddLex (_ /\ s) ->
                   model
@@ -96,8 +98,10 @@ view model =
     , HE.p "current" [HE.text $ "Showing parses for: " <> model.currentPhrase]
     , HE.div "content"
       [ HE.div "parses" $
-          map (\p -> HE.div [HA.class' "parse", HA.style {paddingBottom: "24px"}] [HE.text p]) $
-            fromMaybe (pure "No parse") $ model.currentProofs <#> (map displayProof <<< filter model.typeOfInterest)
+          -- map (\p -> HE.div [HA.class' "parse"] [HE.text p]) $
+          --   fromMaybe ["No parse"] $ model.currentProofs <#> (map displayProof <<< filter model.typeOfInterest)
+            fromMaybe [HE.text "No parse"] $
+              model.currentProofs <#> (map prettyProofHTML <<< filter model.typeOfInterest)
       , HE.div [HA.id "lexicon", HA.style {visibility: if snd (model.lex) then "visible" else "collapse"}] $
           [HE.p [HA.style {marginBottom: "0px"}] [HE.text "Add item: ", HE.span' "lexFeedback"]]
           <>

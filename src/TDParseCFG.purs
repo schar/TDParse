@@ -169,14 +169,14 @@ instance Show Mode where
     BA      -> "<"
     PM      -> "&"
     FC      -> "."
-    MR _ op -> "R,"   <> show op
-    ML _ op -> "L,"   <> show op
-    UL _ op -> "UL,"  <> show op
-    UR _ op -> "UR,"  <> show op
-    A  _ op -> "A,"   <> show op
-    J op    -> "J,"   <> show op
-    Eps op  -> "Eps," <> show op
-    D op    -> "D,"   <> show op
+    MR _ op -> "R, "   <> show op
+    ML _ op -> "L, "   <> show op
+    UL _ op -> "UL, "  <> show op
+    UR _ op -> "UR, "  <> show op
+    A  _ op -> "A, "   <> show op
+    J op    -> "J, "   <> show op
+    Eps op  -> "Eps, " <> show op
+    D op    -> "D, "   <> show op
 
 modeAsList :: Int -> Mode -> String
 modeAsList v = case _ of
