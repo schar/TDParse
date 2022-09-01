@@ -18,7 +18,7 @@ import Data.List
 -- some syntactic categories
 data Cat
   = CP | Cmp -- Clauses and Complementizers
-  | CorP | Cor -- Coordinators and Coordination Phrases
+  | CorP | Cor | DBar -- Coordinators and Coordination Phrases
   | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
@@ -317,47 +317,45 @@ sweepSpurious ops = foldr filter ops
                                 --   ^     ^  the Effects on these modes are
                                 --            ignored by `contains0`
 
-  -- could J earlier
-  , \(m,_) -> not $ m `contains0` J (MR u (MR u FA))
-  , \(m,_) -> not $ m `contains0` J (MR u (J (MR u FA)))
+  -- avoid higher-order detours
+  , \(m,_) -> not $ any (m `contains0`) $
 
-  , \(m,_) -> not $ m `contains0` J (ML u (ML u FA))
-  , \(m,_) -> not $ m `contains0` J (ML u (J (ML u FA)))
+         [ J (m  u (k (m  u FA))) | k <- [J, id], m <- [MR, ML] ]
+      ++ [ J (ML u (k (MR u FA))) | k <- [J, id] ]
+      ++ [ J (A  u (k (MR u FA))) | k <- [J, id] ]
+      ++ [ J (ML u (k (A  u FA))) | k <- [J, id] ]
 
-  , \(m,_) -> not $ m `contains0` J (A u (MR u FA))
-  , \(m,_) -> not $ m `contains0` J (A u (J (MR u FA)))
+  -- ? ... [o (... o (...)) | o <- [D, J], f <- [o, id]]
 
-  , \(m,_) -> not $ m `contains0` J (ML u (A u FA))
-  , \(m,_) -> not $ m `contains0` J (ML u (J (A u FA)))
+  -- for commutative effects, all Js over ops of the same effect are detours
+  , \(m,_) -> not $ any (m `contains2`) $
 
-    -- could A instead
-  , \(m,_) -> not $ m `contains0` J (ML u (MR u FA))
-  , \(m,_) -> not $ m `contains0` J (ML u (J (MR u FA)))
+         [ J (MR f    (A  f FA) ) | f <- commuter ]
+      ++ [ J (A  f    (ML f FA) ) | f <- commuter ]
+      ++ [ J (MR f (k (ML f FA))) | f <- commuter, k <- [J, id] ]
+      ++ [ J (A  f (k (A  f FA))) | f <- commuter, k <- [J, id] ]
 
-  -- for commutative effects, could J earlier
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A  f (ML f FA))
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (A  f FA))
+  -- avoid higher-order detours given D
+  , \(m,_) -> not $ any (m `contains0`) $
 
-  -- for commutative effects, could A instead
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (ML f FA))
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (MR f (J (ML f FA)))
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A f (A f FA))
-  , \(m,_) -> not $ one commuter $ \f -> m `contains2` J (A f (J (A f FA)))
+         [ D (m  u (D (m  u FA))) | m <- [MR, ML] ]
+      ++ [ D (ML u (D (MR u FA)))
+         , D (A  u (D (MR u FA)))
+         , D (ML u (D (A  u FA))) ]
 
-  -- could D . A instead
-  , \(m,_) -> not $ m `contains0` D (ML u (D (MR u FA)))
-
-  -- could J earlier (maybe not desirable if J restricted w/Cont)
-  , \(m,_) -> not $ m `contains0` D (A  u (D (MR u FA)))
-  , \(m,_) -> not $ m `contains0` D (ML u (D (A  u FA)))
-  , \(m,_) -> not $ m `contains0` D (MR u (D (MR u FA)))
-  , \(m,_) -> not $ m `contains0` D (ML u (D (ML u FA)))
+  -- canonical Eps configuration is Eps (ML u (MR u ...))
+  -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
+  -- (R cannot have a postponed W effect), also rules out xover (forcing W to
+  -- be drawn from L)
+  , \(m,_) -> not $ m `contains0` Eps (MR u FA)
+  , \(m,_) -> not $ m `contains0` Eps (ML u (ML u FA))
+  -- there remains some derivational ambiguity for some readings:
+  -- WR a + R b ~ RW a + R b
   ]
   where
     contains n haystack needle = modeAsList n needle `isInfixOf` modeAsList n haystack
     [contains0, contains1, contains2] = contains <$> [0,1,2]
     commuter = filter commutative atomicEffects
-    one = flip any
     u = undefined
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
