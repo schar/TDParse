@@ -1,12 +1,15 @@
 module Utils where
 
-import Data.List
 import Control.Apply
+import Data.List
+
 import Data.Function (flip)
+import Data.Monoid ((<>))
 
-flippedApply :: forall f a b. Apply f => f a -> f (a -> b) -> f b
-flippedApply = flip apply
+apmplus = lift2 (<>)
+infixr 6 apmplus as <+>
 
-infixl 4 flippedApply as <**>
+flippedApply = lift2 (flip apply)
+infixl 5 flippedApply as <**>
 
 one = flip any

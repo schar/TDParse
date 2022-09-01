@@ -55,7 +55,7 @@ prettyMode = case _ of
   MR _ op -> text "$\\comb{R}$," <+> prettyMode op
   UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
   UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
-  A op    -> text "$\\comb{A},$" <+> prettyMode op
+  A  _ op -> text "$\\comb{A},$" <+> prettyMode op
   J op    -> text "$\\mu$," <+> prettyMode op
   Eps op  -> text "$\\epsilon$," <+> prettyMode op
   D op    -> text "$\\downarrow$," <+> prettyMode op

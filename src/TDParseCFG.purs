@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
 module TDParseCFG where
 
@@ -9,9 +10,12 @@ import Data.List
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
+import Memo
 import Prelude hiding ((#))
 
 import Control.Alternative (guard)
+import Control.Apply (lift2)
+import Control.Lazy (fix)
 import Control.Monad (join)
 import Data.Bounded.Generic (genericBottom, genericTop)
 import Data.Enum.Generic (genericCardinality, genericFromEnum, genericPred, genericSucc, genericToEnum)
@@ -25,21 +29,20 @@ import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
 import LambdaCalc (Term, make_var, (#), (^))
-import Memo (memo)
 import Unsafe.Coerce (unsafeCoerce)
-import Utils ((<**>), one)
+import Utils ((<**>), one, (<+>))
+
 
 {- Datatypes for syntactic and semantic composition-}
 
 -- some syntactic categories
 data Cat
   = CP | Cmp -- Clauses and Complementizers
-  | CorP | Cor -- Coordinators and Coordination Phrases
+  | CBar | DBar | Cor -- Coordinators and Coordination Phrases
   | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
-
 derive instance Eq Cat
 derive instance Ord Cat
 derive instance Generic Cat _
@@ -58,6 +61,7 @@ data Ty
   | Arr Ty Ty     -- Functions
   | Eff F Ty      -- F-ectful
 derive instance Eq Ty
+derive instance Ord Ty
 derive instance Generic Ty _
 instance Show Ty where
   show t = genericShow t
@@ -67,6 +71,7 @@ infixr 1 Arr as :->
 -- Effects
 data F = S | R Ty | W Ty | C Ty Ty
 derive instance Eq F
+derive instance Ord F
 derive instance Generic F _
 instance Show F where
   show = genericShow
@@ -78,13 +83,15 @@ showNoIndices = case _ of
   C _ _ -> "C"
 
 atomicTypes = E : T : Nil
-atomicEffects = atomicTypes >>= \i -> atomicTypes >>= \j -> S : R i : W i : C i j : Nil
+atomicEffects =
+  pure S <> (R <$> atomicTypes) <> (W <$> atomicTypes) <> (lift2 C atomicTypes atomicTypes)
 
 -- convenience constructors
 effS     = Eff S
 effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
+
 
 {- Syntactic parsing -}
 
@@ -103,7 +110,6 @@ data Syn
 type Sense = (String /\ Cat /\ Ty) -- a single sense of a single word
 type Word = List Sense              -- a word may have several senses
 type Phrase = List Word
-
 type Lexicon = List (String /\ Word)
 
 -- a simple memoized chart parser, parameterized to a particular grammar
@@ -148,10 +154,10 @@ instance Show Sem where
 
 -- Modes of combination
 data Mode
-  = FA | BA | PM | FC     -- Base        > < ^
+  = FA | BA | PM | FC     -- Base        > < & .
   | MR F Mode | ML F Mode -- Functor     map
   | UR F Mode | UL F Mode -- Applicative pure
-  | A Mode                -- Applicative <*>
+  | A F Mode              -- Applicative <*>
   | J Mode                -- Monad       join
   | Eps Mode              -- Adjoint     counit
   | D Mode                -- Cont        lower
@@ -163,14 +169,14 @@ instance Show Mode where
     BA      -> "<"
     PM      -> "&"
     FC      -> "."
-    MR _ op -> "R," <> show op
-    ML _ op -> "L," <> show op
-    UL _ op -> "UL," <> show op
-    UR _ op -> "UR," <> show op
-    A op    -> "A," <> show op
-    J op    -> "J," <> show op
+    MR _ op -> "R,"   <> show op
+    ML _ op -> "L,"   <> show op
+    UL _ op -> "UL,"  <> show op
+    UR _ op -> "UR,"  <> show op
+    A  _ op -> "A,"   <> show op
+    J op    -> "J,"   <> show op
     Eps op  -> "Eps," <> show op
-    D op    -> "D," <> show op
+    D op    -> "D,"   <> show op
 
 modeAsList :: Int -> Mode -> String
 modeAsList v = case _ of
@@ -178,7 +184,7 @@ modeAsList v = case _ of
   ML f op -> "L"    <> showF f <> "," <> modeAsList v op
   UL f op -> "UL"   <> showF f <> "," <> modeAsList v op
   UR f op -> "UR"   <> showF f <> "," <> modeAsList v op
-  A op    -> "A,"   <> modeAsList v op
+  A  f op -> "A,"   <> showF f <> "," <> modeAsList v op
   J op    -> "J,"   <> modeAsList v op
   Eps op  -> "Eps," <> modeAsList v op
   D op    -> "D,"   <> modeAsList v op
@@ -196,10 +202,10 @@ modeAsList v = case _ of
 -- but all our Effects are indeed Functors, and all but (W E) are
 -- indeed Applicative and Monadic
 -- The only adjunction we demonstrate is that between W and R
-functor     _       = true
-applicative f@(W w) = functor f && monoid w
-applicative f       = functor f && true
-monad       f       = applicative f && true
+functor _       = true
+appl    f@(W w) = functor f && monoid w
+appl    f       = functor f && true
+monad   f       = appl f && true
 
 monoid T = true
 monoid _ = false
@@ -214,9 +220,10 @@ instance Commute Ty where
 instance Commute F where
   commutative = case _ of
     S     -> true
-    R _   -> true
+    R _   -> false -- just to have a simple test case
     W w   -> commutative w
     C _ _ -> false
+
 
 {- Type-driven combination -}
 
@@ -230,19 +237,27 @@ derive instance Generic Proof _
 instance Show Proof where
   show t = genericShow t
 
-getProofType ∷ Proof → Ty
+getProofType :: Proof -> Ty
 getProofType (Proof _ _ ty _) = ty
 
 -- Evaluate a constituency tree by finding all the derivations of its
--- daughers and then all the ways of combining those derivations in accordance
+-- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> List Proof
-synsem (Leaf s t)   = pure $ Proof s (Lex s) t Nil
-synsem (Branch l r) = do
-  lp@(Proof lstr lval lty _) <- synsem l
-  rp@(Proof rstr rval rty _) <- synsem r
-  op /\ ty <- combine lty rty
-  pure $ Proof (lstr <> " " <> rstr) (Comb op lval rval) ty (lp:rp:Nil)
+synsem = execute <<< go
+  where
+    go (Leaf s t)   = pure $ singleton $ Proof s (Lex s) t Nil
+    go (Branch l r) = do -- memo block
+      lefts  <- go l
+      rights <- go r
+      map concat $ sequence do -- list block
+        lp@(Proof lstr lval lty _) <- lefts
+        rp@(Proof rstr rval rty _) <- rights
+        pure do -- memo block
+          combos <- combine lty rty
+          pure do -- list block
+            (op /\ ty) <- combos
+            singleton $ Proof (lstr <> " " <> rstr) (Comb op lval rval) ty (lp:rp:Nil)
 
 prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
 prove cfg lex input = concatMap synsem <$> parse cfg lex input
@@ -265,47 +280,47 @@ combineFs = case _,_ of
   C i j, C j' k | j == j' -> pure $ C i k
   _    , _                -> Nil
 
+combine = curry $ fix (memoize' <<< openCombine)
+
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
-combine :: Ty -> Ty -> List (Mode /\ Ty)
-combine l r = sweepSpurious <<< join $
+-- openCombine :: Ty -> Ty -> List (Mode /\ Ty)
+openCombine combine (l /\ r) = sweepSpurious <<< join <$>
 
   -- for starters, try the basic modes of combination
-  modes l r
+  pure (modes l r)
 
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
-  <> case l of
-       Eff f a | functor f -> combine a r <#> \(op /\ c) -> (ML f op /\ Eff f c)
-       _                   -> Nil
+  <+> case l of
+        Eff f a        | functor f -> combine (a/\r) <#> map \(op /\ c) -> (ML f op /\ Eff f c)
+        _                          -> pure Nil
 
   -- vice versa if the right daughter is Functorial
-  <> case r of
-      Eff f b | functor f -> combine l b <#> \(op /\ c) -> (MR f op /\ Eff f c)
-      _                   -> Nil
+  <+> case r of
+        Eff f b        | functor f -> combine (l/\b) <#> map \(op /\ c) -> (MR f op /\ Eff f c)
+        _                          -> pure Nil
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
-  <> case l,r of
-       Eff f a :-> b, _ -> combine (a :-> b) r <#> \(op /\ c) -> (UR f op /\ c)
-       _            , _ -> Nil
+  <+> case l of
+        Eff f a :-> b  | appl f    -> combine ((a :-> b)/\r) <#> map \(op /\ c) -> (UR f op /\ c)
+        _                          -> pure Nil
 
   -- vice versa if the right daughter requests something Functorial
-  <> case l,r of
-       _, Eff f a :-> b -> combine l (a :-> b) <#> \(op /\ c) -> (UL f op /\ c)
-       _,             _ -> Nil
+  <+> case r of
+        Eff f a :-> b  | appl f    -> combine (l/\(a :-> b)) <#> map \(op /\ c) -> (UL f op /\ c)
+        _                          -> pure Nil
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  <> case l,r of
-       Eff f a, Eff g b | applicative f -> do (op /\ c) <- combine a b
-                                              h <- combineFs f g
-                                              pure (A op /\ Eff h c)
-       _      , _                       -> Nil
+  <+> case l,r of
+        Eff f a, Eff g b | appl f  -> combine (a/\b) <#> lift2 (\h (op/\c) -> (A h op /\ Eff h c)) (combineFs f g)
+        _      , _                 -> pure Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
-  <**> (addD : addEps : addJ : pure : Nil)
+  <**> pure (addD : addEps : addJ : pure : Nil)
 
 addJ :: (Mode /\ Ty) -> List (Mode /\ Ty)
 addJ = case _ of
@@ -325,41 +340,45 @@ addD = case _ of
 sweepSpurious :: List (Mode /\ Ty) -> List (Mode /\ Ty)
 sweepSpurious ops = foldr filter ops
   [
-  -- elim unit rule ambiguity (UR,R == R,UR)
+  -- eliminate unit/map duplication (UR,MR == MR,UR)
     \(m /\ _) -> not $ m `contains 0` UR S (MR S FA)
                                     --   ^     ^  the Effects on these modes are
                                     --            ignored by `contains 0`
 
-  -- could J earlier
-  , \(m /\ _) -> not $ m `contains 0` J (MR S (MR S FA))
-  , \(m /\ _) -> not $ m `contains 0` J (ML S (J (ML S FA)))
+  -- avoid higher-order detours
+  , \(m /\ _) -> not $ any (m `contains 0` _) $
 
-  , \(m /\ _) -> not $ m `contains 0` J (MR S (J (MR S FA)))
-  , \(m /\ _) -> not $ m `contains 0` J (ML S (ML S FA))
+         ( (J:identity:Nil) >>= \k -> (MR:ML:Nil) >>= \m -> pure $ J (m S (k (m S FA))) )
+      <> ( (J:identity:Nil) <#> \k -> J (ML S (k (MR S FA))) )
+      <> ( (J:identity:Nil) <#> \k -> J (A  S (k (MR S FA))) )
+      <> ( (J:identity:Nil) <#> \k -> J (ML S (k (A  S FA))) )
 
-  , \(m /\ _) -> not $ m `contains 0` J (A    (MR S FA))
-  , \(m /\ _) -> not $ m `contains 0` J (ML S (A    FA))
+  -- ? ... [o (... o (...)) | o <- [D, J], f <- [o, id]]
 
-    -- could A instead
-  , \(m /\ _) -> not $ m `contains 0` J (ML S (MR S FA))
-  , \(m /\ _) -> not $ m `contains 0` J (ML S (J (MR S FA)))
+  -- for commutative effects, all Js over ops of the same effect are detours
+  , \(m /\ _) -> not $ any (m `contains 2` _) $
 
-  -- for commutative effects, could J earlier
-  , \(m /\ _) -> not $ m `contains 0` J (A    (ML S FA))
-  , \(m /\ _) -> not $ m `contains 0` J (MR S (A    FA))
+         ( commuter <#> \f -> J (MR f    (A  f FA) ) )
+      <> ( commuter <#> \f -> J (A  f    (ML f FA) ) )
+      <> ( commuter >>= \f -> (J:identity:Nil) >>= \k -> pure $ J (MR f (k (ML f FA))) )
+      <> ( commuter >>= \f -> (J:identity:Nil) >>= \k -> pure $ J (A  f (k (A  f FA))) )
 
-  -- for commutative effects, could A instead
-  , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (ML f FA))
-  , \(m /\ _) -> not $ one commuter $ \f -> m `contains 2` J (MR f (J (ML f FA)))
+  -- avoid higher-order detours given D
+  , \(m /\ _) -> not $ any (m `contains 0` _) $
 
-  -- could D . A instead
-  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (MR S FA)))
+         ( (MR:ML:Nil) <#> \m -> D (m  S (D (m  S FA))) )
+      <> ( pure $ D (ML S (D (MR S FA))) )
+      <> ( pure $ D (A  S (D (MR S FA))) )
+      <> ( pure $ D (ML S (D (A  S FA))) )
 
-  -- could J earlier (maybe not desirable if J restricted w/Cont)
-  , \(m /\ _) -> not $ m `contains 0` D (A  (D (MR S FA)))
-  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (A  FA)))
-  , \(m /\ _) -> not $ m `contains 0` D (MR S (D (MR S FA)))
-  , \(m /\ _) -> not $ m `contains 0` D (ML S (D (ML S FA)))
+  -- canonical Eps configuration is Eps (ML u (MR u ...))
+  -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
+  -- (R cannot have a postponed W effect), also rules out xover (forcing W to
+  -- be drawn from L)
+  , \(m /\ _) -> not $ m `contains 0` Eps (MR S FA)
+  , \(m /\ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
+  -- there remains some derivational ambiguity for some readings:
+  -- WR a + R b ~ RW a + R b
   ]
   where
     contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack
@@ -402,7 +421,7 @@ modeTerm = case _ of
   UR _ op -> l ^ r ^ modeTerm op # (a ^ l # (make_var "pure" # a)) # r
 
           -- \L R -> op <$> L <*> R
-  A op    -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
+  A  _ op -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
 
           -- \l r a -> op l (r a) a
   -- Z op    -> l ^ r ^ a ^ modeTerm op # l # (r # a) # a
