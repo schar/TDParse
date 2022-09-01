@@ -5,7 +5,7 @@ module TDPretty where
 
 import qualified Data.Sequence as DS
 import Data.List (intercalate)
-import TDParseCFG
+import TDParseCFG hiding ((<+>), (<**>))
 import Lambda_calc
 import Prelude hiding ((<>), (^), and)
 import Text.PrettyPrint hiding (Mode, cat)

@@ -6,7 +6,6 @@ import TDParseCFG
 import Data.List
 import Data.Tree
 import Data.Maybe
-import GHC.Exts (currentCallStack)
 
 modeTree :: Proof -> Tree (Maybe Mode)
 modeTree (Proof _ sem _ []) = Node Nothing []

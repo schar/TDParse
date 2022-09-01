@@ -1,14 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
 module TDParseCFG where
 
 import Prelude hiding ((<>), (^), and)
 import Control.Monad (join, liftM2)
 import Lambda_calc ( Term, make_var, (#), (^) )
-import Memo ( memo )
-import Data.Function ( (&) )
-import Control.Applicative ( (<**>) )
+import Memo
+import Data.Function ( (&), fix )
+import Data.Functor ( (<&>) )
 import Data.List
 
 
@@ -31,13 +32,11 @@ data Type
   = E | T             -- Base types
   | Type :-> Type     -- Functions
   | Eff F Type        -- F-ectful
-  deriving (Eq, Show-- , Read
-           )
+  deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
 data F = S | R Type | W Type | C Type Type
-  deriving (Eq, Show-- , Read
-           )
+  deriving (Eq, Show, Ord {-, Read-})
 showNoIndices :: F -> String
 showNoIndices = \case
   S     -> "S"
@@ -66,14 +65,13 @@ type CFG = Cat -> Cat -> [Cat]
 data Syn
   = Leaf String Type
   | Branch Syn Syn
-  deriving (Show)
+  deriving (Eq, Show, Ord)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
 -- spellouts, syntactic categories, and types are known
 type Sense = (String, Cat, Type) -- a single sense of a single word
 type Sign = [Sense]              -- a word may have several senses
 type Phrase = [Sign]
-
 type Lexicon = [(String, Word)]
 
 -- a simple memoized chart parser, parameterized to a particular grammar
@@ -162,11 +160,11 @@ modeAsList v = \case
 -- but all our Effects are indeed Functors, and all but (W E) are
 -- indeed Applicative and Monadic
 -- The only adjunction we demonstrate is that between W and R
-functor, applicative, monad :: F -> Bool
+functor, appl, monad :: F -> Bool
 functor     _       = True
-applicative f@(W w) = functor f && monoid w
-applicative f       = functor f && True
-monad       f       = applicative f && True
+appl f@(W w) = functor f && monoid w
+appl f       = functor f && True
+monad       f       = appl f && True
 
 monoid :: Type -> Bool
 monoid T = True
@@ -206,17 +204,24 @@ getProofType (Proof _ _ ty _) = ty
 -- daughers and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> [Proof]
-synsem (Leaf s t)   = [Proof s (Lex s) t []]
-synsem (Branch l r) =
-  [ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
-  | lp@(Proof lstr lval lty _) <- synsem l
-  , rp@(Proof rstr rval rty _) <- synsem r
-  , (op, ty) <- combine lty rty
-  ]
+synsem = execute . go
+  where
+    go (Leaf s t)   = return [Proof s (Lex s) t []]
+    go (Branch l r) = do -- memo block
+      lefts  <- go l
+      rights <- go r
+      fmap concat $ sequence do -- list block
+        lp@(Proof lstr lval lty _) <- lefts
+        rp@(Proof rstr rval rty _) <- rights
+        return do -- memo block
+          combos <- combine lty rty
+          return do -- list block
+            (op, ty) <- combos
+            return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Type -> Type -> [(Mode, Type)]
-modes = curry $ \case
+modes = curry \case
   (a :-> b , r      ) | a == r -> [(FA, b)]
   (l       , a :-> b) | l == a -> [(BA, b)]
   (a :-> T , b :-> T) | a == b -> [(PM, a :-> T)]
@@ -225,60 +230,53 @@ modes = curry $ \case
 -- Make sure that two Effects can compatibly be sequenced
 -- (only relevant to A and J modes)
 combineFs :: F -> F -> [F]
-combineFs = curry $ \case
+combineFs = curry \case
   (S    , S     )           -> [S]
   (R i  , R j   ) | i == j  -> [R i]
   (W i  , W j   ) | i == j  -> [W i]
   (C i j, C j' k) | j == j' -> [C i k]
   _                         -> []
 
+combine = curry $ fix (memoize' . openCombine)
+
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
-combine :: Type -> Type -> [(Mode, Type)]
-combine l r = sweepSpurious . join $
+-- openCombine ::
+--   Monad m => ((Type, Type) -> m [(Mode, Type)])
+--           -> ((Type, Type) -> m [(Mode, Type)])
+openCombine combine (l, r) = sweepSpurious . concat <$>
 
   -- for starters, try the basic modes of combination
-  modes l r
+  return (modes l r)
+
 
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
-  ++ [ (ML f op, Eff f c)
-     | Eff f a <- [l]
-     , functor f
-     , (op, c) <- combine a r
-     ]
+  <+> case l of
+        Eff f a | functor f -> combine (a,r) <&> map \(op,c) -> (ML f op, Eff f c)
+        _                   -> return []
 
   -- vice versa if the right daughter is Functorial
-  ++ [ (MR f op, Eff f c)
-     | Eff f b <- [r]
-     , functor f
-     , (op, c) <- combine l b
-     ]
+  <+> case r of
+        Eff f a | functor f -> combine (l,a) <&> map \(op,c) -> (MR f op, Eff f c)
+        _                   -> return []
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
-  ++ [ (UR f op, c)
-     | Eff f a :-> b <- [l]
-     , applicative f
-     , (op, c) <- combine (a :-> b) r
-     ]
+  <+> case l of
+        Eff f a :-> b | appl f -> combine ((a :-> b),r) <&> map \(op,c) -> (UR f op, c)
+        _                             -> return []
 
   -- vice versa if the right daughter requests something Functorial
-  ++ [ (UL f op, c)
-     | Eff f a :-> b <- [r]
-     , applicative f
-     , (op, c) <- combine l (a :-> b)
-     ]
+  <+> case r of
+        Eff f a :-> b | appl f -> combine (l,(a :-> b)) <&> map \(op,c) -> (UL f op, c)
+        _                             -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  ++ [ (A f op, Eff h c)
-     | Eff f a <- [l]
-     , applicative f
-     , Eff g b <- [r]
-     , h <- combineFs f g
-     , (op, c) <- combine a b
-     ]
+  <+> case (l, r) of
+        (Eff f a, Eff g b) | appl f -> combine (a,b) <&> liftM2 (\h (op,c) -> (A h op, Eff h c)) (combineFs f g)
+        _                           -> return []
 
   -- this is only if you want to see some derivations in the Variable-Free style
   -- ++ [ (Z op, i :-> d)
@@ -289,11 +287,12 @@ combine l r = sweepSpurious . join $
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
-  <**> [addD, addEps, addJ, return]
+  <**> return [addD, addEps, addJ, return]
 
--- closeUnder :: [a -> [a]] -> [a] -> [a]
--- closeUnder fs = concat . takeWhile (not . null) . iterate (\xs -> join $ fs <*> xs)
--- close f xs = concat $ unfoldr (\xs -> if null xs then Nothing else Just (xs, f xs)) xs
+infixr 6 <+>
+(<+>) = liftM2 (++)
+infixl 5 <**>
+(<**>) = liftM2 (flip (<*>))
 
 addJ :: (Mode, Type) -> [(Mode, Type)]
 addJ = \case
