@@ -18,20 +18,19 @@ import Data.List
 -- some syntactic categories
 data Cat
   = CP | Cmp -- Clauses and Complementizers
-  | CorP | Cor | DBar -- Coordinators and Coordination Phrases
+  | CBar | DBar | Cor -- Coordinators and Coordination Phrases
   | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
-  deriving (Eq, Show-- , Read
-           )
+  deriving (Eq, Show, Ord {-, Read-})
 
 -- semantic types
 infixr :->
 data Type
-  = E | T             -- Base types
-  | Type :-> Type     -- Functions
-  | Eff F Type        -- F-ectful
+  = E | T           -- Base types
+  | Type :-> Type   -- Functions
+  | Eff F Type      -- F-ectful
   deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
@@ -45,7 +44,8 @@ showNoIndices = \case
   C _ _ -> "C"
 
 atomicTypes = [E,T]
-atomicEffects = [S] ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
+atomicEffects =
+  [S] ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
 
 -- convenience constructors
 effS     = Eff S
@@ -74,7 +74,7 @@ type Sign = [Sense]              -- a word may have several senses
 type Phrase = [Sign]
 type Lexicon = [(String, Word)]
 
--- a simple memoized chart parser, parameterized to a particular grammar
+-- a simple memoized chart parser, parameterized by a CFG
 protoParse ::
   Monad m
   => CFG
@@ -156,15 +156,14 @@ modeAsList v = \case
 
 {- Type classes -}
 
--- You could implement some real logic here if you wanted,
--- but all our Effects are indeed Functors, and all but (W E) are
+-- All our Effects are Functors, and all but (W E) are
 -- indeed Applicative and Monadic
 -- The only adjunction we demonstrate is that between W and R
 functor, appl, monad :: F -> Bool
-functor     _       = True
+functor _    = True
 appl f@(W w) = functor f && monoid w
 appl f       = functor f && True
-monad       f       = appl f && True
+monad f      = appl f && True
 
 monoid :: Type -> Bool
 monoid T = True
@@ -201,7 +200,7 @@ getProofType :: Proof -> Type
 getProofType (Proof _ _ ty _) = ty
 
 -- Evaluate a constituency tree by finding all the derivations of its
--- daughers and then all the ways of combining those derivations in accordance
+-- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> [Proof]
 synsem = execute . go
@@ -241,9 +240,10 @@ combine = curry $ fix (memoize' . openCombine)
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
--- openCombine ::
---   Monad m => ((Type, Type) -> m [(Mode, Type)])
---           -> ((Type, Type) -> m [(Mode, Type)])
+openCombine ::
+  Monad m
+  => ((Type, Type) -> m [(Mode, Type)])
+  ->  (Type, Type) -> m [(Mode, Type)]
 openCombine combine (l, r) = sweepSpurious . concat <$>
 
   -- for starters, try the basic modes of combination
@@ -253,24 +253,24 @@ openCombine combine (l, r) = sweepSpurious . concat <$>
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
-        Eff f a | functor f -> combine (a,r) <&> map \(op,c) -> (ML f op, Eff f c)
-        _                   -> return []
+        Eff f a         | functor f -> combine (a,r) <&> map \(op,c) -> (ML f op, Eff f c)
+        _                           -> return []
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
-        Eff f a | functor f -> combine (l,a) <&> map \(op,c) -> (MR f op, Eff f c)
-        _                   -> return []
+        Eff f a         | functor f -> combine (l,a) <&> map \(op,c) -> (MR f op, Eff f c)
+        _                           -> return []
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
-        Eff f a :-> b | appl f -> combine ((a :-> b),r) <&> map \(op,c) -> (UR f op, c)
-        _                             -> return []
+        Eff f a :-> b   | appl f    -> combine ((a :-> b),r) <&> map \(op,c) -> (UR f op, c)
+        _                           -> return []
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
-        Eff f a :-> b | appl f -> combine (l,(a :-> b)) <&> map \(op,c) -> (UL f op, c)
-        _                             -> return []
+        Eff f a :-> b   | appl f    -> combine (l,(a :-> b)) <&> map \(op,c) -> (UL f op, c)
+        _                           -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
@@ -279,20 +279,18 @@ openCombine combine (l, r) = sweepSpurious . concat <$>
         _                           -> return []
 
   -- this is only if you want to see some derivations in the Variable-Free style
-  -- ++ [ (Z op, i :-> d)
-  --    | a :-> i :-> b <- [l]
-  --    , Eff (R i) c <- [r]
-  --    , (op, d) <- combine (a :-> b) c
-  --    ]
+  -- <+> case (l, r) of
+  --       (a :-> i :-> b, Eff (R r) c) | i == r -> combine ((a :-> b),c) <&> map \(op,d) -> (Z op, i :-> d)
+  --       _                                     -> return []
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
   <**> return [addD, addEps, addJ, return]
 
-infixr 6 <+>
-(<+>) = liftM2 (++)
-infixl 5 <**>
-(<**>) = liftM2 (flip (<*>))
+  where infixr 6 <+>
+        (<+>) = liftM2 (++)
+        infixl 5 <**>
+        (<**>) = liftM2 (flip (<*>))
 
 addJ :: (Mode, Type) -> [(Mode, Type)]
 addJ = \case
@@ -312,7 +310,7 @@ addD = \case
 sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
 sweepSpurious ops = foldr filter ops
   [
-  -- elim unit rule ambiguity (UR,R == R,UR)
+  -- eliminate unit/map duplication (UR,MR == MR,UR)
     \(m,_) -> not $ m `contains0` UR u (MR u FA)
                                 --   ^     ^  the Effects on these modes are
                                 --            ignored by `contains0`

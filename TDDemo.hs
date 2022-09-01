@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 
 module TDDemo where
 
@@ -10,6 +11,7 @@ import TDParseCFG
 {- A toy lexicon -}
 
 ann       = [("ann"       , DP     , E)                             ]
+ann's     = [("ann"       , Gen    , E)                             ]
 mary      = [("mary"      , DP     , effW E E)                      ]
 maryaling = [("(m--ling)" , DP     , effW T E)                      ]
 sassyacat = [("(s--cat)"  , DP     , effW T E)                      ]
@@ -21,8 +23,10 @@ said      = [("said"      , AV     , T :-> E :-> T)                 ]
 gave      = [("gave"      , DV     , E :-> E :-> E :-> T)           ]
 she       = [("she"       , DP     , effR E E)                      ]
 her       = [("her"       , DP     , effR E E)                      ]
+         ++ [("her"       , Gen    , effR E E)]
 she2      = [("she2"      , DP     , effR E (effW E E))             ]
 her2      = [("her2"      , DP     , effR E (effW E E))             ]
+         ++ [("her2"      , Gen    , effR E (effW E E))             ]
 mom       = [("mom"       , TN     , E :-> E)                       ]
 the       = [("the"       , Det    , (E :-> T) :-> E)               ]
 very      = [("very"      , Deg    , (E :-> T) :-> E :-> T)         ]
@@ -42,23 +46,23 @@ everyone  = [("everyone"  , DP     , effC T T E)                    ]
 everyone2 = [("everyone2" , DP     , effC T T (effW E E))           ]
 tr        = [("tr"        , DP     , effR E E)                      ]
 conj      = [("and"       , Cor    , T :-> T :-> T)                 ]
-conjE     = [("and"       , Cor    , E :-> E :-> E)                 ]
-with      = [{-("with"      , TAdj   , E :-> E :-> T)-}
-             ("with"      , TAdv   , E :-> (E :-> T) :-> E :-> T)   ]
-eclo      = [("eclo"      , Cmp    , effS T :-> T)]
+         ++ [("and"       , Cor    , E :-> E :-> E)                 ]
+with      = [("with"      , TAdv   , E :-> (E :-> T) :-> E :-> T)   ]
+         -- ++ [("with"      , TAdj   , E :-> E :-> T)                 ]
+eclo      = [("eclo"      , Cmp    , effS T :-> T)                  ]
 
 
 -- a toy Context-Free Grammar
 productions :: CFG
-productions = curry $ \case
+productions = curry \case
   (DP   , VP   ) -> [CP]
   (Cmp  , CP   ) -> [CP]
-  (Cor  , CP   ) -> [CorP]
+  (Cor  , CP   ) -> [CBar]
   (Cor  , DP   ) -> [DBar]
   (DP   , DBar ) -> [DP]
-  (CP   , CorP ) -> [CP]
+  (CP   , CBar ) -> [CP]
   (Det  , NP   ) -> [DP]
-  (DP   , TN   ) -> [DP]
+  (Gen  , TN   ) -> [DP]
   (AdjP , NP   ) -> [NP]
   (NP   , AdjP ) -> [NP]
   (TAdj , DP   ) -> [AdjP]

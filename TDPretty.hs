@@ -5,7 +5,7 @@ module TDPretty where
 
 import qualified Data.Sequence as DS
 import Data.List (intercalate)
-import TDParseCFG hiding ((<+>), (<**>))
+import TDParseCFG
 import Lambda_calc
 import Prelude hiding ((<>), (^), and)
 import Text.PrettyPrint hiding (Mode, cat)
@@ -153,7 +153,7 @@ standaloneTrees trees =
   "\\newcommand{\\comb}[1]{\\textbf{\\textsf{#1}}}" $+$
   "\\usepackage[T1]{fontenc}" $+$
   "\\begin{document}\\scriptsize\n" $+$
-  text (intercalate "\n\n" trees) $+$
+  text (if null trees then "Nothing doing" else (intercalate "\n\n" trees)) $+$
   "\n\\end{document}"
 
 typeTrees', denTrees', outTrees' :: CFG -> (Proof -> Bool) -> Phrase -> IO ()
