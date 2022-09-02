@@ -21,7 +21,10 @@ import Text.Pretty.String (parens, brackets, braces)
 
 type Doc = PP.Doc String
 
+
 {- Various pretty printers -}
+
+arrow = text " -> "
 
 prettyTy :: Doc -> Ty -> Doc
 prettyTy a = case _ of
@@ -32,6 +35,11 @@ prettyTy a = case _ of
     case t1 of
       t3 :-> t4 -> parens (prettyTy a t1) <> a <> prettyTy a t2
       _         -> prettyTy a t1 <> a <> prettyTy a t2
+  where
+    prettyParam a = case _ of
+      r@(_ :-> _) -> parens (prettyTy a r)
+      r@(Eff _ _) -> parens (prettyTy a r)
+      r           ->         prettyTy a r
 
 prettyF :: Doc -> F -> Doc
 prettyF a = case _ of
@@ -40,14 +48,29 @@ prettyF a = case _ of
   W w   -> text "W" -- <+> prettyParam a w
   C r o -> text "C" -- <+> prettyParam a r <+> prettyParam a o
 
-prettyParam a r@(_ :-> _) = parens (prettyTy a r)
-prettyParam a r@(Eff _ _) = parens (prettyTy a r)
-prettyParam a r           = prettyTy a r
+-- this is painfully duplicative
+displayTy :: forall m. Ty -> Html m
+displayTy = case _ of
+  E           -> HE.span [HA.class' "atom"] [HE.text "e"]
+  T           -> HE.span [HA.class' "atom"] [HE.text "t"]
+  (Eff f t)   -> displayF f <> {- HE.text " " <> -} displayParam t
+  (t1 :-> t2) ->
+    case t1 of
+      t3 :-> t4 -> parens (displayTy t1) <> ar <> displayTy t2
+      _         ->         displayTy t1  <> ar <> displayTy t2
+  where
+    displayParam = case _ of
+      r@(_ :-> _) -> parens (displayTy r)
+      r@(Eff _ _) -> parens (displayTy r)
+      r           ->         displayTy r
+    parens s =
+      HE.span [HA.class' "ty-punct"] "(" <> s <> HE.span [HA.class' "ty-punct"] ")"
+    ar =
+      HE.span [HA.class' "ty-punct"] [HE.text $ render 100 arrow]
 
-showTy :: Doc -> Ty -> String
-showTy a = render 100 <<< prettyTy a
-
-arrow = text " -> "
+-- might want to toggle the indices at some point
+displayF :: forall m. F -> Html m
+displayF f = HE.span [HA.class' "constructor"] [HE.text $ showNoIndices f]
 
 prettyMode :: Mode -> Doc
 prettyMode = case _ of
@@ -134,25 +157,25 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
 
       _ -> text "\\AXC{wrong number of daughters}"
 
-prettyProofHTML :: forall m. Proof -> Html m
-prettyProofHTML proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
+displayProof :: forall m. Proof -> Html m
+displayProof proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
   where
     html = case _ of
       Proof word v@(Lex w) ty _ ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] [HE.text $ showTy arrow ty]
+              [ HE.span [HA.class' "type"] $ displayTy ty
               , HE.br
               , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
               ]
           , HE.ul [HA.class' "parse-lex"]
-              [ HE.li_ [HE.span [HA.class' "type"] [HE.text $ show w]] ]
+              [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show w]] ]
           ]
 
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] [HE.text $ showTy arrow ty]
+              [ HE.span [HA.class' "type"] $ displayTy ty
               , HE.br
               , HE.span [HA.class' "mode"] [HE.text $ show op]
               ]
@@ -161,6 +184,8 @@ prettyProofHTML proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ 
 
       _ -> HE.li_ [ HE.span [HA.class' "tf-nc"] [HE.text $ "wrong number of daughters"] ]
 
+showTy :: Doc -> Ty -> String
+showTy a = render 100 <<< prettyTy a
 
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = render 100 <<< (_ <> text "\n") <<< disp
@@ -175,30 +200,4 @@ showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
 showParseTree cfg lex = showParse' cfg lex (const true) (prettyProofTree false)
 showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
 showParseBuss cfg lex = showParse' cfg lex (const true) prettyProofBuss
-
--- -- Proofs with some normalization
--- -- Requires bussproofs with \EnableBpAbbreviations, \strut for vert spacing
--- semProofs' :: (Proof -> Boolean) -> List Syn -> List String
--- semProofs' p = map (render 100) <<< punctuate (text "\n") <<< map prettyProofBuss <<< filter p <<< concatMap synsem
--- -- Semantic trees
--- -- Requires forest
--- semTrees' :: Boolean -> List Syn -> List Doc
--- semTrees' norm = map (prettyProofTree norm) <<< concatMap synsem
-
--- semTrees :: List Syn -> Effect Unit
--- semTrees = traverse_ (log <<< render 100) <<< punctuate (text "\n") <<< semTrees' false
--- denTrees :: List Syn  -> Effect Unit
--- denTrees = traverse_ (log <<< render 100) <<< punctuate (text "\n") <<< semTrees' true
-
-
--- semProofs :: List Syn -> List String
--- semProofs = semProofs' (const true)
-
--- semProofsDisplay :: List Syn -> Effect Unit
--- semProofsDisplay = traverse_ log <<< semProofs
-
--- prettyParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> String -> Maybe (List Doc)
--- prettyParse' cfg lex p input = process <$> parse cfg lex input
---   where
---     process =  map (\x -> text "\n" <+> prettyProof x) <<< filter p <<< concatMap synsem
 

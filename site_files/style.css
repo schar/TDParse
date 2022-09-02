@@ -4,15 +4,18 @@
 
   --textcolor: #121212;
   --bgcolor: #fff;
-  --highlight: #2749c9;
-
+  /* --highlight: #2749c9; */
+  --highlight: rgb(1, 130, 172); /* ACMBlue */
+  --accent: rgb(253, 27, 20);  /*ACMRed */ /* #cd5c5c; */
 }
 
 @media (prefers-color-scheme: dark) {
   * {
     --textcolor: #dadada;
     --bgcolor: #141414;
-    --highlight: #ffc400;
+    /* --highlight: #ffc400; */
+    --highlight: #5ccdcd;
+    --accent: #cd5c5c;
   }
 
   .hl {

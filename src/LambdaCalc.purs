@@ -103,6 +103,7 @@ infixl 8 app as #
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
 infixr 6 lam as ^            -- a better notation for a lambda-abstraction
+infixr 6 lam as \.
 instance Show VarName where
    show (VC color name) = if color == 0 then name
                                          else name <> "" <> (show color)

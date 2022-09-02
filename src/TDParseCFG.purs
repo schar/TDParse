@@ -28,9 +28,9 @@ import Data.String.Utils (words)
 import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc (Term, make_var, (#), (^))
+import LambdaCalc (Term, make_var, (#), (\.))
 import Unsafe.Coerce (unsafeCoerce)
-import Utils ((<**>), one, (<+>))
+import Utils ((<**>), one, (<+>), (^), type (^))
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -39,8 +39,8 @@ import Utils ((<**>), one, (<+>))
 data Cat
   = CP | Cmp -- Clauses and Complementizers
   | CBar | DBar | Cor -- Coordinators and Coordination Phrases
-  | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
-  | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
+  | DP | Det | Gen | Dmp -- (Genitive) Determiners and Determiner Phrases
+  | NP | TN -- Transitive (relational) Nouns and Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
 derive instance Eq Cat
@@ -107,40 +107,40 @@ data Syn
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
 -- spellouts, syntactic categories, and types are known
-type Sense = (String /\ Cat /\ Ty) -- a single sense of a single word
+type Sense = (String ^ Cat ^ Ty) -- a single sense of a single word
 type Word = List Sense              -- a word may have several senses
 type Phrase = List Word
-type Lexicon = List (String /\ Word)
+type Lexicon = List (String ^ Word)
 
 -- a simple memoized chart parser, parameterized to a particular grammar
 protoParse ::
   forall m. Monad m
   => CFG
-  -> (Int /\ Int /\ Phrase -> m (List (Cat /\ Syn)))
-  ->  Int /\ Int /\ Phrase -> m (List (Cat /\ Syn))
-protoParse _   _ (_ /\ _ /\ (sign:Nil)) = pure $ map (\(s /\ c /\ t) -> c /\ Leaf s t) sign
+  -> (Int ^ Int ^ Phrase -> m (List (Cat ^ Syn)))
+  ->  Int ^ Int ^ Phrase -> m (List (Cat ^ Syn))
+protoParse _   _ (_^_^sign:Nil) = pure $ map (\(s^c^t) -> c ^ Leaf s t) sign
 protoParse cfg f phrase         = concat <$> traverse help (bisect phrase)
   where
-    bisect (lo /\ hi /\ u) = do
+    bisect (lo ^ hi ^ u) = do
       i <- 1 .. (length u - 1)
-      let (ls /\ rs) = take i u /\ drop i u
-      pure $ (lo /\ (lo + i - 1) /\ ls) /\ ((lo + i) /\ hi /\ rs)
+      let (ls ^ rs) = take i u ^ drop i u
+      pure $ (lo ^ (lo + i - 1) ^ ls) ^ ((lo + i) ^ hi ^ rs)
 
-    help (ls /\ rs) = do
+    help (ls ^ rs) = do
       parsesL <- f ls
       parsesR <- f rs
       pure $ do
-        lcat /\ lsyn <- parsesL
-        rcat /\ rsyn <- parsesR
+        lcat ^ lsyn <- parsesL
+        rcat ^ rsyn <- parsesR
         cat <- cfg lcat rcat
-        pure $ cat /\ Branch lsyn rsyn
+        pure $ cat ^ Branch lsyn rsyn
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
 parse :: CFG -> Lexicon -> String -> Maybe (List Syn)
 parse cfg lex input = do
   ws <- sequence $ map (\s -> lookup s lex) <<< fromFoldable $ words input
-  pure $ snd <$> memo (protoParse cfg) (0 /\ (length ws - 1) /\ ws)
+  pure $ snd <$> memo (protoParse cfg) (0 ^ (length ws - 1) ^ ws)
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
@@ -256,18 +256,18 @@ synsem = execute <<< go
         pure do -- memo block
           combos <- combine lty rty
           pure do -- list block
-            (op /\ ty) <- combos
+            (op ^ ty) <- combos
             singleton $ Proof (lstr <> " " <> rstr) (Comb op lval rval) ty (lp:rp:Nil)
 
 prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
 prove cfg lex input = concatMap synsem <$> parse cfg lex input
 
 -- The basic unEffectful modes of combination (add to these as you like)
-modes :: Ty -> Ty -> List (Mode /\ Ty)
+modes :: Ty -> Ty -> List (Mode ^ Ty)
 modes = case _,_ of
-  a :-> b , r       | a == r -> pure (FA /\ b)
-  l       , a :-> b | l == a -> pure (BA /\ b)
-  a :-> T , b :-> T | a == b -> pure (PM /\ (a :-> T))
+  a :-> b , r       | a == r -> pure (FA ^ b)
+  l       , a :-> b | l == a -> pure (BA ^ b)
+  a :-> T , b :-> T | a == b -> pure (PM ^ (a :-> T))
   _       , _                -> Nil
 
 -- Make sure that two Effects can compatibly be sequenced
@@ -284,8 +284,8 @@ combine = curry $ fix (memoize' <<< openCombine)
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
--- openCombine :: Ty -> Ty -> List (Mode /\ Ty)
-openCombine combine (l /\ r) = sweepSpurious <<< join <$>
+-- openCombine :: Ty -> Ty -> List (Mode ^ Ty)
+openCombine combine (l ^ r) = sweepSpurious <<< join <$>
 
   -- for starters, try the basic modes of combination
   pure (modes l r)
@@ -293,60 +293,60 @@ openCombine combine (l /\ r) = sweepSpurious <<< join <$>
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
-        Eff f a        | functor f -> combine (a/\r) <#> map \(op /\ c) -> (ML f op /\ Eff f c)
+        Eff f a        | functor f -> combine (a^r) <#> map \(op ^ c) -> (ML f op ^ Eff f c)
         _                          -> pure Nil
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
-        Eff f b        | functor f -> combine (l/\b) <#> map \(op /\ c) -> (MR f op /\ Eff f c)
+        Eff f b        | functor f -> combine (l^b) <#> map \(op ^ c) -> (MR f op ^ Eff f c)
         _                          -> pure Nil
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
-        Eff f a :-> b  | appl f    -> combine ((a :-> b)/\r) <#> map \(op /\ c) -> (UR f op /\ c)
+        Eff f a :-> b  | appl f    -> combine ((a :-> b)^r) <#> map \(op ^ c) -> (UR f op ^ c)
         _                          -> pure Nil
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
-        Eff f a :-> b  | appl f    -> combine (l/\(a :-> b)) <#> map \(op /\ c) -> (UL f op /\ c)
+        Eff f a :-> b  | appl f    -> combine (l^(a :-> b)) <#> map \(op ^ c) -> (UL f op ^ c)
         _                          -> pure Nil
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
   <+> case l,r of
-        Eff f a, Eff g b | appl f  -> combine (a/\b) <#> lift2 (\h (op/\c) -> (A h op /\ Eff h c)) (combineFs f g)
+        Eff f a, Eff g b | appl f  -> combine (a^b) <#> lift2 (\h (op^c) -> (A h op ^ Eff h c)) (combineFs f g)
         _      , _                 -> pure Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
   <**> pure (addD : addEps : addJ : pure : Nil)
 
-addJ :: (Mode /\ Ty) -> List (Mode /\ Ty)
+addJ :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addJ = case _ of
-  op /\ Eff f (Eff g a) | monad f -> combineFs f g <#> \h -> (J op /\ Eff h a)
+  op ^ Eff f (Eff g a) | monad f -> combineFs f g <#> \h -> (J op ^ Eff h a)
   _                               -> Nil
 
-addEps :: (Mode /\ Ty) -> List (Mode /\ Ty)
+addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addEps = case _ of
-  op /\ Eff f (Eff g a) | adjoint f g -> pure (Eps op /\ a)
+  op ^ Eff f (Eff g a) | adjoint f g -> pure (Eps op ^ a)
   _                                   -> Nil
 
-addD :: (Mode /\ Ty) -> List (Mode /\ Ty)
+addD :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addD = case _ of
-  op /\ Eff (C i a) a' | a == a' -> pure (D op /\ i)
+  op ^ Eff (C i a) a' | a == a' -> pure (D op ^ i)
   _                              -> Nil
 
-sweepSpurious :: List (Mode /\ Ty) -> List (Mode /\ Ty)
+sweepSpurious :: List (Mode ^ Ty) -> List (Mode ^ Ty)
 sweepSpurious ops = foldr filter ops
   [
   -- eliminate unit/map duplication (UR,MR == MR,UR)
-    \(m /\ _) -> not $ m `contains 0` UR S (MR S FA)
+    \(m ^ _) -> not $ m `contains 0` UR S (MR S FA)
                                     --   ^     ^  the Effects on these modes are
                                     --            ignored by `contains 0`
 
   -- avoid higher-order detours
-  , \(m /\ _) -> not $ any (m `contains 0` _) $
+  , \(m ^ _) -> not $ any (m `contains 0` _) $
 
          ( (J:identity:Nil) >>= \k -> (MR:ML:Nil) >>= \m -> pure $ J (m S (k (m S FA))) )
       <> ( (J:identity:Nil) <#> \k -> J (ML S (k (MR S FA))) )
@@ -356,7 +356,7 @@ sweepSpurious ops = foldr filter ops
   -- ? ... [o (... o (...)) | o <- [D, J], f <- [o, id]]
 
   -- for commutative effects, all Js over ops of the same effect are detours
-  , \(m /\ _) -> not $ any (m `contains 2` _) $
+  , \(m ^ _) -> not $ any (m `contains 2` _) $
 
          ( commuter <#> \f -> J (MR f    (A  f FA) ) )
       <> ( commuter <#> \f -> J (A  f    (ML f FA) ) )
@@ -364,7 +364,7 @@ sweepSpurious ops = foldr filter ops
       <> ( commuter >>= \f -> (J:identity:Nil) >>= \k -> pure $ J (A  f (k (A  f FA))) )
 
   -- avoid higher-order detours given D
-  , \(m /\ _) -> not $ any (m `contains 0` _) $
+  , \(m ^ _) -> not $ any (m `contains 0` _) $
 
          ( (MR:ML:Nil) <#> \m -> D (m  S (D (m  S FA))) )
       <> ( pure $ D (ML S (D (MR S FA))) )
@@ -375,8 +375,8 @@ sweepSpurious ops = foldr filter ops
   -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
   -- (R cannot have a postponed W effect), also rules out xover (forcing W to
   -- be drawn from L)
-  , \(m /\ _) -> not $ m `contains 0` Eps (MR S FA)
-  , \(m /\ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
+  , \(m ^ _) -> not $ m `contains 0` Eps (MR S FA)
+  , \(m ^ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
   -- there remains some derivational ambiguity for some readings:
   -- WR a + R b ~ RW a + R b
   ]
@@ -397,43 +397,43 @@ semTerm (Comb op l r) = modeTerm op # semTerm l # semTerm r
 modeTerm :: Mode -> Term
 modeTerm = case _ of
           -- \l r -> l r
-  FA      -> l ^ r ^ l # r
+  FA      -> l \. r \. l # r
 
           -- \l r -> r l
-  BA      -> l ^ r ^ r # l
+  BA      -> l \. r \. r # l
 
           -- \l r a -> l a `and` r a
-  PM      -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
+  PM      -> l \. r \. a \. make_var "and'" # (l # a) # (r # a)
 
           -- \l r a -> l (r a)
-  FC      -> l ^ r ^ a ^ l # (r # a)
+  FC      -> l \. r \. a \. l # (r # a)
 
-          -- \l R -> (\a -> op l a) <$> r
-  MR _ op -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # l # a)) # r
+          -- \l R -> (\a -> op l a) <$> R
+  MR _ op -> l \. r \. make_var "fmap" # (a \. (modeTerm op # l # a)) # r
 
           -- \L r -> (\a -> op a r) <$> L
-  ML _ op -> l ^ r ^ make_var "fmap" # (a ^ (modeTerm op # a # r)) # l
+  ML _ op -> l \. r \. make_var "fmap" # (a \. (modeTerm op # a # r)) # l
 
-          -- \l R -> op (\a -> r (pure a)) l
-  UL _ op -> l ^ r ^ modeTerm op # (a ^ r # (make_var "pure" # a)) # l
+          -- \l R -> op (\a -> R (pure a)) l
+  UL _ op -> l \. r \. modeTerm op # (a \. r # (make_var "pure" # a)) # l
 
-          -- \L r -> op (\a -> l (pure a)) r
-  UR _ op -> l ^ r ^ modeTerm op # (a ^ l # (make_var "pure" # a)) # r
+          -- \L r -> op (\a -> L (pure a)) r
+  UR _ op -> l \. r \. modeTerm op # (a \. l # (make_var "pure" # a)) # r
 
           -- \L R -> op <$> L <*> R
-  A  _ op -> l ^ r ^ make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
+  A  _ op -> l \. r \. make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
 
           -- \l r a -> op l (r a) a
-  -- Z op    -> l ^ r ^ a ^ modeTerm op # l # (r # a) # a
+  -- Z op    -> l \. r \. a \. modeTerm op # l # (r # a) # a
 
           -- \l r -> join (op l r)
-  J op    -> l ^ r ^ make_var "join" # (modeTerm op # l # r)
+  J op    -> l \. r \. make_var "join" # (modeTerm op # l # r)
 
           -- \l r -> counit (op l r)
-  Eps op  -> l ^ r ^ make_var "counit" # (modeTerm op # l # r)
+  Eps op  -> l \. r \. make_var "counit" # (modeTerm op # l # r)
 
           -- \l r -> op l r id
-  D op    -> l ^ r ^ modeTerm op # l # r # (a ^ a)
+  D op    -> l \. r \. modeTerm op # l # r # (a \. a)
 
   where
     l = make_var "l"

@@ -9,52 +9,30 @@
 <meta property="og:description" content="Effect-driven parsing">
 <link rel="stylesheet" href="site_files/style.css">
 <link rel="stylesheet" href="https://unpkg.com/treeflex/dist/css/treeflex.css">
-<!-- <script> -->
-<!-- MathJax = { -->
-<!--   tex: {inlineMath: [['$', '$'], ['\\(', '\\)']]} -->
-<!-- }; -->
-<!-- </script> -->
-<!-- <script type="text/javascript" id="MathJax-script" async -->
-<!--   src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"> -->
-<!-- </script> -->
-<!-- <script> -->
-<!-- window.MathJax = { -->
-<!--     loader: {load: ['[tex]/color', '[tex]/bussproofs', '[tex]/textmacros', '[tex]/textcomp']}, -->
-<!--     tex: { -->
-<!--         packages: {'[+]': ['color', 'bussproofs', 'textmacros']}, -->
-<!--         textmacros: {packages: {'[+]': ['textcomp']}}, -->
-<!--         macros: { -->
-<!--             comb: ["\\mathbfsf{#1}", 1] -->
-<!--         } -->
-<!--     } -->
-<!-- }; -->
-<!-- </script> -->
 <style>
-  /* @import url('https://fonts.googleapis.com/css2?family=Ubuntu+Mono&family=Ubuntu:wght@500;700&display=swap'); */
   @import url('https://fonts.googleapis.com/css2?family=Courier+Prime&family=Ubuntu&display=swap');
-  body {font-family: /* "MJXTEX", monospace;*/ 'Ubuntu'; font-size: 14px;}
+  body {font-family: 'Ubuntu'; font-size: 14px;}
   ul, p {max-width: 100%;}
   #content {width: 100%; display: flex;}
   #current {margin: 1em 0;}
   #lexicon {width: auto; flex:none; order:1; margin-right: 12px}
-  #parses {
-      flex:auto;
-      min-width: 12em;
-      order:2;
-      overflow:auto;
-      border: 2px solid;
-      text-align: center;
-  }
+  #phraseInput {width: 500px;}
+  #lex-button {width: 100px;}
+  @media only screen and (max-width: 820px)
+    {#phraseInput { width: 100%; }}
+  #parses
+    {flex:auto; min-width: 12em; order:2; overflow:auto; border: 2px solid; text-align: center;}
   .parse {margin-bottom: 5em;}
-  .lexitem {/* font-size: 14px; */ font-family: /* "MJXTEX-T", */ 'Courier Prime', monospace;}
-  #lexFeedback {color: red;}
-  .tf-tree {font-size: 14px;}
-  .tf-tree .tf-nc {font-size: 14px; border: none; padding: 0.25em; text-align: center;}
-  .tf-tree .tf-nc:before, .tf-tree .tf-nc:after {border-left-width: 0.1em;}
-  .tf-tree li li:before {border-top-width: 0.1em;}
+  #lexFeedback {color: var(--highlight);}
+  .tf-tree, .tf-nc {font-size: 14px;}
+  .tf-tree .tf-nc {border: none; padding: 0.25em; text-align: center;}
+  .tf-tree .tf-nc:before, .tf-tree .tf-nc:after
+    {border-left-width: 0.1em; border-color: var(--textcolor);}
+  .tf-tree li li:before {border-top-width: 0.1em; border-color: var(--textcolor);}
   .tf-tree li ul, .tf-tree.tf-gap-sm li ul {margin-bottom: 0;}
-
-  .type {font-family: 'Courier Prime', monospace;}
+  .type, .leaf, .lexitem {font-family: 'Courier Prime', monospace;}
+  .atom {color: var(--highlight);}
+  .constructor {color: var(--accent);}
   .mode {font-family: 'Ubuntu', sans-serif; font-weight: bold;}
   .tf-tree li ul.parse-lex {margin-top: 1.5em;}
   .tf-tree.tf-gap-sm li ul.parse-lex {margin-top: 1em;}
@@ -66,8 +44,7 @@
   <main>
     <section id="home">
     <h1>Effect-driven interpretation</h1>
-    <div id="parser">
-    </div>
+    <!-- contents injected here -->
     </section>
   </main>
 </body>
