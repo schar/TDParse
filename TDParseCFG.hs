@@ -314,8 +314,10 @@ addD = \case
 sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
 sweepSpurious ops = foldr filter ops
   [
-  -- eliminate unit/map duplication (UR,MR == MR,UR)
-    \(m,_) -> not $ m `contains` [UR U, MR U]
+  -- eliminate unit/map duplication (UR,(D,)MR == MR,(D,)UR)
+    \(m,_) -> not $ any (m `contains`) $
+
+         [ [UR U] ++ k ++ [ MR U] | k <- [[D], []] ]
 
   -- avoid higher-order detours
   , \(m,_) -> not $ any (m `contains`) $
@@ -372,25 +374,25 @@ opTerm = \case
        -- \l r -> r l
   BA   -> l ^ r ^ r # l
 
-       -- \l r a -> l a `and` r a
+       -- \l r a -> l a && r a
   PM   -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
 
        -- \l r a -> l (r a)
   FC   -> l ^ r ^ a ^ l # (r # a)
 
-       -- \l R -> (\a -> op l a) <$> r
+       -- \op l r -> (\a -> op l a) <$> r
   MR _ -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
 
-       -- \L r -> (\a -> op a r) <$> L
+       -- \op l r -> (\a -> op a r) <$> l
   ML _ -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
 
-       -- \l R -> op (\a -> r (pure a)) l
+       -- \op l r -> op (\a -> r (pure a)) l
   UL _ -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
 
-       -- \L r -> op (\a -> l (pure a)) r
+       -- \op l r -> op (\a -> l (pure a)) r
   UR _ -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
 
-       -- \L R -> op <$> L <*> R
+       -- \op l l -> op <$> l <*> r
   A  _ -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
 
        -- \l r -> join (op l r)
