@@ -135,27 +135,27 @@ data Op
 
 instance Show Op where
   show = showOp 0
-    where
-      showOp v =
-        \case
-          FA   -> ">"
-          BA   -> "<"
-          PM   -> "&"
-          FC   -> "."
-          MR f -> "R"  ++ showF f
-          ML f -> "L"  ++ showF f
-          UL f -> "UL" ++ showF f
-          UR f -> "UR" ++ showF f
-          A  f -> "A"  ++ showF f
-          J    -> "J"
-          Eps  -> "Eps"
-          D    -> "D"
-        where
-          showF =
-            case v of
-              0 -> const ""      -- just the unparameterized combinators
-              1 -> showNoIndices -- the combinators parameterized by Effect constructor
-              _ -> show          -- the combinators parameterized by full indexed Effect type
+
+showOp :: Int -> Op -> String
+showOp v = \case
+  FA   -> ">"
+  BA   -> "<"
+  PM   -> "&"
+  FC   -> "."
+  MR f -> "R"  ++ showF f
+  ML f -> "L"  ++ showF f
+  UL f -> "UL" ++ showF f
+  UR f -> "UR" ++ showF f
+  A  f -> "A"  ++ showF f
+  J    -> "J"
+  Eps  -> "Eps"
+  D    -> "D"
+  where
+    showF =
+      case v of
+        0 -> const ""      -- just the unparameterized combinators
+        1 -> showNoIndices -- the combinators parameterized by Effect constructor
+        _ -> show          -- the combinators parameterized by full indexed Effect type
 
 
 {- Type classes -}
