@@ -103,8 +103,6 @@ let upstream =
         sha256:8b4467b4b5041914f9b765779c8936d6d4c230b1f60eb64f6269c71812fd7e98
 
 in  upstream
-  with flame.repo = "https://github.com/easafe/purescript-flame.git"
-  with flame.version = "8f996d12492c6988c474c2421215ba4f17ca8d93"
   with prettyprinter =
       { dependencies =
           [ "prelude"

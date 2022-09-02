@@ -50,25 +50,32 @@ prettyF a = case _ of
 
 -- this is painfully duplicative
 displayTy :: forall m. Ty -> Html m
-displayTy = case _ of
-  E           -> HE.span [HA.class' "atom"] [HE.text "e"]
-  T           -> HE.span [HA.class' "atom"] [HE.text "t"]
-  (Eff f t)   -> displayF f <> {- HE.text " " <> -} displayParam t
-  (t1 :-> t2) ->
-    case t1 of
-      t3 :-> t4 -> parens (displayTy t1) <> ar <> displayTy t2
-      _         ->         displayTy t1  <> ar <> displayTy t2
+displayTy ty = HE.span [HA.class' "type"] $ go ty
   where
-    displayParam = case _ of
-      r@(_ :-> _) -> parens (displayTy r)
-      r@(Eff _ _) -> parens (displayTy r)
-      r           ->         displayTy r
-    parens s =
-      HE.span [HA.class' "ty-punct"] "(" <> s <> HE.span [HA.class' "ty-punct"] ")"
-    ar =
-      HE.span [HA.class' "ty-punct"] [HE.text $ render 100 arrow]
+    go = case _ of
+      E           -> [HE.span [HA.class' "atom"] [HE.text "e"]]
+      T           -> [HE.span [HA.class' "atom"] [HE.text "t"]]
+      (Eff f t)   -> [displayF f] <> {- [HE.text " "] <> -} displayParam t
+      (t1 :-> t2) -> displayLeft t1 (go t1) <> ar <> go t2
 
--- might want to toggle the indices at some point
+    displayLeft = case _ of
+      _ :-> _ -> parens
+      _       -> identity
+
+    displayParam = case _ of
+      r@(_ :-> _) -> parens (go r)
+      r@(Eff _ _) -> parens (go r)
+      r           ->         go r
+
+    parens s =
+      [HE.span [HA.class' "ty-punct"] [HE.text "("]]
+      <> s
+      <> [HE.span [HA.class' "ty-punct"] [HE.text ")"]]
+
+    ar =
+      [HE.span [HA.class' "ty-punct"] [HE.text $ render 100 arrow]]
+
+-- splitting this out in case we want to toggle the Effect indices at some point
 displayF :: forall m. F -> Html m
 displayF f = HE.span [HA.class' "constructor"] [HE.text $ showNoIndices f]
 
@@ -158,13 +165,14 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
       _ -> text "\\AXC{wrong number of daughters}"
 
 displayProof :: forall m. Proof -> Html m
-displayProof proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
+displayProof proof =
+  HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
   where
     html = case _ of
       Proof word v@(Lex w) ty _ ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] $ displayTy ty
+              [ HE.span [HA.class' "type"] (displayTy ty)
               , HE.br
               , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
               ]
@@ -175,7 +183,7 @@ displayProof proof = HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ htm
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] $ displayTy ty
+              [ HE.span [HA.class' "type"] (displayTy ty)
               , HE.br
               , HE.span [HA.class' "mode"] [HE.text $ show op]
               ]
