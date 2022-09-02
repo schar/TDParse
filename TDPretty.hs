@@ -52,21 +52,24 @@ prettyProof (Proof phrase val ty daughters) =
 
 {- Outputting latex -}
 
+prettyOp :: Op -> Doc
+prettyOp = \case
+  BA   -> "\\comb{<}"
+  FA   -> "\\comb{>}"
+  PM   -> "\\comb{\\&}"
+  FC   -> "\\comb{\\circ}"
+  ML _ -> "\\comb{L},"
+  MR _ -> "\\comb{R},"
+  UL _ -> text "$\\eta_{\\comb{L}}$,"
+  UR _ -> text "$\\eta_{\\comb{R}}$,"
+  A  _ -> "\\comb{A},"
+  J    -> "$\\mu$,"
+  Eps  -> "$\\epsilon$,"
+  D    -> "$\\downarrow$,"
+
 prettyMode :: Mode -> Doc
-prettyMode = \case
-  BA      -> "\\comb{<}"
-  FA      -> "\\comb{>}"
-  PM      -> "\\comb{\\&}"
-  FC      -> "\\comb{\\circ}"
-  ML _ op -> "\\comb{L}," <+> prettyMode op
-  MR _ op -> "\\comb{R}," <+> prettyMode op
-  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
-  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
-  A  _ op -> "\\comb{A}," <+> prettyMode op
-  J op    -> "$\\mu$," <+> prettyMode op
-  -- Z op    -> "\\comb{Z}," <+> prettyMode op
-  Eps op  -> "$\\epsilon$," <+> prettyMode op
-  D op    -> "$\\downarrow$," <+> prettyMode op
+prettyMode [] = empty
+prettyMode (x:xs) = prettyOp x <+> prettyMode xs
 
 prettyVal :: Bool -> Sem -> Doc
 prettyVal norm v
