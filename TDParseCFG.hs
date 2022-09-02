@@ -312,12 +312,12 @@ addD = \case
   _                              -> []
 
 sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
-sweepSpurious ops = foldr filter ops
+sweepSpurious modes = foldr filter modes
   [
   -- eliminate unit/map duplication (UR,(D,)MR == MR,(D,)UR)
     \(m,_) -> not $ any (m `contains`) $
 
-         [ [UR U] ++ k ++ [ MR U] | k <- [[D], []] ]
+         [ [UR U] ++ k ++ [MR U] | k <- [[D], []] ]
 
   -- avoid higher-order detours
   , \(m,_) -> not $ any (m `contains`) $
@@ -327,7 +327,7 @@ sweepSpurious ops = foldr filter ops
       ++ [ [J, A  U] ++ k ++ [MR U] | k <- [[J], []] ]
       ++ [ [J, ML U] ++ k ++ [A  U] | k <- [[J], []] ]
 
-  -- for commutative effects, all Js over ops of the same effect are detours
+  -- for commutative effects, all Js over modes of the same effect are detours
   , \(m,_) -> not $ any (m `contains`) $
 
          [ [J, MR f,          A  f] | f <- commuter ]
@@ -343,18 +343,21 @@ sweepSpurious ops = foldr filter ops
          , [D, A  U, D, MR U]
          , [D, ML U, D, A  U] ]
 
-  -- canonical Eps configuration is Eps (ML _ (MR _ ...))
-  -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
-  -- (R cannot have a postponed W effect), also rules out xover (forcing W to
-  -- be drawn from L)
-  , \(m,_) -> not $ m `contains` [Eps, MR U]
-  , \(m,_) -> not $ m `contains` [Eps, ML U, ML U]
+  -- canonical Eps configuration is Eps (ML _ (MR/A _ ...))
+  -- rules out xover
+  , \(m,_) -> epsLR m
   -- there remains some derivational ambiguity for some readings:
   -- WR a + R b ~ RW a + R b
   ]
   where
     contains haystack needle = needle `isInfixOf` haystack
     commuter = filter commutative atomicEffects
+    epsLR [] = True
+    epsLR (Eps:f:g:ops)
+      | (f, g) == (ML U, MR U) = True
+      | (f, g) == (ML U, A  U) = True
+      | otherwise = False
+    epsLR (op:ops) = epsLR ops
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
