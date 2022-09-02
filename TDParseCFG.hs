@@ -343,7 +343,7 @@ sweepSpurious modes = foldr filter modes
          , [D, A  U, D, MR U]
          , [D, ML U, D, A  U] ]
 
-  -- canonical Eps configuration is Eps (ML _ (MR/A _ ...))
+  -- canonical Eps configuration is Eps, ML, MR 
   -- rules out xover, forces Eps to apply low
   , \(m,_) -> epsLR m
   -- there remains some derivational ambiguity:
@@ -353,7 +353,7 @@ sweepSpurious modes = foldr filter modes
     contains = flip isInfixOf
     commuter = filter commutative atomicEffects
     epsLR [] = True
-    epsLR (Eps:f:g:ops) = (f, g) `elem` [(ML U, op U) | op <- [MR, A]]
+    epsLR (Eps:f:g:ops) = (f, g) == (ML U, MR U)
     epsLR (op:ops) = epsLR ops
 
 
