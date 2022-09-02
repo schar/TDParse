@@ -12,3 +12,5 @@
 /old/
 /experimental/
 .DS_Store
+*.swp
+*.swo
