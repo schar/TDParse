@@ -164,29 +164,32 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
 
       _ -> text "\\AXC{wrong number of daughters}"
 
-displayProof :: forall m. Proof -> Html m
-displayProof proof =
-  HE.div [HA.class' "tf-tree tf-gap-sm parse" ] [HE.ul_ [ html proof ] ]
+displayProof :: forall m. Int -> Proof -> Html m
+displayProof i proof =
+  HE.div [HA.class' "tf-tree tf-gap-sm parse"]
+    [ HE.span [HA.class' "parse-number"] [HE.text $ show (i + 1) <> "."]
+    , HE.ul_ [ html proof ]
+    ]
   where
     html = case _ of
       Proof word v@(Lex w) ty _ ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] (displayTy ty)
-              , HE.br
-              , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
-              ]
+            [ HE.span [HA.class' "type"] (displayTy ty)
+            , HE.br
+            , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
+            ]
           , HE.ul [HA.class' "parse-lex"]
-              [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show w]] ]
+            [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show w]] ]
           ]
 
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"]
-              [ HE.span [HA.class' "type"] (displayTy ty)
-              , HE.br
-              , HE.span [HA.class' "mode"] [HE.text $ show op]
-              ]
+            [ HE.span [HA.class' "type"] (displayTy ty)
+            , HE.br
+            , HE.span [HA.class' "mode"] [HE.text $ show op]
+            ]
           , HE.ul_ [ html l, html r ]
           ]
 

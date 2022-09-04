@@ -95,13 +95,18 @@ view model =
     , HE.button [HA.id "lex-button", HA.onClick ToggleLex]
         [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " lexicon" ]
 
-    , HE.p "current" [HE.text $ "Showing parses for: " <> model.currentPhrase]
+    , HE.p "current"
+       [ HE.text $ "Showing "
+       , HE.span [HA.style {color: "var(--accent)"}]
+         [ HE.text $ (show $ maybe 0 (length <<< filter model.typeOfInterest) model.currentProofs) ]
+       , HE.text $ " parses for: " <> model.currentPhrase
+       ]
 
     , HE.div "content"
 
       [ HE.div "parses" $
           fromMaybe [HE.text "No parse"] $
-            model.currentProofs <#> (map displayProof <<< filter model.typeOfInterest)
+            model.currentProofs <#> (filter model.typeOfInterest >>> mapWithIndex displayProof)
 
       , HE.div [HA.id "lexicon", HA.style {visibility: if snd (model.lex) then "visible" else "collapse"}] $
         addLexText (fromMaybe "" model.lexFeedback) : addLexInput : map displayLexItem (fst model.lex)

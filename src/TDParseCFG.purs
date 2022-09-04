@@ -315,12 +315,18 @@ openCombine combine (l ^ r) = sweepSpurious <<< join <$>
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
   <+> case l,r of
-        Eff f a, Eff g b | appl f  -> combine (a^b) <#> lift2 (\h (op^c) -> (A h op ^ Eff h c)) (combineFs f g)
+        Eff f a, Eff g b | appl f  -> combine (a^b) <#> lift2 (\h (op ^ c) -> (A h op ^ Eff h c)) (combineFs f g)
         _      , _                 -> pure Nil
+
+  -- if the left daughter is left adjoint to the right, tthen cancel out the
+  -- adjoint effects and try to combine the underlying types
+  <+> case l,r of
+        Eff f a, Eff g b | adjoint f g -> combine (a^b) <#> map \(op ^ c) -> (Eps op ^ c)
+        _      , _                     -> pure Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
-  <**> pure (addD : addEps : addJ : pure : Nil)
+  <**> pure (addD : {-addEps :-} addJ : pure : Nil)
 
 addJ :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addJ   (op ^ t) | Eff f (Eff g a) <- t
@@ -328,12 +334,12 @@ addJ   (op ^ t) | Eff f (Eff g a) <- t
                   = combineFs f g <#> \h -> (J op ^ Eff h a)
                 | otherwise = Nil
 
-addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addEps (op ^ t) | Eff f (Eff g a) <- t
-                , adjoint f g
-                , ML _ (MR _ _) <- op
-                  = pure (Eps op ^ a)
-                | otherwise = Nil
+-- addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
+-- addEps (op ^ t) | Eff f (Eff g a) <- t
+--                 , adjoint f g
+--                 , ML _ (MR _ _) <- op
+--                   = pure (Eps op ^ a)
+--                 | otherwise = Nil
 
 addD :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addD   (op ^ t) | Eff (C i a) a' <- t
@@ -357,8 +363,6 @@ sweepSpurious ops = foldr filter ops
       <> ( (J:identity:Nil) <#> \k -> J (A  S (k (MR S FA))) )
       <> ( (J:identity:Nil) <#> \k -> J (ML S (k (A  S FA))) )
 
-  -- ? ... [o (... o (...)) | o <- [D, J], f <- [o, id]]
-
   -- for commutative effects, all Js over ops of the same effect are detours
   , \(m ^ _) -> not $ any (m `contains 2` _) $
 
@@ -375,18 +379,29 @@ sweepSpurious ops = foldr filter ops
       <> ( pure $ D (A  S (D (MR S FA))) )
       <> ( pure $ D (ML S (D (A  S FA))) )
 
-  -- canonical Eps configuration is Eps (ML u (MR u ...))
-  -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
-  -- (R cannot have a postponed W effect), also rules out xover (forcing W to
-  -- be drawn from L)
-  -- , \(m ^ _) -> not $ m `contains 0` Eps (MR S FA)
-  -- , \(m ^ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
-  -- there remains some derivational ambiguity for some readings:
-  -- WR a + R b ~ RW a + R b
+  -- eliminate eps/J(D) duplication (Eps,J(D) == J(D),Eps)
+  , \(m ^ _) -> not $ any (m `contains 0` _) $
+
+         (        J (Eps FA) )
+       : ( pure $ D (Eps FA) )
+
+  -- EXPERIMENTAL: W's only take surface scope over W's
+  , \(m ^ _) -> not $ any (m `contains 1` _) $
+
+         ( (ML (W E): A (W E): Eps: Nil) <#> \m -> MR (W E) (m FA) )
+
+  -- EXPERIMENTAL: drefs float up
+  , \(m ^ _) -> not $ any (m `contains 1` _) $
+
+         ( scopetakers >>= \f -> (ML f (MR (W E) FA) : MR f (ML (W E) FA) : Nil) )
   ]
   where
     contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack
     commuter = filter commutative atomicEffects
+    scopetakers = atomicEffects >>= case _ of
+      W _ -> Nil
+      R _ -> Nil
+      x   -> pure x
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
