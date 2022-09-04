@@ -8503,10 +8503,6 @@
       })(append12(mapFlipped2(new Cons(MR.create, new Cons(ML.create, Nil.value)))(function(m1) {
         return new D(m1(S.value)(new D(m1(S.value)(FA.value))));
       }))(append12(pure5(new D(new ML(S.value, new D(new MR(S.value, FA.value))))))(append12(pure5(new D(new A(S.value, new D(new MR(S.value, FA.value))))))(pure5(new D(new ML(S.value, new D(new A(S.value, FA.value)))))))));
-    }, function(v) {
-      return !contains2(0)(v.value0)(new Eps(new MR(S.value, FA.value)));
-    }, function(v) {
-      return !contains2(0)(v.value0)(new Eps(new ML(S.value, new ML(S.value, FA.value))));
     }]);
   };
   var appl = function(v) {
@@ -8529,27 +8525,67 @@
     };
   };
   var addJ = function(v) {
-    if (v.value1 instanceof Eff && (v.value1.value1 instanceof Eff && monad(v.value1.value0))) {
-      return mapFlipped2(combineFs(v.value1.value0)(v.value1.value1.value0))(function(h) {
-        return new Tuple(new J(v.value0), new Eff(h, v.value1.value1.value1));
-      });
+    var v1 = function(v2) {
+      if (otherwise) {
+        return Nil.value;
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 325, column 1 - line 325, column 40): " + [v.constructor.name]);
+    };
+    if (v.value1 instanceof Eff && v.value1.value1 instanceof Eff) {
+      var $1081 = monad(v.value1.value0);
+      if ($1081) {
+        return mapFlipped2(combineFs(v.value1.value0)(v.value1.value1.value0))(function(h) {
+          return new Tuple(new J(v.value0), new Eff(h, v.value1.value1.value1));
+        });
+      }
+      ;
+      return v1(true);
     }
     ;
-    return Nil.value;
+    return v1(true);
   };
   var addEps = function(v) {
-    if (v.value1 instanceof Eff && (v.value1.value1 instanceof Eff && adjoint(v.value1.value0)(v.value1.value1.value0))) {
-      return pure5(new Tuple(new Eps(v.value0), v.value1.value1.value1));
+    var v1 = function(v2) {
+      if (otherwise) {
+        return Nil.value;
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 331, column 1 - line 331, column 42): " + [v.constructor.name]);
+    };
+    if (v.value1 instanceof Eff && v.value1.value1 instanceof Eff) {
+      var $1093 = adjoint(v.value1.value0)(v.value1.value1.value0);
+      if ($1093) {
+        if (v.value0 instanceof ML && v.value0.value1 instanceof MR) {
+          return pure5(new Tuple(new Eps(v.value0), v.value1.value1.value1));
+        }
+        ;
+        return v1(true);
+      }
+      ;
+      return v1(true);
     }
     ;
-    return Nil.value;
+    return v1(true);
   };
   var addD = function(v) {
-    if (v.value1 instanceof Eff && (v.value1.value0 instanceof C && eq2(v.value1.value0.value1)(v.value1.value1))) {
-      return pure5(new Tuple(new D(v.value0), v.value1.value0.value0));
+    var v1 = function(v2) {
+      if (otherwise) {
+        return Nil.value;
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 338, column 1 - line 338, column 40): " + [v.constructor.name]);
+    };
+    if (v.value1 instanceof Eff && v.value1.value0 instanceof C) {
+      var $1110 = eq2(v.value1.value0.value1)(v.value1.value1);
+      if ($1110) {
+        return pure5(new Tuple(new D(v.value0), v.value1.value0.value0));
+      }
+      ;
+      return v1(true);
     }
     ;
-    return Nil.value;
+    return v1(true);
   };
   var openCombine = function(dictFunctor) {
     var map32 = map(dictFunctor);
@@ -8563,8 +8599,8 @@
         var mapFlipped12 = mapFlipped(Apply0.Functor0());
         return function(combine1) {
           return function(v) {
-            return map32(function($1158) {
-              return sweepSpurious(join2($1158));
+            return map32(function($1176) {
+              return sweepSpurious(join2($1176));
             })(flippedApply2(apmplus2(pure32(modes(v.value0)(v.value1)))(apmplus1(function() {
               if (v.value0 instanceof Eff && functor(v.value0.value0)) {
                 return mapFlipped12(combine1(new Tuple(v.value0.value1, v.value1)))(map9(function(v1) {
@@ -8614,10 +8650,10 @@
     };
   };
   var combine = /* @__PURE__ */ curry(/* @__PURE__ */ fix(lazyFn)(/* @__PURE__ */ function() {
-    var $1159 = memoize$prime(ordTuple(ordTy)(ordTy));
-    var $1160 = openCombine(functorStateT2)(applyStateT(monadIdentity))(applicativeStateT2);
-    return function($1161) {
-      return $1159($1160($1161));
+    var $1177 = memoize$prime(ordTuple(ordTy)(ordTy));
+    var $1178 = openCombine(functorStateT2)(applyStateT(monadIdentity))(applicativeStateT2);
+    return function($1179) {
+      return $1177($1178($1179));
     };
   }()));
   var synsem = /* @__PURE__ */ function() {
@@ -8644,8 +8680,8 @@
       ;
       throw new Error("Failed pattern match at TDParseCFG (line 249, column 5 - line 249, column 63): " + [v.constructor.name]);
     };
-    return function($1162) {
-      return execute(go($1162));
+    return function($1180) {
+      return execute(go($1180));
     };
   }();
   var prove = function(cfg) {

@@ -323,27 +323,31 @@ openCombine combine (l ^ r) = sweepSpurious <<< join <$>
   <**> pure (addD : addEps : addJ : pure : Nil)
 
 addJ :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addJ = case _ of
-  op ^ Eff f (Eff g a) | monad f -> combineFs f g <#> \h -> (J op ^ Eff h a)
-  _                               -> Nil
+addJ   (op ^ t) | Eff f (Eff g a) <- t
+                , monad f
+                  = combineFs f g <#> \h -> (J op ^ Eff h a)
+                | otherwise = Nil
 
 addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addEps = case _ of
-  op ^ Eff f (Eff g a) | adjoint f g -> pure (Eps op ^ a)
-  _                                   -> Nil
+addEps (op ^ t) | Eff f (Eff g a) <- t
+                , adjoint f g
+                , ML _ (MR _ _) <- op
+                  = pure (Eps op ^ a)
+                | otherwise = Nil
 
 addD :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addD = case _ of
-  op ^ Eff (C i a) a' | a == a' -> pure (D op ^ i)
-  _                              -> Nil
+addD   (op ^ t) | Eff (C i a) a' <- t
+                , a == a'
+                  = pure (D op ^ i)
+                | otherwise = Nil
 
 sweepSpurious :: List (Mode ^ Ty) -> List (Mode ^ Ty)
 sweepSpurious ops = foldr filter ops
   [
   -- eliminate unit/map duplication (UR,MR == MR,UR)
     \(m ^ _) -> not $ m `contains 0` UR S (MR S FA)
-                                    --   ^     ^  the Effects on these modes are
-                                    --            ignored by `contains 0`
+                                   --   ^     ^  the Effects on these modes are
+                                   --            ignored by `contains 0`
 
   -- avoid higher-order detours
   , \(m ^ _) -> not $ any (m `contains 0` _) $
@@ -375,8 +379,8 @@ sweepSpurious ops = foldr filter ops
   -- disallowing Eps (MR u ...) forces Eps to apply as low as possible
   -- (R cannot have a postponed W effect), also rules out xover (forcing W to
   -- be drawn from L)
-  , \(m ^ _) -> not $ m `contains 0` Eps (MR S FA)
-  , \(m ^ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
+  -- , \(m ^ _) -> not $ m `contains 0` Eps (MR S FA)
+  -- , \(m ^ _) -> not $ m `contains 0` Eps (ML S (ML S FA))
   -- there remains some derivational ambiguity for some readings:
   -- WR a + R b ~ RW a + R b
   ]
