@@ -4,13 +4,13 @@
 
 module TDParseCFG where
 
-import Prelude hiding ((<>), (^), and)
+import Prelude hiding ((<>), (^))
 import Control.Monad (join, liftM2)
 import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
-import Data.List ( isInfixOf )
+import Data.List ( isInfixOf, isPrefixOf )
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -34,17 +34,8 @@ data Type
   deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
-data F = S | R Type | W Type | C Type Type | U
-  deriving (Show, Ord {-, Read-})
-
-instance Eq F where
-  U == _ = True
-  _ == U = True
-  S == S = True
-  R t == R u = t == u
-  W t == W u = t == u
-  C t u == C v w = t == v && u == w
-  _ == _ = False
+data F = S | R Type | W Type | C Type Type
+  deriving (Eq, Show, Ord {-, Read-})
 
 showNoIndices :: F -> String
 showNoIndices = \case
@@ -56,6 +47,8 @@ showNoIndices = \case
 atomicTypes = [E,T]
 atomicEffects =
   [S] ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
+
+commuter = filter commutative atomicEffects
 
 -- convenience constructors
 effS     = Eff S
@@ -125,37 +118,28 @@ data Sem
 type Mode = [Op]
 data Op
   = FA | BA | PM | FC -- Base        > < & .
-  | MR F | ML F       -- Functor     fmap
-  | UR F | UL F       -- Applicative pure
-  | A F               -- Applicative <*>
+  | MR | ML           -- Functor     fmap
+  | UR | UL           -- Applicative pure
+  | A                 -- Applicative <*>
   | J                 -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
   deriving (Eq)
 
 instance Show Op where
-  show = showOp 0
-
-showOp :: Int -> Op -> String
-showOp v = \case
-  FA   -> ">"
-  BA   -> "<"
-  PM   -> "&"
-  FC   -> "."
-  MR f -> "R"  ++ showF f
-  ML f -> "L"  ++ showF f
-  UL f -> "UL" ++ showF f
-  UR f -> "UR" ++ showF f
-  A  f -> "A"  ++ showF f
-  J    -> "J"
-  Eps  -> "Eps"
-  D    -> "D"
-  where
-    showF =
-      case v of
-        0 -> const ""      -- just the unparameterized combinators
-        1 -> showNoIndices -- the combinators parameterized by Effect constructor
-        _ -> show          -- the combinators parameterized by full indexed Effect type
+  show = \case
+    FA  -> ">"
+    BA  -> "<"
+    PM  -> "&"
+    FC  -> "."
+    MR  -> "R"
+    ML  -> "L"
+    UL  -> "UL"
+    UR  -> "UR"
+    A   -> "A"
+    J   -> "J"
+    Eps -> "Eps"
+    D   -> "D"
 
 
 {- Type classes -}
@@ -248,113 +232,119 @@ openCombine ::
   Monad m
   => ((Type, Type) -> m [(Mode, Type)])
   ->  (Type, Type) -> m [(Mode, Type)]
-openCombine combine (l, r) = sweepSpurious . concat <$>
+openCombine combine (l, r) = concat <$>
 
   -- for starters, try the basic modes of combination
   return (modes l r)
 
-
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
-        Eff f a         | functor f -> combine (a,r) <&> map \(op,c) -> (ML f : op, Eff f c)
-        _                           -> return []
+    Eff f a
+      | functor f -> combine (a,r) <&> map \(op,c) -> (ML:op, Eff f c)
+    _ -> return []
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
-        Eff f a         | functor f -> combine (l,a) <&> map \(op,c) -> (MR f : op, Eff f c)
-        _                           -> return []
+    Eff f a
+      | functor f -> combine (l,a) <&> map \(op,c) -> (MR:op, Eff f c)
+    _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
-        Eff f a :-> b   | appl f    -> combine ((a :-> b),r) <&> map \(op,c) -> (UR f : op, c)
-        _                           -> return []
+    Eff f a :-> b
+      | appl f ->
+        combine ((a :-> b),r) <&>
+        concatMap \(op,c) -> [(UR:op, c) | normU UR op]
+    _ -> return []
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
-        Eff f a :-> b   | appl f    -> combine (l,(a :-> b)) <&> map \(op,c) -> (UL f : op, c)
-        _                           -> return []
+    Eff f a :-> b
+      | appl f ->
+        combine (l,(a :-> b)) <&>
+        concatMap \(op,c) -> [(UL:op, c) | normU UL op]
+    _ -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  <+> case (l, r) of
-        (Eff f a, Eff g b) | appl f -> combine (a,b) <&> liftM2 (\h (op,c) -> (A h : op, Eff h c)) (combineFs f g)
-        _                           -> return []
-
-  -- this is only if you want to see some derivations in the Variable-Free style
-  -- <+> case (l, r) of
-  --       (a :-> i :-> b, Eff (R r) c) | i == r -> combine ((a :-> b),c) <&> map \(op,d) -> (Z op, i :-> d)
-  --       _                                     -> return []
+  <+> case (l,r) of
+    (Eff f a, Eff g b)
+      | appl f ->
+        combine (a, b) <&>
+        liftM2 (\h (op,c) -> (A:op, Eff h c)) (combineFs f g)
+    _ -> return []
 
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
   <**> return [addD, addEps, addJ, return]
 
-  where infixr 6 <+>
-        (<+>) = liftM2 (++)
-        infixl 5 <**>
-        (<**>) = liftM2 (flip (<*>))
+  where
+    infixr 6 <+>
+    (<+>) = liftM2 (++)
+    infixl 5 <**>
+    (<**>) = liftM2 (flip (<*>))
+
+    -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
+    normU = \case
+      UR -> \op -> not $ any (`isPrefixOf` op) [[MR], [D,MR]]
+      UL -> \op -> not $ any (`isPrefixOf` op) [[ML], [D,ML]]
 
 addJ :: (Mode, Type) -> [(Mode, Type)]
-addJ = \case
-  (op, Eff f (Eff g a)) | monad f -> [(J : op, Eff h a) | h <- combineFs f g]
-  _                               -> []
+addJ =
+  \case
+    (op, Eff f (Eff g a))
+      | monad f
+      , normJ f op -> [(J:op, Eff h a) | h <- combineFs f g]
+    _ -> []
+
+  where
+    normJ f op = not $ any (`isPrefixOf` op) $
+
+      -- avoid higher-order detours for all J-able effects
+         [ [m]  ++ k ++ [m]  | k <- [[J], []], m <- [MR, ML] ]
+      ++ [ [ML] ++ k ++ [MR] | k <- [[J], []] ]
+      ++ [ [A]  ++ k ++ [MR] | k <- [[J], []] ]
+      ++ [ [ML] ++ k ++ [A]  | k <- [[J], []] ]
+
+      -- for commutative effects
+      ++ [ [MR     ,     A ] | f `elem` commuter]
+      ++ [ [A      ,     ML] | f `elem` commuter]
+      ++ [ [MR] ++ k ++ [ML] | f `elem` commuter, k <- [[J], []] ]
+      ++ [ [A]  ++ k ++ [A]  | f `elem` commuter, k <- [[J], []] ]
 
 addEps :: (Mode, Type) -> [(Mode, Type)]
-addEps = \case
-  (op, Eff f (Eff g a)) | adjoint f g -> [(Eps : op, a)]
-  _                                   -> []
+addEps =
+  \case
+    (op, Eff f (Eff g a))
+      | adjoint f g
+      , normEps op -> [(Eps:op, a)]
+    _ -> []
+
+  where
+    normEps (ML:MR:ops) = True
+    normEps _ = False
+    -- canonical Eps configuration is Eps, ML, MR
+    -- rules out xover, forces Eps to apply low
+    -- there remains some derivational ambiguity:
+    -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+
 
 addD :: (Mode, Type) -> [(Mode, Type)]
-addD = \case
-  (op, Eff (C i a) a') | a == a' -> [(D : op, i)]
-  _                              -> []
+addD =
+  \case
+    (op, Eff (C i a) a')
+      | a == a'
+      , normD op -> [(D:op, i)]
+    _ -> []
 
-sweepSpurious :: [(Mode, Type)] -> [(Mode, Type)]
-sweepSpurious modes = foldr filter modes
-  [
-  -- eliminate unit/map duplication (UR,(D,)MR == MR,(D,)UR)
-    \(m,_) -> not $ any (m `contains`) $
-
-         [ [UR U] ++ k ++ [MR U] | k <- [[D], []] ]
-
-  -- avoid higher-order detours
-  , \(m,_) -> not $ any (m `contains`) $
-
-         [ [J, m  U] ++ k ++ [m  U] | k <- [[J], []], m <- [MR, ML] ]
-      ++ [ [J, ML U] ++ k ++ [MR U] | k <- [[J], []] ]
-      ++ [ [J, A  U] ++ k ++ [MR U] | k <- [[J], []] ]
-      ++ [ [J, ML U] ++ k ++ [A  U] | k <- [[J], []] ]
-
-  -- for commutative effects, all Js over modes of the same effect are detours
-  , \(m,_) -> not $ any (m `contains`) $
-
-         [ [J, MR f,          A  f] | f <- commuter ]
-      ++ [ [J, A  f,          ML f] | f <- commuter ]
-      ++ [ [J, MR f] ++ k ++ [ML f] | f <- commuter, k <- [[J], []] ]
-      ++ [ [J, A  f] ++ k ++ [A  f] | f <- commuter, k <- [[J], []] ]
-
-  -- avoid higher-order detours given D
-  , \(m,_) -> not $ any (m `contains`) $
-
-         [ [D, m  U, D, m  U] | m <- [MR, ML] ]
-      ++ [ [D, ML U, D, MR U]
-         , [D, A  U, D, MR U]
-         , [D, ML U, D, A  U] ]
-
-  -- canonical Eps configuration is Eps, ML, MR 
-  -- rules out xover, forces Eps to apply low
-  , \(m,_) -> epsLR m
-  -- there remains some derivational ambiguity:
-  -- W,W,R,R has 3 all-cancelling derivations not 2, due to local WR/RW ambig
-  ]
   where
-    contains = flip isInfixOf
-    commuter = filter commutative atomicEffects
-    epsLR [] = True
-    epsLR (Eps:f:g:ops) = (f, g) == (ML U, MR U)
-    epsLR (op:ops) = epsLR ops
+    normD op = not $ any (`isPrefixOf` op) $
+         [ [m , D, m ] | m <- [MR, ML] ]
+      ++ [ [ML, D, MR]
+         , [A , D, MR]
+         , [ML, D, A ] ]
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
@@ -368,41 +358,41 @@ semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
 -- that we can display in various forms
 opTerm :: Op -> Term
 opTerm = \case
-       -- \l r -> l r
-  FA   -> l ^ r ^ l # r
+      -- \l r -> l r
+  FA  -> l ^ r ^ l # r
 
-       -- \l r -> r l
-  BA   -> l ^ r ^ r # l
+      -- \l r -> r l
+  BA  -> l ^ r ^ r # l
 
-       -- \l r a -> l a && r a
-  PM   -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
+      -- \l r a -> l a && r a
+  PM  -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
 
-       -- \l r a -> l (r a)
-  FC   -> l ^ r ^ a ^ l # (r # a)
+      -- \l r a -> l (r a)
+  FC  -> l ^ r ^ a ^ l # (r # a)
 
-       -- \op l r -> (\a -> op l a) <$> r
-  MR _ -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
+      -- \op l r -> (\a -> op l a) <$> r
+  MR  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
 
-       -- \op l r -> (\a -> op a r) <$> l
-  ML _ -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
+      -- \op l r -> (\a -> op a r) <$> l
+  ML  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
 
-       -- \op l r -> op (\a -> r (pure a)) l
-  UL _ -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
+      -- \op l r -> op (\a -> r (pure a)) l
+  UL  -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
 
-       -- \op l r -> op (\a -> l (pure a)) r
-  UR _ -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
+      -- \op l r -> op (\a -> l (pure a)) r
+  UR  -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
 
-       -- \op l l -> op <$> l <*> r
-  A  _ -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
+      -- \op l l -> op <$> l <*> r
+  A   -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
 
-       -- \l r -> join (op l r)
-  J    -> op ^ l ^ r ^ make_var "join" # (op # l # r)
+      -- \l r -> join (op l r)
+  J   -> op ^ l ^ r ^ make_var "join" # (op # l # r)
 
-       -- \l r -> counit (op l r)
-  Eps  -> op ^ l ^ r ^ make_var "counit" # (op # l # r)
+      -- \l r -> counit (op l r)
+  Eps -> op ^ l ^ r ^ make_var "counit" # (op # l # r)
 
-       -- \l r -> op l r id
-  D    -> op ^ l ^ r ^ op # l # r # (a ^ a)
+      -- \l r -> op l r id
+  D   -> op ^ l ^ r ^ op # l # r # (a ^ a)
 
   where
     l  = make_var "l"
@@ -413,3 +403,4 @@ opTerm = \case
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x # modeTerm xs
+
