@@ -276,9 +276,19 @@ openCombine combine (l, r) = concat <$>
         liftM2 (\h (op,c) -> (A:op, Eff h c)) (combineFs f g)
     _ -> return []
 
+  -- canonical Eps configuration is Eps, ML, MR
+  -- rules out xover, forces Eps to apply low
+  -- there remains some derivational ambiguity:
+  -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+  <+> case (l,r) of
+    (Eff f a, Eff g b)
+      | adjoint f g ->
+        combine (a, b) <&> map \(op,c) -> (Eps:op, c)
+    _ -> return []
+
   -- finally see if the resulting types can additionally be lowered (D),
   -- joined (J), or canceled out (Eps)
-  <**> return [addD, addEps, addJ, return]
+  <**> return [addD, addJ, return]
 
   where
     infixr 6 <+>
@@ -307,29 +317,13 @@ addJ =
       ++ [ [ML] ++ k ++ [MR] | k <- [[J], []] ]
       ++ [ [A]  ++ k ++ [MR] | k <- [[J], []] ]
       ++ [ [ML] ++ k ++ [A]  | k <- [[J], []] ]
+      ++ [ [Eps] ]
 
       -- for commutative effects
       ++ [ [MR     ,     A ] | f `elem` commuter]
       ++ [ [A      ,     ML] | f `elem` commuter]
       ++ [ [MR] ++ k ++ [ML] | f `elem` commuter, k <- [[J], []] ]
       ++ [ [A]  ++ k ++ [A]  | f `elem` commuter, k <- [[J], []] ]
-
-addEps :: (Mode, Type) -> [(Mode, Type)]
-addEps =
-  \case
-    (op, Eff f (Eff g a))
-      | adjoint f g
-      , normEps op -> [(Eps:op, a)]
-    _ -> []
-
-  where
-    normEps (ML:MR:ops) = True
-    normEps _ = False
-    -- canonical Eps configuration is Eps, ML, MR
-    -- rules out xover, forces Eps to apply low
-    -- there remains some derivational ambiguity:
-    -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
-
 
 addD :: (Mode, Type) -> [(Mode, Type)]
 addD =
@@ -344,7 +338,9 @@ addD =
          [ [m , D, m ] | m <- [MR, ML] ]
       ++ [ [ML, D, MR]
          , [A , D, MR]
-         , [ML, D, A ] ]
+         , [ML, D, A ]
+         , [Eps]
+         ]
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
