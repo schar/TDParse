@@ -19,7 +19,7 @@ import Data.List ( isPrefixOf )
 data Cat
   = CP | Cmp -- Clauses and Complementizers
   | CBar | DBar | Cor -- Coordinators and Coordination Phrases
-  | DP | Det | Gen -- (Genitive) Determiners and full Determiner Phrases
+  | DP | Det | Gen | Dmp -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
