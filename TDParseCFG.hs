@@ -4,13 +4,13 @@
 
 module TDParseCFG where
 
-import Prelude hiding ((<>), (^))
-import Control.Monad (join, liftM2)
+import Prelude hiding ( (<>), (^) )
+import Control.Monad ( join, liftM2 )
 import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
-import Data.List ( isInfixOf, isPrefixOf )
+import Data.List ( isPrefixOf )
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -43,12 +43,6 @@ showNoIndices = \case
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
-
-atomicTypes = [E,T]
-atomicEffects =
-  [S] ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
-
-commuter = filter commutative atomicEffects
 
 -- convenience constructors
 effS     = Eff S
@@ -320,10 +314,10 @@ addJ =
       ++ [ [Eps] ]
 
       -- for commutative effects
-      ++ [ [MR     ,     A ] | f `elem` commuter]
-      ++ [ [A      ,     ML] | f `elem` commuter]
-      ++ [ [MR] ++ k ++ [ML] | f `elem` commuter, k <- [[J], []] ]
-      ++ [ [A]  ++ k ++ [A]  | f `elem` commuter, k <- [[J], []] ]
+      ++ [ [MR     ,     A ] | commutative f ]
+      ++ [ [A      ,     ML] | commutative f ]
+      ++ [ [MR] ++ k ++ [ML] | commutative f, k <- [[J], []] ]
+      ++ [ [A]  ++ k ++ [A]  | commutative f, k <- [[J], []] ]
 
 addD :: (Mode, Type) -> [(Mode, Type)]
 addD =
@@ -348,6 +342,10 @@ addD =
 semTerm :: Sem -> Term
 semTerm (Lex w)      = make_var (w ++ "'")
 semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
+
+modeTerm :: Mode -> Term
+modeTerm [op] = opTerm op
+modeTerm (x:xs) = opTerm x # modeTerm xs
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
@@ -395,8 +393,3 @@ opTerm = \case
     r  = make_var "r"
     a  = make_var "a"
     op = make_var "op"
-
-modeTerm :: Mode -> Term
-modeTerm [op] = opTerm op
-modeTerm (x:xs) = opTerm x # modeTerm xs
-
