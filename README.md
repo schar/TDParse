@@ -18,6 +18,6 @@ tree output with types and rules:
 *TDDemo> outTrees' productions ((== effS T) . getProofType) [the, cat, near, someone2, saw, her]
 ```
 
-<img width="566" alt="image" src="https://user-images.githubusercontent.com/1521291/188498076-b1dfe76a-be6a-4975-9cba-0b4d5539dd58.png">
+<img width="566" alt="image" align="center" src="https://user-images.githubusercontent.com/1521291/188498076-b1dfe76a-be6a-4975-9cba-0b4d5539dd58.png">
 
 Online version [here](https://schar.github.io/TDParse).
