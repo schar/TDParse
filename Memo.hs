@@ -29,3 +29,6 @@ memoize' f p = gets (lookup p) >>= maybe addkey return
     extend g w = (fst w, g w) -- sadly comonad not in base
 
 memo' f x = execute (fix (memoize' . f) x)
+
+executeT m = evalState (evalStateT m empty) empty
+memoT f x = executeT (fix (memoize . f) x)
