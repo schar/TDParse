@@ -30,6 +30,7 @@ type Model =
   , currentProofs :: Maybe (Array Proof)
   , lex :: Array Word ^ Boolean
   , lexFeedback :: Maybe String
+  , densOn :: Boolean
   }
 
 -- | This datatype is used to signal events to `update`
@@ -37,6 +38,7 @@ data Message
   = PhraseInput (Key ^ String)
   | TypeInput (Key ^ String)
   | ToggleLex
+  | ToggleDen
   | AddLex (Key ^ String)
 
 -- | Initial state of the app
@@ -47,6 +49,7 @@ init =
   , currentProofs: Just []
   , lex: fromFoldable Demo.lexicon ^ false
   , lexFeedback: Nothing
+  , densOn: false
   }
 
 proofs :: Lexicon -> String -> Maybe (Array Proof)
@@ -69,6 +72,8 @@ update model = case _ of
       Right ty -> model { typeOfInterest = (_ `elem` ty) <<< getProofType }
 
   ToggleLex ->    model { lex = not <$> model.lex }
+
+  ToggleDen ->    model { densOn = not model.densOn }
 
   AddLex ("Enter" ^ s) ->
     case lexParse s of
@@ -95,6 +100,9 @@ view model =
     , HE.button [HA.id "lex-button", HA.onClick ToggleLex]
         [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " lexicon" ]
 
+    , HE.button [HA.id "den-button", HA.onClick ToggleDen]
+        [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " meanings" ]
+
     , HE.p "current"
        [ HE.text $ "Showing "
        , HE.span [HA.style {color: "var(--accent)"}]
@@ -106,7 +114,8 @@ view model =
 
       [ HE.div "parses" $
           fromMaybe [HE.text "No parse"] $
-            model.currentProofs <#> (filter model.typeOfInterest >>> mapWithIndex displayProof)
+            model.currentProofs <#>
+              (filter model.typeOfInterest >>> mapWithIndex (displayProof model.densOn))
 
       , HE.div [HA.id "lexicon", HA.style {visibility: if snd (model.lex) then "visible" else "collapse"}] $
         addLexText (fromMaybe "" model.lexFeedback) : addLexInput : map displayLexItem (fst model.lex)

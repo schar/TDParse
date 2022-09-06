@@ -3,12 +3,12 @@
 
 module TDDemo where
 
-import Prelude hiding ((#))
+import Prelude hiding ((*))
 
 import TDPretty ( showParse )
 import Text.Pretty ( render )
 import TDParseCFG
-import LambdaCalc hiding ((^))
+import LambdaCalc
 import Utils ( (^), type (^) )
 import Data.List
 import Data.Maybe
@@ -54,9 +54,9 @@ lexicon = map mkLex $
   : ("some"      ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effS E)           ))
   : ("someone"   ^ pure ( Nothing   ^ DP   ^ (effC T T E)                     ))
   : ("someone2"  ^ pure ( Just so2  ^ DP   ^ (effS (effW E E))                ))
-  : ("someone3"  ^ pure ( Just so   ^ DP   ^ (effS E)                         ))
-  : ("everyone"  ^ pure ( Nothing   ^ DP   ^ (effC T T E)                     ))
-  : ("everyone2" ^ pure ( Nothing   ^ DP   ^ (effC T T (effW E E))            ))
+  : ("someone3"  ^ pure ( Just so3  ^ DP   ^ (effS E)                         ))
+  : ("everyone"  ^ pure ( Just eo   ^ DP   ^ (effC T T E)                     ))
+  : ("everyone2" ^ pure ( Just eo2  ^ DP   ^ (effC T T (effW E E))            ))
   : ("tr"        ^ pure ( Nothing   ^ DP   ^ (effR E E)                       ))
   : ("and"       ^ pure ( Nothing   ^ Cor  ^ (T :-> T :-> T)                  ))
   : ("andE"      ^ pure ( Nothing   ^ Cor  ^ (E :-> E :-> E)                  ))
@@ -68,17 +68,19 @@ lexicon = map mkLex $
   where
     first  (a ^ s) f = f a ^ s
     second (s ^ a) f = s ^ f s a
-    mkLex w = second w $ \s -> map (_ `first` (fromMaybe (make_var $ s <> "'")))
+    mkLex w = second w $ \s -> map (_ `first` (fromMaybe (make_var s)))
     a = make_var "a"
-    ann = make_var "a'"
-    mary = make_var "m'"
-    mref = Pair mary mary
-    ml = Pair mary (make_var "ling'" # mary)
-    sc = Pair (make_var "s'") (make_var "cat'" # make_var "s'")
-    she = a \. a
-    she2 = a \. Pair a a
-    so = Set (make_var "person") (a \. a)
-    so2 = Set (make_var "person") (a \. Pair a a)
+    ann = make_var "a"
+    mary = make_var "m"
+    mref = mary * mary
+    ml = mary * make_var "ling" % mary
+    sc = make_var "s" * make_var "cat" % make_var "s"
+    she = a ! a
+    she2 = a ! a * a
+    so3 = make_set "person"
+    so2 = fmap S % she2 % so3
+    eo = make_var "everyone"
+    eo2 = fmap (C T T) % she2 % eo
 
 -- a toy Context-Free Grammar
 productions :: CFG

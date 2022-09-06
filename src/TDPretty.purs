@@ -9,6 +9,7 @@ import LambdaCalc
 import Prelude
 import TDParseCFG
 import Text.Pretty
+import Utils ((^), type (^))
 
 import Data.Foldable (traverse_)
 import Effect (Effect)
@@ -78,6 +79,69 @@ displayTy ty = HE.span [HA.class' "type"] $ go ty
 -- splitting this out in case we want to toggle the Effect indices at some point
 displayF :: forall m. F -> Html m
 displayF f = HE.span [HA.class' "constructor"] [HE.text $ showNoIndices f]
+
+displayDen :: forall m. Sem -> Html m
+displayDen d = HE.span [HA.class' "den"] $ displayTerm (eval (semTerm d)) 100
+
+displayTerm :: forall m. Term -> Int -> Array (Html m)
+displayTerm _    depth | depth <= 0 = [ HE.text "..." ]
+displayTerm term depth              = go term
+  where
+    go = case _ of
+      (Var v) ->
+        [ HE.text (show v) ]       -- show the variable regardless of depth
+      (Lam v body) ->
+        [ HE.span [HA.class' "den-punct"] [HE.text "(λ"] ]
+        <> [ HE.text (show v) ]
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
+        <> go' body
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ")"] ]
+      (Ap t1 t2) ->
+        go' t1
+        <> [ HE.text " " ]
+        <> displayRight t2 (go' t2)
+      (Pair t1 t2) ->
+        [ HE.span [HA.class' "den-punct"] [HE.text "⟨"] ]
+        <> go' t1
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
+        <> go' t2
+        <> [ HE.span [HA.class' "den-punct"] [HE.text "⟩"] ]
+      (Fst p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "fst "] ]
+        <> displayRight p (go p)
+      (Snd p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "snd "] ]
+        <> displayRight p (go p)
+      e@(Set dom cond) ->
+        let s      = VC 0 "s"
+            (f^v') = occurs e s
+            v      = if f then bump_color v' s else s
+         in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
+            <> go' (eval $ cond % (Var v))
+            <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
+            <> [ HE.text (show v) ]
+            <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
+            <> go' dom
+            <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
+      (Dom p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
+        <> displayRight p (go p)
+      (Map p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "map "] ]
+        <> displayRight p (go p)
+
+    go' term = displayTerm term (depth - 1)
+
+    displayRight = case _ of
+      (Ap _ _) -> parens
+      (Fst _)  -> parens
+      (Snd _)  -> parens
+      _        -> identity
+
+    parens s =
+      [HE.span [HA.class' "den-punct"] [HE.text "("]]
+      <> s
+      <> [HE.span [HA.class' "den-punct"] [HE.text ")"]]
 
 prettyMode :: Mode -> Doc
 prettyMode = case _ of
@@ -164,8 +228,8 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
 
       _ -> text "\\AXC{wrong number of daughters}"
 
-displayProof :: forall m. Int -> Proof -> Html m
-displayProof i proof =
+displayProof :: forall m. Boolean -> Int -> Proof -> Html m
+displayProof dens i proof =
   HE.div [HA.class' "tf-tree tf-gap-sm parse"]
     [ HE.span [HA.class' "parse-number"] [HE.text $ show (i + 1) <> "."]
     , HE.ul_ [ html proof ]
@@ -174,22 +238,22 @@ displayProof i proof =
     html = case _ of
       Proof word v@(Lex w) ty _ ->
         HE.li_
-          [ HE.div [HA.class' "tf-nc"]
-            [ HE.span [HA.class' "type"] (displayTy ty)
-            , HE.br
-            , HE.span [HA.class' "mode"] [HE.text $ "Lex"]
-            ]
+          [ HE.div [HA.class' "tf-nc"] $
+            [ displayTy ty ]
+            <> (if dens then [ HE.br, displayDen v ] else [])
+            <> [ HE.br ]
+            <> [ HE.span [HA.class' "mode"] [HE.text $ "Lex"] ]
           , HE.ul [HA.class' "parse-lex"]
-            [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show w]] ]
+            [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show word]] ]
           ]
 
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
         HE.li_
-          [ HE.div [HA.class' "tf-nc"]
-            [ HE.span [HA.class' "type"] (displayTy ty)
-            , HE.br
-            , HE.span [HA.class' "mode"] [HE.text $ show op]
-            ]
+          [ HE.div [HA.class' "tf-nc"] $
+            [ displayTy ty ]
+            <> (if dens then [ HE.br, displayDen v ] else [])
+            <> [ HE.br ]
+            <> [ HE.span [HA.class' "mode"] [HE.text $ show op] ]
           , HE.ul_ [ html l, html r ]
           ]
 

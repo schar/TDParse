@@ -29,7 +29,7 @@ import Data.String.Utils (words)
 import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc (Term(..), make_var, (#), (\.), (%))
+import LambdaCalc (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*))
 import Unsafe.Coerce (unsafeCoerce)
 import Utils ((<**>), one, (<+>), (^), type (^))
 
@@ -411,7 +411,7 @@ sweepSpurious ops = foldr filter ops
 
 semTerm :: Sem -> Term
 semTerm (Lex w)       = w
-semTerm (Comb op l r) = modeTerm op # semTerm l # semTerm r
+semTerm (Comb op l r) = modeTerm op % semTerm l % semTerm r
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
@@ -419,54 +419,64 @@ semTerm (Comb op l r) = modeTerm op # semTerm l # semTerm r
 modeTerm :: Mode -> Term
 modeTerm = case _ of
           -- \l r -> l r
-  FA      -> l \. r \. l # r
+  FA      -> l ! r ! l % r
 
           -- \l r -> r l
-  BA      -> l \. r \. r # l
+  BA      -> l ! r ! r % l
 
           -- \l r a -> l a `and` r a
-  PM      -> l \. r \. a \. make_var "and'" # (l # a) # (r # a)
+  PM      -> l ! r ! a ! make_var "and'" % (l % a) % (r % a)
 
           -- \l r a -> l (r a)
-  FC      -> l \. r \. a \. l # (r # a)
+  FC      -> l ! r ! a ! l % (r % a)
 
           -- \l R -> (\a -> op l a) <$> R
-  MR f op -> l \. r \. fmap f # (a \. (modeTerm op # l # a)) # r
+  MR f op -> l ! r ! fmap f % (a ! (modeTerm op % l % a)) % r
 
           -- \L r -> (\a -> op a r) <$> L
-  ML f op -> l \. r \. fmap f # (a \. (modeTerm op # a # r)) # l
+  ML f op -> l ! r ! fmap f % (a ! (modeTerm op % a % r)) % l
 
           -- \l R -> op (\a -> R (pure a)) l
-  UL _ op -> l \. r \. modeTerm op # (a \. r # (make_var "pure" # a)) # l
+  UL f op -> l ! r ! modeTerm op % (a ! r % (pr f % a)) % l
 
           -- \L r -> op (\a -> L (pure a)) r
-  UR _ op -> l \. r \. modeTerm op # (a \. l # (make_var "pure" # a)) # r
+  UR f op -> l ! r ! modeTerm op % (a ! l % (pr f % a)) % r
 
           -- \L R -> op <$> L <*> R
-  A  _ op -> l \. r \. make_var "(<*>)" # (make_var "fmap" # modeTerm op # l) # r
+  A  _ op -> l ! r ! make_var "(<*>)" % (make_var "fmap" % modeTerm op % l) % r
 
           -- \l r a -> op l (r a) a
-  -- Z op    -> l \. r \. a \. modeTerm op # l # (r # a) # a
+  -- Z op    -> l ! r ! a ! modeTerm op % l % (r % a) % a
 
           -- \l r -> join (op l r)
-  J op    -> l \. r \. make_var "join" # (modeTerm op # l # r)
+  J op    -> l ! r ! make_var "join" % (modeTerm op % l % r)
 
-          -- \l r -> op (counit l r)
-  Eps op  -> l \. r \. modeTerm op # (Snd l) # (r # Fst l)
+          -- \l r -> counit $ (\a -> op a <$> r) <$> l
+  Eps op  -> l ! r ! counit % (fmap (W E) % (a ! fmap (R E) % (modeTerm op % a) % r) % l)
 
           -- \l r -> op l r id
-  D op    -> l \. r \. modeTerm op # l # r # (a \. a)
+  D op    -> l ! r ! modeTerm op % l % r % (a ! a)
 
-  where
-    l = make_var "l"
-    r = make_var "r"
-    a = make_var "a"
-    g = make_var "g"
-    k = make_var "k"
-    m = make_var "m"
-    c = make_var "c"
-    fmap = case _ of
-      S     -> k \. m \. Set (Dom m) (a \. k % (Map m % a))
-      R _   -> k \. m \. g \. k % (m % g)
-      W _   -> k \. m \. Pair (Fst m) (k % (Snd m))
-      C _ _ -> k \. m \. c \. m % (a \. c % (k % a))
+l = make_var "l"
+r = make_var "r"
+a = make_var "a"
+g = make_var "g"
+k = make_var "k"
+m = make_var "m"
+c = make_var "c"
+o = make_var "o"
+
+fmap = case _ of
+  S     -> k ! m ! Set (Dom m) (a ! k % (Map m % a))
+  R _   -> k ! m ! g ! k % (m % g)
+  W _   -> k ! m ! _1 m * (k % (_2 m))
+  C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
+pr = case _ of
+  S     -> a ! Set a (a ! a)
+  R _   -> a ! g ! a
+  W t   -> a ! (mzero t * a)
+  C _ _ -> a ! k ! k % a
+mzero = case _ of
+  T     -> make_var "true"
+  _     -> make_var "this really shouldn't happen"
+counit = m ! _2 m % (_1 m)

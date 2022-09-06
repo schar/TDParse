@@ -47,7 +47,7 @@ eval' (Dom s) stack = case eval' s stack of
   t            -> t
 eval' (Map s) stack = case eval' s stack of
   (Set t1 t2)  -> t2
-  t            -> let a = make_var "a" in a \. a
+  t            -> let a = make_var "a" in eval' (a ! a) stack
 unwind t Nil = t
 unwind t (t1:rest) = unwind (Ap t $ eval t1) rest
 
@@ -170,13 +170,14 @@ c = make_var "c"
 p = make_var "p"
 q = make_var "q"
 
-app = Ap
-infixl 8 app as #
-infixl 8 app as %
+infixl 8 Ap as %
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
-infixr 6 lam as ^            -- a better notation for a lambda-abstraction
-infixr 6 lam as \.
+infixr 6 lam as !
+_1 = Fst
+_2 = Snd
+infixr 7 Pair as *
+make_set s = Set (make_var s) (x ! x)
 instance Show VarName where
    show (VC color name) = if color == 0 then name
                                          else name <> "" <> (show color)
@@ -202,7 +203,7 @@ show_term term depth = showt term
       let s = VC 0 "s"
           (Tuple f v') = occurs e s
           v = if f then bump_color v' s else s
-       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+       in "[" <> showt' (eval $ cond % (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
     showt (Dom p) = "dom " <> showt p
     showt (Map p) = "map " <> showt p
     showt' term = show_term term (depth - 1)
@@ -210,7 +211,7 @@ show_term term depth = showt term
 show_tex _ depth | depth <= 0 = "..."
 show_tex term depth = showt term
   where
-    showt (Var v) = replaceAll (Pattern "'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
+    showt (Var v) = {-replaceAll (Pattern "'") (Replacement "$$'$$") $ -}show v       -- show the variable regardless of depth
     showt (Lam v body) = "(\\lambda " <> (show v) <> ". " <> (showt' body) <> ")"
     showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
     showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
@@ -223,7 +224,7 @@ show_tex term depth = showt term
       let s = VC 0 "s"
           (Tuple f v') = occurs e s
           v = if f then bump_color v' s else s
-       in "\\{" <> showt' (eval $ cond # (Var v)) <> " \\mid " <> show v <> " \\in " <> showt' dom <> "\\}"
+       in "\\{" <> showt' (eval $ cond % (Var v)) <> " \\mid " <> show v <> " \\in " <> showt' dom <> "\\}"
     showt (Dom p) = "\textsf{dom} " <> showt p
     showt (Map p) = "\textsf{map} " <> showt p
     showt' term = show_tex term (depth - 1)
@@ -231,7 +232,7 @@ show_tex term depth = showt term
 show_hs _ depth | depth <= 0 = "..."
 show_hs term depth = showt term
   where
-    showt (Var v) = replaceAll (Pattern "\'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
+    showt (Var v) = {-replaceAll (Pattern "\'") (Replacement "$$'$$") $ -}show v       -- show the variable regardless of depth
     showt (Lam v body) = "(\\textbackslash " <> (show v) <> " -> " <> (showt' body) <> ")"
     showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
     showt (Ap t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
@@ -246,7 +247,7 @@ show_hs term depth = showt term
       let s = VC 0 "s"
           (Tuple f v') = occurs e s
           v = if f then bump_color v' s else s
-       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+       in "[" <> showt' (eval $ cond % (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
     showt (Dom p) = "dom " <> showt p
     showt (Map p) = "map " <> showt p
     showt' term = show_hs term (depth - 1)
@@ -316,11 +317,11 @@ expectd = expectg term_equal_p -- test using comparison modulo alpha-renaming
 notexpectd = expectg (\x y -> not $ term_equal_p x y)
 free_var_tests = and [
    expect (map Var (free_vars $ x))  [x],
-   expect (map Var (free_vars $ x^x)) [],
-   expect (map Var (free_vars $ x#y#z)) [x,y,z],
-   expect (map Var (free_vars $ x^x#y)) [y],
-   expect (map Var (free_vars $ (x^x#y)#(x#y#z))) [y,x,y,z],
-   expect (map Var (free_vars $ (x^x^x#y)#(x^y^x#y))) [y]
+   expect (map Var (free_vars $ x!x)) [],
+   expect (map Var (free_vars $ x%y%z)) [x,y,z],
+   expect (map Var (free_vars $ x!x%y)) [y],
+   expect (map Var (free_vars $ (x!x%y)%(x%y%z))) [y,x,y,z],
+   expect (map Var (free_vars $ (x!x!x%y)%(x!y!x%y))) [y]
    ]
 alpha_comparison_tests = and [
    expectd    x x,
@@ -328,78 +329,78 @@ alpha_comparison_tests = and [
    expectd    (x) x,
    expectd    x  ((x)),
    expectd    (x) ((x)),
-   expectd    (x#y#(z)) ((x#y)#z),
-   expectd    (((a#(b#c))#(q))#(p#f)) (a#(b#c)#q#(p#f)),
-   notexpectd (a#(b#c)#q#(p#f)) (a#b#c#q#(p#f)),
-   notexpectd (x^x) (x^y),
-   expectd    (x^x) (y^y),
-   expectd    (x^x^x) (y^y^y),
-   notexpectd (x^(x#x)) $ y^(y#x),
-   notexpectd (y^(y#x)) $ x^(x#x),
-   expectd    (y^(y#x)) $ z^(z#x),
-   notexpectd (x^y^(x#y)) $ f^f^(f#f),
-   expectd    (x^x^(x#x)) $ f^f^(f#f),
-   expectd    (x^y^(y#y)) $ f^f^(f#f),
-   expectd    (f^x^f#x) $ f^x^f#x,
-   notexpectd (f^x^f#x) $ f^x^x,
-   expectd    (f^x^f#x) $ g^x^(g#x),
-   expectd    (f^x^f#x) $ g^y^g#y,
-   expectd    (g^y^g#y) $ f^x^f#x,
-   notexpectd (g^y^g#x) $ f^x^f#x,
-   notexpectd (f^x^f#x) (g^y^g#x)
+   expectd    (x%y%(z)) ((x%y)%z),
+   expectd    (((a%(b%c))%(q))%(p%f)) (a%(b%c)%q%(p%f)),
+   notexpectd (a%(b%c)%q%(p%f)) (a%b%c%q%(p%f)),
+   notexpectd (x!x) (x!y),
+   expectd    (x!x) (y!y),
+   expectd    (x!x!x) (y!y!y),
+   notexpectd (x!(x%x)) $ y!(y%x),
+   notexpectd (y!(y%x)) $ x!(x%x),
+   expectd    (y!(y%x)) $ z!(z%x),
+   notexpectd (x!y!(x%y)) $ f!f!(f%f),
+   expectd    (x!x!(x%x)) $ f!f!(f%f),
+   expectd    (x!y!(y%y)) $ f!f!(f%f),
+   expectd    (f!x!f%x) $ f!x!f%x,
+   notexpectd (f!x!f%x) $ f!x!x,
+   expectd    (f!x!f%x) $ g!x!(g%x),
+   expectd    (f!x!f%x) $ g!y!g%y,
+   expectd    (g!y!g%y) $ f!x!f%x,
+   notexpectd (g!y!g%x) $ f!x!f%x,
+   notexpectd (f!x!f%x) (g!y!g%x)
    ]
 
 subst_tests = and [
-  expectd (subst (c^c)  (VC 1 "c") c) (z^z),
+  expectd (subst (c!c)  (VC 1 "c") c) (z!z),
   expectd (subst (Lam (VC 1 "c") (Ap (Var (VC 0 "c")) (Ap (Var (VC 1 "c"))
                  (Ap (Var (VC 2 "c")) (Var (VC 3 "c") )))))
                  (VC 0 "c") (Ap (Var (VC 1 "c")) (Var (VC 2 "c"))))
-        (a^(Var $ VC 1 "c")#(Var $ VC 2 "c")#
-           (a#((Var $ VC 2 "c")#(Var $ VC 3 "c"))))
+        (a!(Var $ VC 1 "c")%(Var $ VC 2 "c")%
+           (a%((Var $ VC 2 "c")%(Var $ VC 3 "c"))))
   ]
 
 eval_tests = and [
-   expectd (eval $ ((x^(a#b#x))#(a^a#b))) $
-         (a#b#(p^p#b)),
-   expectd (eval $ (((f^x^(f#x))#g)#z))
-         (g#z),
-   expectd (eval $ ((c^f^x^f#(c#f#x))#(f^x^x)))
-         (f^f),
-   expectd (((x^x#x)#(x^x#x)))
-         ((p^p#p)#(q^q#q)),
-   expectd (eval $ ((x^y)#((x^x#x)#(x^x#x))))
+   expectd (eval $ ((x!(a%b%x))%(a!a%b))) $
+         (a%b%(p!p%b)),
+   expectd (eval $ (((f!x!(f%x))%g)%z))
+         (g%z),
+   expectd (eval $ ((c!f!x!f%(c%f%x))%(f!x!x)))
+         (f!f),
+   expectd (((x!x%x)%(x!x%x)))
+         ((p!p%p)%(q!q%q)),
+   expectd (eval $ ((x!y)%((x!x%x)%(x!x%x))))
          y,
-   expectd (eval $ ((x^y^(f#x#y#y))#(g#y)))
-         (z^(f#(g#y)#z#z)),
-   expectd (eval $ ((c^f^x^f#(c#f#x))#(f^x^(f#x))))
-         (g^x^(g#(g#x))),
-   expectd (eval $ a ^ (x ^ a ^ a # x) # (a # x))
-         (a^b^(b#(a#x))),
-   expectd (eval $ a ^ (x ^ a ^ x # a) # a)
-         (z^z),
-   expectd (eval $ a ^ (x ^ b ^ x # a) # a)
-         (a^b^a#a)
+   expectd (eval $ ((x!y!(f%x%y%y))%(g%y)))
+         (z!(f%(g%y)%z%z)),
+   expectd (eval $ ((c!f!x!f%(c%f%x))%(f!x!(f%x))))
+         (g!x!(g%(g%x))),
+   expectd (eval $ a ! (x ! a ! a % x) % (a % x))
+         (a!b!(b%(a%x))),
+   expectd (eval $ a ! (x ! a ! x % a) % a)
+         (z!z),
+   expectd (eval $ a ! (x ! b ! x % a) % a)
+         (a!b!a%a)
    ]
 mweval_tests = and [
-   expectd (fst $ mweval $ ((x^(a#b#x))#(a^a#b))) $
-         (a#b#(p^p#b)),
-   expectd (fst $ mweval $ (((f^x^(f#x))#g)#z))
-         (g#z),
-   expectd (fst $ mweval $ ((c^f^x^f#(c#f#x))#(f^x^x)))
-         (f^f),
-   expectd (fst $ mweval $ ((x^y)#((x^x#x)#(x^x#x))))
+   expectd (fst $ mweval $ ((x!(a%b%x))%(a!a%b))) $
+         (a%b%(p!p%b)),
+   expectd (fst $ mweval $ (((f!x!(f%x))%g)%z))
+         (g%z),
+   expectd (fst $ mweval $ ((c!f!x!f%(c%f%x))%(f!x!x)))
+         (f!f),
+   expectd (fst $ mweval $ ((x!y)%((x!x%x)%(x!x%x))))
          y,
-   expectd (fst $ mweval $ ((x^y^(f#x#y#y))#(g#y)))
-         (z^(f#(g#y)#z#z)),
-   expectd (fst $ mweval $ ((c^f^x^f#(c#f#x))#(f^x^(f#x))))
-         (g^x^(g#(g#x))),
-   expectd (fst $ mweval $ a ^ (x ^ a ^ a # x) # (a # x))
-         (a^b^(b#(a#x))),
-   expectd (fst $ mweval $ a ^ (x ^ a ^ x # a) # a)
-         (z^z),
-   expectd (fst $ mweval $ a ^ (x ^ b ^ x # a) # a)
-         (a^b^a#a)
-   -- , expect (show $ mweval $ a ^ (x ^ a ^ x # a) # a)
+   expectd (fst $ mweval $ ((x!y!(f%x%y%y))%(g%y)))
+         (z!(f%(g%y)%z%z)),
+   expectd (fst $ mweval $ ((c!f!x!f%(c%f%x))%(f!x!(f%x))))
+         (g!x!(g%(g%x))),
+   expectd (fst $ mweval $ a ! (x ! a ! a % x) % (a % x))
+         (a!b!(b%(a%x))),
+   expectd (fst $ mweval $ a ! (x ! a ! x % a) % a)
+         (z!z),
+   expectd (fst $ mweval $ a ! (x ! b ! x % a) % a)
+         (a!b!a%a)
+   -- , expect (show $ mweval $ a ! (x ! a ! x % a) % a)
    --        "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
    ]
 
