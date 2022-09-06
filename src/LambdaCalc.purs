@@ -14,64 +14,136 @@ import Data.Foldable ( lookup, and )
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
+import Data.Generic.Rep (class Generic)
+import Data.Show.Generic (genericShow)
 
 type VColor = Int  -- the "color" of a variable. 0 is the "transparent color"
 data VarName = VC VColor String
 derive instance Eq VarName
-data Term = Var VarName | Ap Term Term | Lam VarName Term
+data Term
+  = Var VarName | Ap Term Term | Lam VarName Term
+  | Pair Term Term | Fst Term | Snd Term
+  | Set Term Term | Dom Term | Map Term
+
 derive instance Eq Term
+derive instance Generic Term _
+
 eval term = eval' term Nil
 eval' t@(Var v) Nil = t -- just a variable with nothing to apply it to
 eval' (Lam v body) Nil = check_eta $ Lam v (eval body)
 eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
 eval' (Ap t1 t2) stack = eval' t1 (t2:stack)
 eval' t@(Var v) stack = unwind t stack
+eval' (Pair t1 t2) stack = Pair (eval' t1 stack) (eval' t2 stack)
+eval' (Fst p) stack = case eval' p stack of
+  (Pair t1 t2)  -> t1
+  t             -> Fst t
+eval' (Snd p) stack = case eval' p stack of
+  (Pair t1 t2)  -> t2
+  t             -> Snd t
+eval' (Set t1 t2) stack = Set (eval' t1 stack) (eval' t2 stack)
+eval' (Dom s) stack = case eval' s stack of
+  (Set t1 t2)  -> t1
+  t            -> t
+eval' (Map s) stack = case eval' s stack of
+  (Set t1 t2)  -> t2
+  t            -> let a = make_var "a" in a \. a
 unwind t Nil = t
 unwind t (t1:rest) = unwind (Ap t $ eval t1) rest
+
 subst term v (Var v') | v == v' = term -- identity substitution
 subst t@(Var x) v st | x == v    = st
                      | otherwise = t
-subst (Ap t1 t2) v st = Ap (subst t1 v st) $ (subst t2 v st)
+subst (Pair t1 t2) v st = Pair (subst t1 v st) (subst t2 v st)
+subst (Fst p) v st = Fst (subst p v st)
+subst (Snd p) v st = Snd (subst p v st)
+subst (Set t1 t2) v st = Set (subst t1 v st) (subst t2 v st)
+subst (Dom s) v st = Dom (subst s v st)
+subst (Map s) v st = Map (subst s v st)
+subst (Ap t1 t2) v st = Ap (subst t1 v st) (subst t2 v st)
 subst t@(Lam x _) v _ | v == x  = t  -- v is shadowed in lambda form
 subst (Lam x body) v st = (Lam x' (subst body' v st))
-    where
-       bump_color (VC color name) (VC color' _) =
-                                     (VC ((max color color')+1) name)
-       bump_color' v1@(VC _ name) v2@(VC _ name') =
-                   if name==name' then bump_color v1 v2 else v1
-       (Tuple f x_occur_st) = occurs st x
-       (Tuple x' body') =
-            if f
-               then let x_uniq_st_v = bump_color' (bump_color x x_occur_st) v
-                        (Tuple bf x_occur_body) = occurs body x_uniq_st_v
-                        x_unique = if bf
-                                      then bump_color x_uniq_st_v x_occur_body
-                                      else x_uniq_st_v
-                    in (Tuple x_unique (subst body x (Var x_unique))) -- x_unique used to x'; not sure if this is safe
-               else (Tuple x body)
+  where
+    (Tuple f x_occur_st) = occurs st x
+    (Tuple x' body') =
+      if f
+        then let x_uniq_st_v             = bump_color' (bump_color x x_occur_st) v
+                 (Tuple bf x_occur_body) = occurs body x_uniq_st_v
+                 x_unique =
+                   if bf then bump_color x_uniq_st_v x_occur_body else x_uniq_st_v
+              in (Tuple x_unique (subst body x (Var x_unique))) -- x_unique used to be x'; seems the same?
+        else (Tuple x body)
+
+bump_color (VC color name) (VC color' _) =
+  (VC ((max color color')+1) name)
+bump_color' v1@(VC _ name) v2@(VC _ name') =
+  if name==name' then bump_color v1 v2 else v1
+
 occurs (Var v'@(VC c' name')) v@(VC c name)
-    | not (name == name')  = (Tuple false v)
-    | c == c'              = (Tuple true  v)
-    | otherwise            = (Tuple false v')
-occurs (Ap t1 t2) v = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
-                          (Tuple f2 v2@(VC c2 _)) = occurs t2 v
-                      in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
-occurs (Lam x body) v | x == v    = (Tuple false v)
-                    | otherwise = occurs body v
+  | not (name == name')  = (Tuple false v)
+  | c == c'              = (Tuple true  v)
+  | otherwise            = (Tuple false v')
+occurs (Ap t1 t2) v
+  = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
+        (Tuple f2 v2@(VC c2 _)) = occurs t2 v
+     in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
+occurs (Pair t1 t2) v
+  = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
+        (Tuple f2 v2@(VC c2 _)) = occurs t2 v
+     in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
+occurs (Fst p) v = occurs p v
+occurs (Snd p) v = occurs p v
+occurs (Set t1 t2) v
+  = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
+        (Tuple f2 v2@(VC c2 _)) = occurs t2 v
+     in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
+occurs (Dom s) v = occurs s v
+occurs (Map s) v = occurs s v
+occurs (Lam x body) v
+  | x == v    = (Tuple false v)
+  | otherwise = occurs body v
 check_eta (Lam v (Ap t (Var v')))
-      | v == v' && (let (Tuple flag _) = occurs t v in not flag) = t
+  | v == v' && (let (Tuple flag _) = occurs t v in not flag) = t
 check_eta term = term
 note_reduction label redex = tell $ singleton (Tuple label redex)
 
 meval' :: Term -> List Term -> Writer (List (Tuple String Term)) Term
 meval' t@(Var v) Nil = pure t -- just a variable with nothing to apply it to
-meval' (Lam v body) Nil =
-  do body' <- meval' body Nil
-     mcheck_eta $ Lam v body'
+meval' (Lam v body) Nil = do
+  body' <- meval' body Nil
+  mcheck_eta $ Lam v body'
 meval' a@(Lam v body) (t: rest) = do
-                                note_reduction "beta" (Ap a t)
-                                meval' (subst body v t) rest
+  note_reduction "beta" (Ap a t)
+  meval' (subst body v t) rest
 meval' (Ap t1 t2) stack = meval' t1 (t2:stack)
+meval' (Pair t1 t2) stack = do
+  t1' <- meval' t1 stack
+  t2' <- meval' t2 stack
+  pure $ Pair t1 t2
+meval' (Fst p) stack = do
+  p' <- meval' p stack
+  case p' of
+    (Pair t1 t2)  -> note_reduction "fst" (Fst p') *> pure t1
+    t             -> pure $ Fst t
+meval' (Snd p) stack = do
+  p' <- meval' p stack
+  case p' of
+    (Pair t1 t2)  -> note_reduction "snd" (Snd p') *> pure t2
+    t             -> pure $ Snd t
+meval' (Set t1 t2) stack = do
+  t1' <- meval' t1 stack
+  t2' <- meval' t2 stack
+  pure $ Set t1 t2
+meval' (Dom s) stack = do
+  s' <- meval' s stack
+  case s' of
+    (Set t1 t2)  -> note_reduction "domain" (Dom s') *> pure t1
+    t            -> pure $ Dom t
+meval' (Map s) stack = do
+  s' <- meval' s stack
+  case s' of
+    (Set t1 t2)  -> note_reduction "map" (Map s') *> pure t2
+    t            -> pure $ Map t
 meval' t@(Var v) stack = munwind t stack
 munwind :: Term -> List Term -> Writer (List (Tuple String Term)) Term
 munwind t Nil = pure t
@@ -100,6 +172,7 @@ q = make_var "q"
 
 app = Ap
 infixl 8 app as #
+infixl 8 app as %
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
 infixr 6 lam as ^            -- a better notation for a lambda-abstraction
@@ -113,41 +186,90 @@ instance Show VarName where
 
 show_term _ depth | depth <= 0 = "..."
 show_term term depth = showt term
- where
-   showt (Var v) = show v       -- show the variable regardless of depth
-   showt (Lam v body) = "(\\" <> (show v) <> " -> " <> (showt' body) <> ")"
-   showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-   showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-   showt' term = show_term term (depth - 1)
+  where
+    showt (Var v) = show v       -- show the variable regardless of depth
+    showt (Lam v body) = "(\\" <> (show v) <> " -> " <> (showt' body) <> ")"
+    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2@(Snd  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
+    showt (Pair t1 t2) = "<" <> showt' t1 <> ", " <> showt' t2 <> ">"
+    showt (Fst p@(Ap _ _)) = "fst " <> "(" <> showt p <> ")"
+    showt (Fst p) = "fst " <> showt p
+    showt (Snd p@(Ap _ _)) = "snd " <> "(" <> showt p <> ")"
+    showt (Snd p) = "snd " <> showt p
+    showt e@(Set dom cond) =
+      let s = VC 0 "s"
+          (Tuple f v') = occurs e s
+          v = if f then bump_color v' s else s
+       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+    showt (Dom p) = "dom " <> showt p
+    showt (Map p) = "map " <> showt p
+    showt' term = show_term term (depth - 1)
 
 show_tex _ depth | depth <= 0 = "..."
 show_tex term depth = showt term
- where
-   showt (Var v) = replaceAll (Pattern "'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
-   showt (Lam v body) = "(\\lambda " <> (show v) <> ". " <> (showt' body) <> ")"
-   showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-   showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-   showt' term = show_tex term (depth - 1)
+  where
+    showt (Var v) = replaceAll (Pattern "'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
+    showt (Lam v body) = "(\\lambda " <> (show v) <> ". " <> (showt' body) <> ")"
+    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
+    showt (Pair t1 t2) = "\\langle" <> showt' t1 <> ", " <> showt' t2 <> "\\rangle"
+    showt (Fst p@(Pair _ _)) = "\\textsf{fst} " <> showt p
+    showt (Fst p) = "\textsf{fst} " <> "(" <> showt p <> ")"
+    showt (Snd p@(Pair _ _)) = "\textsf{snd} " <> showt p
+    showt (Snd p) = "\textsf{snd} " <> "(" <> showt p <> ")"
+    showt e@(Set dom cond) =
+      let s = VC 0 "s"
+          (Tuple f v') = occurs e s
+          v = if f then bump_color v' s else s
+       in "\\{" <> showt' (eval $ cond # (Var v)) <> " \\mid " <> show v <> " \\in " <> showt' dom <> "\\}"
+    showt (Dom p) = "\textsf{dom} " <> showt p
+    showt (Map p) = "\textsf{map} " <> showt p
+    showt' term = show_tex term (depth - 1)
 
 show_hs _ depth | depth <= 0 = "..."
 show_hs term depth = showt term
- where
-   showt (Var v) = replaceAll (Pattern "\'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
-   showt (Lam v body) = "(\\textbackslash " <> (show v) <> " -> " <> (showt' body) <> ")"
-   showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-   showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-   showt' term = show_hs term (depth - 1)
+  where
+    showt (Var v) = replaceAll (Pattern "\'") (Replacement "$$'$$") $ show v       -- show the variable regardless of depth
+    showt (Lam v body) = "(\\textbackslash " <> (show v) <> " -> " <> (showt' body) <> ")"
+    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2@(Snd  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
+    showt (Pair t1 t2) = "(" <> showt' t1 <> ", " <> showt' t2 <> ")"
+    showt (Fst p@(Ap _ _)) = "fst " <> "(" <> showt p <> ")"
+    showt (Fst p) = "fst " <> showt p
+    showt (Snd p@(Ap _ _)) = "snd " <> "(" <> showt p <> ")"
+    showt (Snd p) = "snd " <> showt p
+    showt e@(Set dom cond) =
+      let s = VC 0 "s"
+          (Tuple f v') = occurs e s
+          v = if f then bump_color v' s else s
+       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+    showt (Dom p) = "dom " <> showt p
+    showt (Map p) = "map " <> showt p
+    showt' term = show_hs term (depth - 1)
 
 instance Show Term where
-   show term = show_term term 100
+   -- show term = show_term term 100
+   show term = genericShow term
 free_vars:: Term -> Array VarName
 free_vars term = free_vars' term [] []
-   where
-     -- free_vars' term list-of-bound-vars list-of-free-vars-so-far
-     free_vars' (Var v) bound free = if v `elem` bound then free else v `cons` free
-     free_vars' (Ap t1 t2) bound free =
-              free_vars' t1 bound $ free_vars' t2 bound free
-     free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
+  where
+    -- free_vars' term list-of-bound-vars list-of-free-vars-so-far
+    free_vars' (Var v) bound free = if v `elem` bound then free else v `cons` free
+    free_vars' (Ap t1 t2) bound free =
+      free_vars' t1 bound $ free_vars' t2 bound free
+    free_vars' (Pair t1 t2) bound free =
+      free_vars' t1 bound $ free_vars' t2 bound free
+    free_vars' (Fst p) bound free = free_vars' p bound free
+    free_vars' (Snd p) bound free = free_vars' p bound free
+    free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
+    free_vars' (Set t1 t2) bound free =
+      free_vars' t1 bound $ free_vars' t2 bound free
+    free_vars' (Dom p) bound free = free_vars' p bound free
+    free_vars' (Map p) bound free = free_vars' p bound free
 term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   where
   -- both terms are variables
@@ -167,6 +289,17 @@ term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
 
   -- both terms are applications
   term_equal_p' (Ap t1 t1') (Ap t2 t2') env =
+     term_equal_p' t1  t2  env &&
+     term_equal_p' t1' t2' env
+
+  term_equal_p' (Pair t1 t1') (Pair t2 t2') env =
+     term_equal_p' t1  t2  env &&
+     term_equal_p' t1' t2' env
+
+  term_equal_p' (Fst p1) (Fst p2) env = term_equal_p' p1 p2 env
+  term_equal_p' (Snd p1) (Snd p2) env = term_equal_p' p1 p2 env
+
+  term_equal_p' (Set t1 t1') (Set t2 t2') env =
      term_equal_p' t1  t2  env &&
      term_equal_p' t1' t2' env
 

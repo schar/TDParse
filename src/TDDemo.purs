@@ -3,67 +3,82 @@
 
 module TDDemo where
 
-import Prelude
+import Prelude hiding ((#))
 
 import TDPretty ( showParse )
 import Text.Pretty ( render )
 import TDParseCFG
+import LambdaCalc hiding ((^))
 import Utils ( (^), type (^) )
 import Data.List
 import Data.Maybe
 import Data.Foldable ( traverse_ )
 import Effect ( Effect )
 import Effect.Console ( log, logShow )
+import Data.Either
 
 
 {- A toy lexicon -}
 
 lexicon :: Lexicon
-lexicon =
-    ("ann"       ^ singleton ( "ann"       ^ DP    ^ (E)                              ))
-  : ("ann's"     ^ singleton ( "ann"       ^ Gen   ^ (E)                              ))
-  : ("mary"      ^ singleton ( "mary"      ^ DP    ^ (effW E E)                       ))
-  : ("mary's"    ^ singleton ( "mary"      ^ Gen   ^ (effW E E)                       ))
-  : ("maryaling" ^ singleton ( "(m--ling)" ^ DP    ^ (effW T E)                       ))
-  : ("sassyacat" ^ singleton ( "(s--cat)"  ^ DP    ^ (effW T E)                       ))
-  : ("left"      ^ singleton ( "left"      ^ VP    ^ (E :-> T)                        ))
-  : ("whistled"  ^ singleton ( "whistled"  ^ VP    ^ (E :-> T)                        ))
-  : ("saw"       ^ singleton ( "saw"       ^ TV    ^ (E :-> E :-> T)                  ))
-  : ("chased"    ^ singleton ( "chased"    ^ TV    ^ (E :-> E :-> T)                  ))
-  : ("said"      ^ singleton ( "said"      ^ AV    ^ (T :-> E :-> T)                  ))
-  : ("gave"      ^ singleton ( "gave"      ^ DV    ^ (E :-> E :-> E :-> T)            ))
-  : ("she"       ^ singleton ( "she"       ^ DP    ^ (effR E E)                       ))
-  : ("her"       ^ singleton ( "her"       ^ DP    ^ (effR E E)                       )
-                <> singleton ( "her"       ^ Gen   ^ (effR E E)                       ))
-  : ("she2"      ^ singleton ( "she2"      ^ DP    ^ (effR E (effW E E))              ))
-  : ("her2"      ^ singleton ( "her2"      ^ DP    ^ (effR E (effW E E))              )
-                <> singleton ( "her2"      ^ Gen   ^ (effR E (effW E E))              ))
-  : ("mom"       ^ singleton ( "mom"       ^ TN    ^ (E :-> E)                        ))
-  : ("the"       ^ singleton ( "the"       ^ Det   ^ ((E :-> T) :-> E)                ))
-  : ("very"      ^ singleton ( "very"      ^ Deg   ^ ((E :-> T) :-> E :-> T)          ))
-  : ("every"     ^ singleton ( "every"     ^ Det   ^ ((E :-> T) :-> effC T T E)       ))
-  : ("everyP"    ^ singleton ( "everyP"    ^ Det   ^ ((E :-> T) :-> (E :-> T) :-> T)  ))
-  : ("everyC"    ^ singleton ( "everyC"    ^ Det   ^ (effC (effC T T E) T E)          ))
-  : ("big"       ^ singleton ( "big"       ^ AdjP  ^ (E :-> T)                        ))
-  : ("happy"     ^ singleton ( "happy"     ^ AdjP  ^ (E :-> T)                        ))
-  : ("dog"       ^ singleton ( "dog"       ^ NP    ^ (E :-> T)                        ))
-  : ("cat"       ^ singleton ( "cat"       ^ NP    ^ (E :-> T)                        ))
-  : ("near"      ^ singleton ( "near"      ^ TAdj  ^ (E :-> E :-> T)                  ))
-  : ("some"      ^ singleton ( "some"      ^ Det   ^ ((E :-> T) :-> effS E)           ))
-  : ("someone"   ^ singleton ( "someone"   ^ DP    ^ (effC T T E)                     ))
-  : ("someone2"  ^ singleton ( "someone2"  ^ DP    ^ (effS (effW E E))                ))
-  : ("someone3"  ^ singleton ( "someone3"  ^ DP    ^ (effS E)                         ))
-  : ("everyone"  ^ singleton ( "everyone"  ^ DP    ^ (effC T T E)                     ))
-  : ("everyone2" ^ singleton ( "everyone2" ^ DP    ^ (effC T T (effW E E))            ))
-  : ("tr"        ^ singleton ( "tr"        ^ DP    ^ (effR E E)                       ))
-  : ("and"       ^ singleton ( "and"       ^ Cor   ^ (T :-> T :-> T)                  ))
-  : ("andE"      ^ singleton ( "and"       ^ Cor   ^ (E :-> E :-> E)                  ))
-  : ("with"      {-^ singleton ( "with"      ^ TAdj  ^ (E :-> E :-> T)                  )-}
-                 ^ singleton ( "with"      ^ TAdv  ^ (E :-> (E :-> T) :-> E :-> T)    ))
-  : ("eclo"      ^ singleton ( "eclo"      ^ Cmp   ^ (effS T :-> T)                   )
-                <> singleton ( "eclo"      ^ Dmp   ^ (effS T :-> T)                   ))
+lexicon = map mkLex $
+    ("ann"       ^ pure ( Just ann  ^ DP   ^ (E)                              ))
+  : ("ann's"     ^ pure ( Just ann  ^ Gen  ^ (E)                              ))
+  : ("mary"      ^ pure ( Just mref ^ DP   ^ (effW E E)                       ))
+  : ("mary's"    ^ pure ( Just mref ^ Gen  ^ (effW E E)                       ))
+  : ("maryaling" ^ pure ( Just ml   ^ DP   ^ (effW T E)                       ))
+  : ("sassyacat" ^ pure ( Just sc   ^ DP   ^ (effW T E)                       ))
+  : ("left"      ^ pure ( Nothing   ^ VP   ^ (E :-> T)                        ))
+  : ("whistled"  ^ pure ( Nothing   ^ VP   ^ (E :-> T)                        ))
+  : ("saw"       ^ pure ( Nothing   ^ TV   ^ (E :-> E :-> T)                  ))
+  : ("chased"    ^ pure ( Nothing   ^ TV   ^ (E :-> E :-> T)                  ))
+  : ("said"      ^ pure ( Nothing   ^ AV   ^ (T :-> E :-> T)                  ))
+  : ("gave"      ^ pure ( Nothing   ^ DV   ^ (E :-> E :-> E :-> T)            ))
+  : ("she"       ^ pure ( Just she  ^ DP   ^ (effR E E)                       ))
+  : ("her"       ^ pure ( Just she  ^ DP   ^ (effR E E)                       )
+                <> pure ( Just she  ^ Gen  ^ (effR E E)                       ))
+  : ("she2"      ^ pure ( Just she2 ^ DP   ^ (effR E (effW E E))              ))
+  : ("her2"      ^ pure ( Just she2 ^ DP   ^ (effR E (effW E E))              )
+                <> pure ( Just she2 ^ Gen  ^ (effR E (effW E E))              ))
+  : ("mom"       ^ pure ( Nothing   ^ TN   ^ (E :-> E)                        ))
+  : ("the"       ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> E)                ))
+  : ("very"      ^ pure ( Nothing   ^ Deg  ^ ((E :-> T) :-> E :-> T)          ))
+  : ("every"     ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effC T T E)       ))
+  : ("everyP"    ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> (E :-> T) :-> T)  ))
+  : ("everyC"    ^ pure ( Nothing   ^ Det  ^ (effC (effC T T E) T E)          ))
+  : ("big"       ^ pure ( Nothing   ^ AdjP ^ (E :-> T)                        ))
+  : ("happy"     ^ pure ( Nothing   ^ AdjP ^ (E :-> T)                        ))
+  : ("dog"       ^ pure ( Nothing   ^ NP   ^ (E :-> T)                        ))
+  : ("cat"       ^ pure ( Nothing   ^ NP   ^ (E :-> T)                        ))
+  : ("near"      ^ pure ( Nothing   ^ TAdj ^ (E :-> E :-> T)                  ))
+  : ("some"      ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effS E)           ))
+  : ("someone"   ^ pure ( Nothing   ^ DP   ^ (effC T T E)                     ))
+  : ("someone2"  ^ pure ( Just so2  ^ DP   ^ (effS (effW E E))                ))
+  : ("someone3"  ^ pure ( Just so   ^ DP   ^ (effS E)                         ))
+  : ("everyone"  ^ pure ( Nothing   ^ DP   ^ (effC T T E)                     ))
+  : ("everyone2" ^ pure ( Nothing   ^ DP   ^ (effC T T (effW E E))            ))
+  : ("tr"        ^ pure ( Nothing   ^ DP   ^ (effR E E)                       ))
+  : ("and"       ^ pure ( Nothing   ^ Cor  ^ (T :-> T :-> T)                  ))
+  : ("andE"      ^ pure ( Nothing   ^ Cor  ^ (E :-> E :-> E)                  ))
+  : ("with"      {-^ pure ( Nothing   ^ TAdj ^ (E :-> E :-> T)                  )-}
+                 ^ pure ( Nothing   ^ TAdv ^ (E :-> (E :-> T) :-> E :-> T)    ))
+  : ("eclo"      ^ pure ( Nothing   ^ Cmp  ^ (effS T :-> T)                   )
+                <> pure ( Nothing   ^ Dmp  ^ (effS T :-> T)                   ))
   : Nil
-
+  where
+    first  (a ^ s) f = f a ^ s
+    second (s ^ a) f = s ^ f s a
+    mkLex w = second w $ \s -> map (_ `first` (fromMaybe (make_var $ s <> "'")))
+    a = make_var "a"
+    ann = make_var "a'"
+    mary = make_var "m'"
+    mref = Pair mary mary
+    ml = Pair mary (make_var "ling'" # mary)
+    sc = Pair (make_var "s'") (make_var "cat'" # make_var "s'")
+    she = a \. a
+    she2 = a \. Pair a a
+    so = Set (make_var "person") (a \. a)
+    so2 = Set (make_var "person") (a \. Pair a a)
 
 -- a toy Context-Free Grammar
 productions :: CFG
@@ -103,5 +118,5 @@ s4 = "someone2 left and she2 whistled"
 s5 = "every dog saw every cat"
 
 
-main :: Effect Unit
-main = traverse_ (maybe (logShow "unk") (traverse_ log) <<< showParse productions lexicon) $ s1: s2: s3: s4: s5: Nil
+-- main :: Effect Unit
+-- main = traverse_ (maybe (logShow "unk") (traverse_ log) <<< showParse productions lexicon) $ s1: s2: s3: s4: s5: Nil

@@ -9,6 +9,7 @@ import Parsing.Expr
 import Prelude hiding (between)
 import Control.Apply (lift2)
 import TDParseCFG
+import LambdaCalc (make_var)
 
 import Control.Lazy (fix)
 import Data.Enum (enumFromTo)
@@ -81,7 +82,7 @@ lexParser = parens do
   c <- catParser <|> fail "Unrecognized category"
   void comma
   t <- tyParserD <|> fail "Unrecognized type"
-  pure $ Tuple s (pure $ Tuple s (Tuple c t))
+  pure $ Tuple s (pure $ Tuple (make_var $ s <> "'") (Tuple c t))
 
 lexParse w = case runParser w lexParser of
   Left e  -> Left (parseErrorMessage e)

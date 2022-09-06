@@ -28,7 +28,7 @@ type Model =
   { currentPhrase :: String
   , typeOfInterest :: Proof -> Boolean
   , currentProofs :: Maybe (Array Proof)
-  , lex :: Array (String ^ Word) ^ Boolean
+  , lex :: Array Word ^ Boolean
   , lexFeedback :: Maybe String
   }
 
@@ -120,7 +120,7 @@ addLexInput =
   HE.input
     [ HA.type' "text", HA.id "lexname", HA.placeholder "(name, cat, type)", HA.onKeyup AddLex ]
 
-displayLexItem :: forall m. String ^ Word -> Html m
+displayLexItem :: forall m. Word -> Html m
 displayLexItem (s ^ w) =
   HE.p [HA.class' "lexitem"] $
     HE.text (s <> ": ") :

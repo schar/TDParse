@@ -8,6 +8,7 @@ import Data.Bounded
 import Data.Enum
 import Data.List
 import Data.Maybe
+import Data.Either
 import Data.Tuple
 import Data.Tuple.Nested
 import Memo
@@ -28,7 +29,7 @@ import Data.String.Utils (words)
 import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc (Term, make_var, (#), (\.))
+import LambdaCalc (Term(..), make_var, (#), (\.), (%))
 import Unsafe.Coerce (unsafeCoerce)
 import Utils ((<**>), one, (<+>), (^), type (^))
 
@@ -102,15 +103,15 @@ type CFG = Cat -> Cat -> List Cat
 -- Our syntactic objects are (binary-branching) constituency trees with
 -- typed leaves
 data Syn
-  = Leaf String Ty
+  = Leaf String Term Ty
   | Branch Syn Syn
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
 -- spellouts, syntactic categories, and types are known
-type Sense = (String ^ Cat ^ Ty) -- a single sense of a single word
-type Word = List Sense              -- a word may have several senses
+type Sense = (Term ^ Cat ^ Ty) -- a single sense of a single word
+type Word = String ^ List Sense              -- a word may have several senses
 type Phrase = List Word
-type Lexicon = List (String ^ Word)
+type Lexicon = List Word
 
 -- a simple memoized chart parser, parameterized to a particular grammar
 protoParse ::
@@ -118,8 +119,10 @@ protoParse ::
   => CFG
   -> (Int ^ Int ^ Phrase -> m (List (Cat ^ Syn)))
   ->  Int ^ Int ^ Phrase -> m (List (Cat ^ Syn))
-protoParse _   _ (_^_^sign:Nil) = pure $ map (\(s^c^t) -> c ^ Leaf s t) sign
-protoParse cfg f phrase         = concat <$> traverse help (bisect phrase)
+protoParse _   _ (_^_^(s^sign):Nil) =
+  pure $ map (\(d^c^t) -> c ^ Leaf s d t) sign
+protoParse cfg f phrase =
+  concat <$> traverse help (bisect phrase)
   where
     bisect (lo ^ hi ^ u) = do
       i <- 1 .. (length u - 1)
@@ -139,13 +142,13 @@ protoParse cfg f phrase         = concat <$> traverse help (bisect phrase)
 -- and throwing away the category information
 parse :: CFG -> Lexicon -> String -> Maybe (List Syn)
 parse cfg lex input = do
-  ws <- sequence $ map (\s -> lookup s lex) <<< fromFoldable $ words input
+  ws <- sequence $ map (\s -> map (s ^ _) $ lookup s lex) <<< fromFoldable $ words input
   pure $ snd <$> memo (protoParse cfg) (0 ^ (length ws - 1) ^ ws)
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
 data Sem
-  = Lex String
+  = Lex Term
   | Comb Mode Sem Sem
 derive instance Eq Sem
 derive instance Generic Sem _
@@ -246,7 +249,7 @@ getProofType (Proof _ _ ty _) = ty
 synsem :: Syn -> List Proof
 synsem = execute <<< go
   where
-    go (Leaf s t)   = pure $ singleton $ Proof s (Lex s) t Nil
+    go (Leaf s d t)   = pure $ singleton $ Proof s (Lex d) t Nil
     go (Branch l r) = do -- memo block
       lefts  <- go l
       rights <- go r
@@ -407,7 +410,7 @@ sweepSpurious ops = foldr filter ops
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
-semTerm (Lex w)       = make_var (w <> "'")
+semTerm (Lex w)       = w
 semTerm (Comb op l r) = modeTerm op # semTerm l # semTerm r
 
 -- The definitions of the combinators that build our modes of combination
@@ -428,10 +431,10 @@ modeTerm = case _ of
   FC      -> l \. r \. a \. l # (r # a)
 
           -- \l R -> (\a -> op l a) <$> R
-  MR _ op -> l \. r \. make_var "fmap" # (a \. (modeTerm op # l # a)) # r
+  MR f op -> l \. r \. fmap f # (a \. (modeTerm op # l # a)) # r
 
           -- \L r -> (\a -> op a r) <$> L
-  ML _ op -> l \. r \. make_var "fmap" # (a \. (modeTerm op # a # r)) # l
+  ML f op -> l \. r \. fmap f # (a \. (modeTerm op # a # r)) # l
 
           -- \l R -> op (\a -> R (pure a)) l
   UL _ op -> l \. r \. modeTerm op # (a \. r # (make_var "pure" # a)) # l
@@ -448,8 +451,8 @@ modeTerm = case _ of
           -- \l r -> join (op l r)
   J op    -> l \. r \. make_var "join" # (modeTerm op # l # r)
 
-          -- \l r -> counit (op l r)
-  Eps op  -> l \. r \. make_var "counit" # (modeTerm op # l # r)
+          -- \l r -> op (counit l r)
+  Eps op  -> l \. r \. modeTerm op # (Snd l) # (r # Fst l)
 
           -- \l r -> op l r id
   D op    -> l \. r \. modeTerm op # l # r # (a \. a)
@@ -458,3 +461,12 @@ modeTerm = case _ of
     l = make_var "l"
     r = make_var "r"
     a = make_var "a"
+    g = make_var "g"
+    k = make_var "k"
+    m = make_var "m"
+    c = make_var "c"
+    fmap = case _ of
+      S     -> k \. m \. Set (Dom m) (a \. k % (Map m % a))
+      R _   -> k \. m \. g \. k % (m % g)
+      W _   -> k \. m \. Pair (Fst m) (k % (Snd m))
+      C _ _ -> k \. m \. c \. m % (a \. c % (k % a))

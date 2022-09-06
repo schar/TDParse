@@ -90,9 +90,9 @@ prettyMode = case _ of
   UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
   UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
   A  _ op -> text "$\\comb{A},$"         <+> prettyMode op
-  J op    -> text "$\\mu$,"              <+> prettyMode op
-  Eps op  -> text "$\\epsilon$,"         <+> prettyMode op
-  D op    -> text "$\\downarrow$,"       <+> prettyMode op
+  J op    -> text "$\\comb{J}$,"         <+> prettyMode op
+  Eps op  -> text "$\\comb{Eps}$,"       <+> prettyMode op
+  D op    -> text "$\\comb{D}$,"         <+> prettyMode op
 
 prettyVal :: Boolean -> Sem -> Doc
 prettyVal norm v
@@ -128,7 +128,7 @@ prettyProofTree norm proof =
         text "$" <> label v (text "\\texttt{") <>
         prettyTy arrow ty <> text "}$" <>
         vcat (text "\\\\" : text "\\comb{Lex}" :
-        brackets (text "\\texttt{" <> text (show w) <> text "}") : Nil) <>
+        brackets (text "\\texttt{" <> text (show word) <> text "}") : Nil) <>
         text "]"
 
       Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
@@ -148,7 +148,7 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
   where
     bp = case _ of
       Proof word v@(Lex w) ty _ ->
-        text "\\AXC{$\\mathstrut\\text{" <> text w <> text "}" <>
+        text "\\AXC{$\\mathstrut\\text{" <> text word <> text "}" <>
         text "\\vdash " <>
         text "\\texttt{" <> prettyVal true v <> text "}" <> text ":" <+>
         text "\\texttt{" <> prettyTy arrow ty <> text "}$}"
@@ -211,4 +211,3 @@ showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
 showParseTree cfg lex = showParse' cfg lex (const true) (prettyProofTree false)
 showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
 showParseBuss cfg lex = showParse' cfg lex (const true) prettyProofBuss
-
