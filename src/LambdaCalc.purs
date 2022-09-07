@@ -34,20 +34,31 @@ eval' (Lam v body) Nil = check_eta $ Lam v (eval body)
 eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
 eval' (Ap t1 t2) stack = eval' t1 (t2:stack)
 eval' t@(Var v) stack = unwind t stack
-eval' (Pair t1 t2) stack = Pair (eval' t1 stack) (eval' t2 stack)
-eval' (Fst p) stack = case eval' p stack of
-  (Pair t1 t2)  -> t1
-  t             -> Fst t
-eval' (Snd p) stack = case eval' p stack of
-  (Pair t1 t2)  -> t2
-  t             -> Snd t
-eval' (Set t1 t2) stack = Set (eval' t1 stack) (eval' t2 stack)
-eval' (Dom s) stack = case eval' s stack of
-  (Set t1 t2)  -> t1
-  t            -> t
-eval' (Map s) stack = case eval' s stack of
-  (Set t1 t2)  -> t2
-  t            -> let a = make_var "a" in eval' (a ! a) stack
+eval' (Pair t1 t2) stack = case stack of
+  Nil -> Pair (eval' t1 Nil) (eval' t2 Nil)
+  _ -> unsafeThrow ("trying to apply a pair")
+eval' (Fst p) stack =
+  case eval' p Nil of
+    (Pair t1 t2)  -> eval' t1 stack
+    t             -> unwind (Fst t) stack
+eval' (Snd p) stack =
+  case eval' p Nil of
+    (Pair t1 t2)  -> eval' t2 stack
+    t             -> unwind (Snd t) stack
+eval' (Set t1 t2) stack = case stack of
+  Nil -> Set (eval' t1 Nil) (eval' t2 Nil)
+  _ -> unsafeThrow ("trying to apply a set")
+eval' (Dom s) stack = case stack of
+  Nil ->
+    case eval' s Nil of
+      (Set t1 t2)  -> t1
+      t            -> t
+  _ -> unsafeThrow ("trying to apply the domain of a set")
+eval' (Map s) stack =
+  case eval' s Nil of
+    (Set t1 t2)  -> eval' t2 stack
+    t            -> a ! a
+
 unwind t Nil = t
 unwind t (t1:rest) = unwind (Ap t $ eval t1) rest
 
@@ -116,35 +127,42 @@ meval' a@(Lam v body) (t: rest) = do
   note_reduction "beta" (Ap a t)
   meval' (subst body v t) rest
 meval' (Ap t1 t2) stack = meval' t1 (t2:stack)
-meval' (Pair t1 t2) stack = do
-  t1' <- meval' t1 stack
-  t2' <- meval' t2 stack
-  pure $ Pair t1 t2
-meval' (Fst p) stack = do
-  p' <- meval' p stack
-  case p' of
-    (Pair t1 t2)  -> note_reduction "fst" (Fst p') *> pure t1
-    t             -> pure $ Fst t
-meval' (Snd p) stack = do
-  p' <- meval' p stack
-  case p' of
-    (Pair t1 t2)  -> note_reduction "snd" (Snd p') *> pure t2
-    t             -> pure $ Snd t
-meval' (Set t1 t2) stack = do
-  t1' <- meval' t1 stack
-  t2' <- meval' t2 stack
-  pure $ Set t1 t2
-meval' (Dom s) stack = do
-  s' <- meval' s stack
-  case s' of
-    (Set t1 t2)  -> note_reduction "domain" (Dom s') *> pure t1
-    t            -> pure $ Dom t
-meval' (Map s) stack = do
-  s' <- meval' s stack
-  case s' of
-    (Set t1 t2)  -> note_reduction "map" (Map s') *> pure t2
-    t            -> pure $ Map t
 meval' t@(Var v) stack = munwind t stack
+meval' (Pair t1 t2) stack = case stack of
+  Nil -> do
+    t1' <- meval' t1 Nil
+    t2' <- meval' t2 Nil
+    pure $ Pair t1' t2'
+  _ -> unsafeThrow ("trying to apply a pair")
+meval' (Fst p) stack = do
+  p' <- meval' p Nil
+  case p' of
+    (Pair t1 t2)  -> note_reduction "fst" (Fst p') *> meval' t1 stack
+    t             -> munwind (Fst t) stack
+meval' (Snd p) stack = do
+  p' <- meval' p Nil
+  case p' of
+    (Pair t1 t2)  -> note_reduction "snd" (Snd p') *> meval' t2 stack
+    t             -> munwind (Snd t) stack
+meval' (Set t1 t2) stack = case stack of
+  Nil -> do
+    t1' <- meval' t1 Nil
+    t2' <- meval' t2 Nil
+    pure $ Set t1' t2'
+  _ -> unsafeThrow ("trying to apply a set")
+meval' (Dom s) stack = case stack of
+  Nil -> do
+    s' <- meval' s Nil
+    case s' of
+      (Set t1 t2)  -> note_reduction "domain" (Dom s') *> pure t1
+      t            -> pure t
+  _ -> unsafeThrow ("trying to apply the domain of a set")
+meval' (Map s) stack = do
+  s' <- meval' s Nil
+  case s' of
+    (Set t1 t2)  -> note_reduction "map" (Map s') *> meval' t2 stack
+    t            -> pure $ a ! a
+
 munwind :: Term -> List Term -> Writer (List (Tuple String Term)) Term
 munwind t Nil = pure t
 munwind t (t1:rest) =
@@ -303,6 +321,9 @@ term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   term_equal_p' (Set t1 t1') (Set t2 t2') env =
      term_equal_p' t1  t2  env &&
      term_equal_p' t1' t2' env
+
+  term_equal_p' (Dom p1) (Dom p2) env = term_equal_p' p1 p2 env
+  term_equal_p' (Map p1) (Map p2) env = term_equal_p' p1 p2 env
 
   -- otherwise, the terms do not compare
   term_equal_p' _ _ _ = false

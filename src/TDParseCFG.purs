@@ -12,7 +12,7 @@ import Data.Either
 import Data.Tuple
 import Data.Tuple.Nested
 import Memo
-import Prelude hiding ((#))
+import Prelude hiding ((#), (*))
 
 import Control.Alternative (guard)
 import Control.Apply (lift2)
@@ -29,7 +29,7 @@ import Data.String.Utils (words)
 import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*))
+import LambdaCalc -- (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*))
 import Unsafe.Coerce (unsafeCoerce)
 import Utils ((<**>), one, (<+>), (^), type (^))
 
@@ -388,15 +388,15 @@ sweepSpurious ops = foldr filter ops
          (        J (Eps FA) )
        : ( pure $ D (Eps FA) )
 
-  -- EXPERIMENTAL: W's only take surface scope over W's
-  , \(m ^ _) -> not $ any (m `contains 1` _) $
+  -- -- EXPERIMENTAL: W's only take surface scope over W's
+  -- , \(m ^ _) -> not $ any (m `contains 1` _) $
 
-         ( (ML (W E): A (W E): Eps: Nil) <#> \m -> MR (W E) (m FA) )
+  --        ( (ML (W E): A (W E): Eps: Nil) <#> \m -> MR (W E) (m FA) )
 
-  -- EXPERIMENTAL: drefs float up
-  , \(m ^ _) -> not $ any (m `contains 1` _) $
+  -- -- EXPERIMENTAL: drefs float up
+  -- , \(m ^ _) -> not $ any (m `contains 1` _) $
 
-         ( scopetakers >>= \f -> (ML f (MR (W E) FA) : MR f (ML (W E) FA) : Nil) )
+  --        ( scopetakers >>= \f -> (ML f (MR (W E) FA) : MR f (ML (W E) FA) : Nil) )
   ]
   where
     contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack

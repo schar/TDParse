@@ -9,16 +9,17 @@ import LambdaCalc
 import Prelude
 import TDParseCFG
 import Text.Pretty
-import Utils ((^), type (^))
 
-import Data.Foldable (traverse_)
+import Data.Foldable (sequence_, traverse_)
+import Data.Traversable (sequence)
 import Effect (Effect)
-import Effect.Console (log)
+import Effect.Console (log, logShow)
 import Flame (QuerySelector(..), Html, Key, mount_)
 import Flame.Html.Attribute as HA
 import Flame.Html.Element as HE
 import Text.Pretty (Doc) as PP
 import Text.Pretty.String (parens, brackets, braces)
+import Utils ((^), type (^))
 
 type Doc = PP.Doc String
 
@@ -160,7 +161,7 @@ prettyMode = case _ of
 
 prettyVal :: Boolean -> Sem -> Doc
 prettyVal norm v
-  | norm      = text $ show_hs (eval (semTerm v)) 100
+  | norm      = text $ show_term (eval (semTerm v)) 100
   | otherwise = text $ show v
 
 
@@ -168,7 +169,8 @@ prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> text " :: " <>
-        prettyTy arrow ty <> text " = " <> text (show (eval (semTerm val)))
+        prettyTy arrow ty <> text " = " <> -- text (show (eval (semTerm val)))
+                                           prettyVal true val
    in case daughters of -- no unary inferences
         Nil       -> text "  " <> details
         (a:b:Nil) -> text "  " <> (vcat $ details : prettyProof a : prettyProof b : Nil)
