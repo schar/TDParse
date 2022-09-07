@@ -4,9 +4,9 @@
 
 module TDParseCFG where
 
-import Prelude hiding ( (<>), (^) )
+import Prelude hiding ( (<>), (^), Word, (*) )
 import Control.Monad ( join, liftM2 )
-import Lambda_calc ( Term, make_var, (#), (^) )
+import Lambda_calc (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*), (#), (^))
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
@@ -27,15 +27,24 @@ data Cat
 
 -- semantic types
 infixr :->
-data Type
+data Ty
   = E | T           -- Base types
-  | Type :-> Type   -- Functions
-  | Eff F Type      -- F-ectful
+  | Ty :-> Ty   -- Functions
+  | Eff F Ty      -- F-ectful
   deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
-data F = S | R Type | W Type | C Type Type
-  deriving (Eq, Show, Ord {-, Read-})
+data F = S | R Ty | W Ty | C Ty Ty | U
+  deriving (Show, Ord {-, Read-})
+
+instance Eq F where
+  U == _ = True
+  _ == U = True
+  S == S = True
+  R t == R u = t == u
+  W t == W u = t == u
+  C t u == C v w = t == v && u == w
+  _ == _ = False
 
 showNoIndices :: F -> String
 showNoIndices = \case
@@ -60,16 +69,16 @@ type CFG = Cat -> Cat -> [Cat]
 -- Our syntactic objects are (binary-branching) constituency trees with
 -- typed leaves
 data Syn
-  = Leaf String Type
+  = Leaf String Term Ty
   | Branch Syn Syn
-  deriving (Eq, Show, Ord)
+  deriving (Eq, Show)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
 -- spellouts, syntactic categories, and types are known
-type Sense = (String, Cat, Type) -- a single sense of a single word
-type Sign = [Sense]              -- a word may have several senses
-type Phrase = [Sign]
-type Lexicon = [(String, Word)]
+type Sense = (Term, Cat, Ty) -- a single sense of a single word
+type Word = (String, [Sense])              -- a word may have several senses
+type Phrase = [Word]
+type Lexicon = [Word]
 
 -- a simple memoized chart parser, parameterized by a CFG
 protoParse ::
@@ -77,8 +86,8 @@ protoParse ::
   => CFG
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
-protoParse _   _ (_, _, [sign]) = return [(c, Leaf s t) | (s, c, t) <- sign]
-protoParse cfg f phrase         = concat <$> mapM help (bisect phrase)
+protoParse _   _ (_, _, [(s,sign)]) = return [(c, Leaf s d t) | (d, c, t) <- sign]
+protoParse cfg f phrase             = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
@@ -97,13 +106,15 @@ protoParse cfg f phrase         = concat <$> mapM help (bisect phrase)
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
-parse :: CFG -> Phrase -> [Syn]
-parse cfg ws = snd <$> memo (protoParse cfg) (0, length ws - 1, ws)
+parse :: CFG -> Lexicon -> String -> Maybe [Syn]
+parse cfg lex input = do
+  ws <- sequence . map (\s -> (s,) <$> lookup s lex) $ words input
+  return $ snd <$> memo (protoParse cfg) (0, (length ws - 1), ws)
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
 data Sem
-  = Lex String
+  = Lex Term
   | Comb Mode Sem Sem
   deriving (Show)
 
@@ -112,9 +123,9 @@ data Sem
 type Mode = [Op]
 data Op
   = FA | BA | PM | FC -- Base        > < & .
-  | MR | ML           -- Functor     fmap
-  | UR | UL           -- Applicative pure
-  | A                 -- Applicative <*>
+  | MR F | ML F       -- Functor     fmap
+  | UR F | UL F       -- Applicative pure
+  | A F               -- Applicative <*>
   | J                 -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
@@ -122,18 +133,18 @@ data Op
 
 instance Show Op where
   show = \case
-    FA  -> ">"
-    BA  -> "<"
-    PM  -> "&"
-    FC  -> "."
-    MR  -> "R"
-    ML  -> "L"
-    UL  -> "UL"
-    UR  -> "UR"
-    A   -> "A"
-    J   -> "J"
-    Eps -> "Eps"
-    D   -> "D"
+    FA   -> ">"
+    BA   -> "<"
+    PM   -> "&"
+    FC   -> "."
+    MR _ -> "R"
+    ML _ -> "L"
+    UL _ -> "UL"
+    UR _ -> "UR"
+    A _  -> "A"
+    J    -> "J"
+    Eps  -> "Eps"
+    D    -> "D"
 
 
 {- Type classes -}
@@ -147,7 +158,7 @@ appl f@(W w) = functor f && monoid w
 appl f       = functor f && True
 monad f      = appl f && True
 
-monoid :: Type -> Bool
+monoid :: Ty -> Bool
 monoid T = True
 monoid _ = False
 
@@ -157,7 +168,7 @@ adjoint _ _         = False
 
 class Commute f where
   commutative :: f -> Bool
-instance Commute Type where
+instance Commute Ty where
   -- commutative as a monoid
   commutative ty = ty == T
 instance Commute F where
@@ -175,10 +186,10 @@ instance Commute F where
 -- particular meaning at a particular type
 -- For displaying derivations, we also maintain the subproofs used at
 -- each proof step
-data Proof = Proof String Sem Type [Proof]
+data Proof = Proof String Sem Ty [Proof]
   deriving (Show)
 
-getProofType :: Proof -> Type
+getProofType :: Proof -> Ty
 getProofType (Proof _ _ ty _) = ty
 
 -- Evaluate a constituency tree by finding all the derivations of its
@@ -187,7 +198,7 @@ getProofType (Proof _ _ ty _) = ty
 synsem :: Syn -> [Proof]
 synsem = execute . go
   where
-    go (Leaf s t)   = return [Proof s (Lex s) t []]
+    go (Leaf s d t) = return [Proof s (Lex d) t []]
     go (Branch l r) = do -- memo block
       lefts  <- go l
       rights <- go r
@@ -200,8 +211,11 @@ synsem = execute . go
             (op, ty) <- combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
 
+prove :: CFG -> Lexicon -> String -> Maybe [Proof]
+prove cfg lex input = concatMap synsem <$> parse cfg lex input
+
 -- The basic unEffectful modes of combination (add to these as you like)
-modes :: Type -> Type -> [(Mode, Type)]
+modes :: Ty -> Ty -> [(Mode, Ty)]
 modes = curry \case
   (a :-> b , r      ) | a == r -> [([FA], b)]
   (l       , a :-> b) | l == a -> [([BA], b)]
@@ -224,8 +238,8 @@ combine = curry $ fix (memoize' . openCombine)
 -- what are all the ways that they may be combined
 openCombine ::
   Monad m
-  => ((Type, Type) -> m [(Mode, Type)])
-  ->  (Type, Type) -> m [(Mode, Type)]
+  => ((Ty, Ty) -> m [(Mode, Ty)])
+  ->  (Ty, Ty) -> m [(Mode, Ty)]
 openCombine combine (l, r) = concat <$>
 
   -- for starters, try the basic modes of combination
@@ -235,13 +249,13 @@ openCombine combine (l, r) = concat <$>
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
     Eff f a
-      | functor f -> combine (a,r) <&> map \(op,c) -> (ML:op, Eff f c)
+      | functor f -> combine (a,r) <&> map \(op,c) -> (ML f:op, Eff f c)
     _ -> return []
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
     Eff f a
-      | functor f -> combine (l,a) <&> map \(op,c) -> (MR:op, Eff f c)
+      | functor f -> combine (l,a) <&> map \(op,c) -> (MR f:op, Eff f c)
     _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
@@ -250,7 +264,7 @@ openCombine combine (l, r) = concat <$>
     Eff f a :-> b
       | appl f ->
         combine ((a :-> b),r) <&>
-        concatMap \(op,c) -> [(UR:op, c) | normU UR op]
+        concatMap \(op,c) -> [(UR f:op, c) | normU (UR f) op]
     _ -> return []
 
   -- vice versa if the right daughter requests something Functorial
@@ -258,7 +272,7 @@ openCombine combine (l, r) = concat <$>
     Eff f a :-> b
       | appl f ->
         combine (l,(a :-> b)) <&>
-        concatMap \(op,c) -> [(UL:op, c) | normU UL op]
+        concatMap \(op,c) -> [(UL f:op, c) | normU (UL f) op]
     _ -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
@@ -267,7 +281,7 @@ openCombine combine (l, r) = concat <$>
     (Eff f a, Eff g b)
       | appl f ->
         combine (a, b) <&>
-        liftM2 (\h (op,c) -> (A:op, Eff h c)) (combineFs f g)
+        liftM2 (\h (op,c) -> (A h:op, Eff h c)) (combineFs f g)
     _ -> return []
 
   -- canonical Eps configuration is Eps, ML, MR
@@ -292,10 +306,10 @@ openCombine combine (l, r) = concat <$>
 
     -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
     normU = \case
-      UR -> \op -> not $ any (`isPrefixOf` op) [[MR], [D,MR]]
-      UL -> \op -> not $ any (`isPrefixOf` op) [[ML], [D,ML]]
+      UR f -> \op -> not $ any (`isPrefixOf` op) [[MR f], [D, MR f]]
+      UL f -> \op -> not $ any (`isPrefixOf` op) [[ML f], [D, ML f]]
 
-addJ :: (Mode, Type) -> [(Mode, Type)]
+addJ :: (Mode, Ty) -> [(Mode, Ty)]
 addJ =
   \case
     (op, Eff f (Eff g a))
@@ -307,19 +321,19 @@ addJ =
     normJ f op = not $ any (`isPrefixOf` op) $
 
       -- avoid higher-order detours for all J-able effects
-         [ [m]  ++ k ++ [m]  | k <- [[J], []], m <- [MR, ML] ]
-      ++ [ [ML] ++ k ++ [MR] | k <- [[J], []] ]
-      ++ [ [A]  ++ k ++ [MR] | k <- [[J], []] ]
-      ++ [ [ML] ++ k ++ [A]  | k <- [[J], []] ]
+         [ [m f]  ++ k ++ [m f]  | k <- [[J], []], m <- [MR, ML] ]
+      ++ [ [ML f] ++ k ++ [MR f] | k <- [[J], []] ]
+      ++ [ [A f]  ++ k ++ [MR f] | k <- [[J], []] ]
+      ++ [ [ML f] ++ k ++ [A f]  | k <- [[J], []] ]
       ++ [ [Eps] ]
 
       -- for commutative effects
-      ++ [ [MR     ,     A ] | commutative f ]
-      ++ [ [A      ,     ML] | commutative f ]
-      ++ [ [MR] ++ k ++ [ML] | commutative f, k <- [[J], []] ]
-      ++ [ [A]  ++ k ++ [A]  | commutative f, k <- [[J], []] ]
+      ++ [ [MR f   ,     A  f]   | commutative f ]
+      ++ [ [A f    ,     ML f]   | commutative f ]
+      ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J], []] ]
+      ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J], []] ]
 
-addD :: (Mode, Type) -> [(Mode, Type)]
+addD :: (Mode, Ty) -> [(Mode, Ty)]
 addD =
   \case
     (op, Eff (C i a) a')
@@ -329,10 +343,10 @@ addD =
 
   where
     normD op = not $ any (`isPrefixOf` op) $
-         [ [m , D, m ] | m <- [MR, ML] ]
-      ++ [ [ML, D, MR]
-         , [A , D, MR]
-         , [ML, D, A ]
+         [ [m U, D, m U] | m <- [MR, ML] ]
+      ++ [ [ML U, D, MR U]
+         , [A U, D, MR U]
+         , [ML U, D, A U]
          , [Eps]
          ]
 
@@ -340,7 +354,7 @@ addD =
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
-semTerm (Lex w)      = make_var (w ++ "'")
+semTerm (Lex w)      = w
 semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
 
 modeTerm :: Mode -> Term
@@ -365,31 +379,55 @@ opTerm = \case
   FC  -> l ^ r ^ a ^ l # (r # a)
 
       -- \op l r -> (\a -> op l a) <$> r
-  MR  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
+  -- MR  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
+  MR f -> op ! l ! r ! fMap f % (a ! (op % l % a)) % r
 
       -- \op l r -> (\a -> op a r) <$> l
-  ML  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
+  -- ML  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
+  ML f -> op ! l ! r ! fMap f % (a ! (op % a % r)) % l
 
       -- \op l r -> op (\a -> r (pure a)) l
-  UL  -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
+  -- UL  -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
+  UL f -> op ! l ! r ! op % (a ! r % (pr f % a)) % l
 
       -- \op l r -> op (\a -> l (pure a)) r
-  UR  -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
+  -- UR  -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
+  UR f -> op ! l ! r ! op % (a ! l % (pr f % a)) % r
 
       -- \op l l -> op <$> l <*> r
-  A   -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
+  A _ -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
 
       -- \l r -> join (op l r)
   J   -> op ^ l ^ r ^ make_var "join" # (op # l # r)
 
       -- \l r -> counit (op l r)
-  Eps -> op ^ l ^ r ^ make_var "counit" # (op # l # r)
+  -- Eps -> op ^ l ^ r ^ make_var "counit" # (op # l # r)
+  Eps -> op ! l ! r ! counit % (fMap (W E) % (a ! fMap (R E) % (op % a) % r) % l)
 
       -- \l r -> op l r id
   D   -> op ^ l ^ r ^ op # l # r # (a ^ a)
 
-  where
-    l  = make_var "l"
-    r  = make_var "r"
-    a  = make_var "a"
-    op = make_var "op"
+
+l = make_var "l"
+r = make_var "r"
+a = make_var "a"
+g = make_var "g"
+k = make_var "k"
+m = make_var "m"
+c = make_var "c"
+op = make_var "op"
+
+fMap = \case
+  S     -> k ! m ! Set (Dom m) (a ! k % (Map m % a))
+  R _   -> k ! m ! g ! k % (m % g)
+  W _   -> k ! m ! _1 m * (k % (_2 m))
+  C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
+pr = \case
+  S     -> a ! Set a (a ! a)
+  R _   -> a ! g ! a
+  W t   -> a ! (mzero t * a)
+  C _ _ -> a ! k ! k % a
+mzero = \case
+  T     -> make_var "true"
+  _     -> make_var "this really shouldn't happen"
+counit = m ! _2 m % (_1 m)

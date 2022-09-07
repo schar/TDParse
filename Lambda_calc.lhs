@@ -24,8 +24,9 @@ $Id: Lambda_calc.lhs,v 2.3 2005/05/05 20:52:25 oleg Exp oleg $
 >
 > module Lambda_calc
 >     ( eval
->     , (^)                   -- abstraction: x ^ body
->     , (#)                   -- application: a # b
+>     , (^), (!)                   -- abstraction: x ^ body
+>     , (#), (%)                   -- application: a # b
+>     , _1, _2, (*), make_set
 >     , a,b,c,x,y,z,f,g,h,p,q -- variables
 >     , make_var              -- to make more variables
 >     , show_term	            -- to print out the term to the specific depth
@@ -33,10 +34,10 @@ $Id: Lambda_calc.lhs,v 2.3 2005/05/05 20:52:25 oleg Exp oleg $
 >     , show_hs
 >     , term_equal_p	        -- compare two terms modulo alpha-renaming
 >     , expectd		            -- a regression testing predicate
->     , Term                  -- SC: don't export Term constructors
+>     , Term(..)                  -- SC: don't export Term constructors
 >     ) where
 >
-> import Prelude hiding ((^))
+> import Prelude hiding ((^), (*))
 >
 > -- the following imports are required for a tracing eval
 > import Control.Monad.Writer
@@ -54,7 +55,9 @@ details).
 Identifiers along with composite terms (abstractions and applications)
 make up our language:
 
-> data Term = Var VarName | A Term Term | L VarName Term
+> data Term = Var VarName | App Term Term | L VarName Term
+>   | Pair Term Term | Fst Term | Snd Term
+>   | Set Term Term | Dom Term | Map Term
 >             deriving Eq -- (,Show)
 
 * Normal-order reduction as parsing
@@ -68,7 +71,7 @@ Our calculator, like yacc, possesses a stack and works by doing a
 sequence of 'shift' and 'reduce' steps. We consider an application (a
 b) as a _delayed_ normalization. We delay dealing with 'b' and with
 the application until we figure out what to do with the term 'a'. A
-sequence of applications (A (A (A t1 t2) t3) t4) is then a to-do list:
+sequence of applications (App (App (App t1 t2) t3) t4) is then a to-do list:
 terms t2, t3, and t4 are to be applied, in that order, to term t1.
 
 The calculator's stack contains all the terms to be applied to the
@@ -90,7 +93,7 @@ therefore, the parser can indeed apply itself.
 The function eval' does all the work. The function is the parser of
 our term language. Given a term 'term' and the stack [t1 t2 ...], the
 invocation "eval' term [t1 t2 ...]" tries to reduce the the
-application (A (A (A term t1) t2) t3 ...)
+application (App (App (App term t1) t2) t3 ...)
 
 *** parsing variables and abstractions on the empty stack
 
@@ -106,7 +109,7 @@ if an eta-reduction applies. Hmm, I wonder what happened to gamma...
 *** we found the redex
 
 If the current term is a lambda form and the stack is non-empty, we
-have a (beta-) redex! We pop the stack, reduce (A (L v body) t), and
+have a (beta-) redex! We pop the stack, reduce (App (L v body) t), and
 re-evaluate the result as the new current term.
 
 This re-evaluation is the trait that distinguishes eval from
@@ -117,23 +120,41 @@ yacc. Yacc does not re-parse a reduced term.
 *** doing shifts
 If the current term is an application, we _shift_.
 
-> eval' (A t1 t2) stack = eval' t1 (t2:stack)
+> eval' (App t1 t2) stack = eval' t1 (t2:stack)
 
 *** and unwinds
 The current term is a variable and the stack (t1:t2...) is non-empty. That is,
-the current context is (A (A (A x t1) t2) ...). Neither of these applications
+the current context is (App (App (App x t1) t2) ...). Neither of these applications
 can be reduced. Therefore, we just reduce t1, t2 ... separately
 
 > eval' t@(Var v) stack = unwind t stack
 
+*** skip over pairs and sets
+
+> eval' (Pair t1 t2) stack = Pair (eval' t1 stack) (eval' t2 stack)
+> eval' (Fst p) stack = case eval' p stack of
+>   (Pair t1 t2)  -> t1
+>   t             -> Fst t
+> eval' (Snd p) stack = case eval' p stack of
+>   (Pair t1 t2)  -> t2
+>   t             -> Snd t
+> eval' (Set t1 t2) stack = Set (eval' t1 stack) (eval' t2 stack)
+> eval' (Dom s) stack = case eval' s stack of
+>   (Set t1 t2)  -> t1
+>   t            -> t
+> eval' (Map s) stack = case eval' s stack of
+>   (Set t1 t2)  -> t2
+>   t            -> let a = make_var "a" in eval' (a ! a) stack
+
+
 ** Unwind the stack
 
 Given a term t and the stack [t1 t2 ...], unwind the stack and make a
-term (A (A (A t t1') t2') ...) where t1' t2' ... are reduced t1 t2
+term (App (App (App t t1') t2') ...) where t1' t2' ... are reduced t1 t2
 ... -- as top-level terms.
 
 > unwind t [] = t
-> unwind t (t1:rest) = unwind (A t $ eval t1) rest
+> unwind t (t1:rest) = unwind (App t $ eval t1) rest
 
 ** Comparisons with the lambda-calculator as a scheme macro
 
@@ -151,7 +172,7 @@ original lambda-calculus. In Church's formulation, the language was
 realized by a string of characters and delimiters on the
 paper. 'lambda' was just a typographic convention.
 
-A series of applications '(A (A (A t t1) t2) ...)' in the
+A series of applications '(App (App (App t t1) t2) ...)' in the
 rewriting-lambda implementation were represented by a list (t t1 t2
 ...). The stack is "rolled-in" in a term itself.  Therefore, the
 rewriting-lambda implementation did not need a separate stack.
@@ -171,11 +192,11 @@ rule:
 
 -> eval t@(Var v) = t
 -> eval (L v body) = check_eta $ L v (eval body)
--> eval (A (L v body) t2) = eval $ subst body v t2
--> eval (A t1@(A _ _) t2) = case eval t1 of
-->   r@(L _ _) -> eval (A r t2)
-->   r         -> A r $ eval t2 -- the head is normalized, but no redex
--> eval (A t1 t2) = A t1 $ eval t2
+-> eval (App (L v body) t2) = eval $ subst body v t2
+-> eval (App t1@(App _ _) t2) = case eval t1 of
+->   r@(L _ _) -> eval (App r t2)
+->   r         -> App r $ eval t2 -- the head is normalized, but no redex
+-> eval (App t1 t2) = App t1 $ eval t2
 
 We can check whether unwinding is in progress simply by seeing whether
 "r" is (not) an abstraction.  The stack is still there, but it is
@@ -206,7 +227,13 @@ approach makes the result more pleasant to look at.
 > subst term v (Var v') | v == v' = term -- identity substitution
 > subst t@(Var x) v st | x == v    = st
 >		       | otherwise = t
-> subst (A t1 t2) v st = A (subst t1 v st) $ (subst t2 v st)
+> subst (Pair t1 t2) v st = Pair (subst t1 v st) (subst t2 v st)
+> subst (Fst p) v st = Fst (subst p v st)
+> subst (Snd p) v st = Snd (subst p v st)
+> subst (Set t1 t2) v st = Set (subst t1 v st) (subst t2 v st)
+> subst (Dom s) v st = Dom (subst s v st)
+> subst (Map s) v st = Map (subst s v st)
+> subst (App t1 t2) v st = App (subst t1 v st) $ (subst t2 v st)
 > subst t@(L x _) v _ | v == x  = t  -- v is shadowed in lambda form
 
 ** substitution in the lambda term
@@ -237,13 +264,13 @@ substitution. Therefore, we can use the same function 'subst'.
 >		         x_unique = if bf
 >                                     then bump_color x_uniq_st_v x_occur_body
 >                                     else x_uniq_st_v
->                    in (x_unique,subst body x (Var x'))
->                    -- in (x_unique,subst body x (Var x_unique))
+>                    -- in (x_unique,subst body x (Var x'))
+>                    in (x_unique,subst body x (Var x_unique))
 >            else (x,body)
->        bump_color (VC color name) (VC color' _) =
->                                      (VC ((max color color')+1) name)
->        bump_color' v1@(VC _ name) v2@(VC _ name') =
->                    if name==name' then bump_color v1 v2 else v1
+> bump_color (VC color name) (VC color' _) =
+>                               (VC ((max color color')+1) name)
+> bump_color' v1@(VC _ name) v2@(VC _ name') =
+>             if name==name' then bump_color v1 v2 else v1
 
 
 Note how the body of the if expression refers to its own result:
@@ -253,18 +280,30 @@ x'. A lazy language has its elegance.
 >     | not (name == name')  = (False, v)
 >     | c == c'              = (True, v)
 >     | otherwise            = (False,v')
-> occurs (A t1 t2) v = let (f1,v1@(VC c1 _)) = occurs t1 v
->                          (f2,v2@(VC c2 _)) = occurs t2 v
->                      in (f1 || f2, if c1 > c2 then v1 else v2)
+> occurs (App t1 t2) v = let (f1,v1@(VC c1 _)) = occurs t1 v
+>                            (f2,v2@(VC c2 _)) = occurs t2 v
+>                         in (f1 || f2, if c1 > c2 then v1 else v2)
+> occurs (Pair t1 t2) v
+>   = let (f1, v1@(VC c1 _)) = occurs t1 v
+>         (f2, v2@(VC c2 _)) = occurs t2 v
+>      in ((f1 || f2),  (if c1 > c2 then v1 else v2))
+> occurs (Fst p) v = occurs p v
+> occurs (Snd p) v = occurs p v
+> occurs (Set t1 t2) v
+>   = let (f1, v1@(VC c1 _)) = occurs t1 v
+>         (f2, v2@(VC c2 _)) = occurs t2 v
+>      in ((f1 || f2),  (if c1 > c2 then v1 else v2))
+> occurs (Dom s) v = occurs s v
+> occurs (Map s) v = occurs s v
 > occurs (L x body) v | x == v    = (False,v)
 >                     | otherwise = occurs body v
 
 * eta-reductions
 
 Check to see if an eta-reduction applies, that is, that we're to
-reduce (L v (A t v)) where v is not free in t.
+reduce (L v (App t v)) where v is not free in t.
 
-> check_eta (L v (A t (Var v')))
+> check_eta (L v (App t (Var v')))
 >       | v == v' && (let (flag,_) = occurs t v in not flag) = t
 > check_eta term = term
 
@@ -280,14 +319,42 @@ in a monadic notation.
 > meval' t@(Var v) [] = return t -- just a variable with nothing to apply it to
 > meval' (L v body) [] = do { body' <- meval' body []; mcheck_eta $ L v body' }
 > meval' a@(L v body) (t: rest) = do
->                                 note_reduction "beta" (A a t)
+>                                 note_reduction "beta" (App a t)
 >				  meval' (subst body v t) rest
-> meval' (A t1 t2) stack = meval' t1 (t2:stack)
+> meval' (App t1 t2) stack = meval' t1 (t2:stack)
+> meval' (Pair t1 t2) stack = do
+>   t1' <- meval' t1 stack
+>   t2' <- meval' t2 stack
+>   pure $ Pair t1 t2
+> meval' (Fst p) stack = do
+>   p' <- meval' p stack
+>   case p' of
+>     (Pair t1 t2)  -> note_reduction "fst" (Fst p') *> pure t1
+>     t             -> pure $ Fst t
+> meval' (Snd p) stack = do
+>   p' <- meval' p stack
+>   case p' of
+>     (Pair t1 t2)  -> note_reduction "snd" (Snd p') *> pure t2
+>     t             -> pure $ Snd t
+> meval' (Set t1 t2) stack = do
+>   t1' <- meval' t1 stack
+>   t2' <- meval' t2 stack
+>   pure $ Set t1 t2
+> meval' (Dom s) stack = do
+>   s' <- meval' s stack
+>   case s' of
+>     (Set t1 t2)  -> note_reduction "domain" (Dom s') *> pure t1
+>     t            -> pure $ Dom t
+> meval' (Map s) stack = do
+>   s' <- meval' s stack
+>   case s' of
+>     (Set t1 t2)  -> note_reduction "map" (Map s') *> pure t2
+>     t            -> pure $ Map t
 > meval' t@(Var v) stack = munwind t stack
 > munwind t [] = return t
-> munwind t (t1:rest) = do { t1' <- meval' t1 []; munwind (A t t1') rest }
+> munwind t (t1:rest) = do { t1' <- meval' t1 []; munwind (App t t1') rest }
 
-> mcheck_eta red@(L v (A t (Var v')))
+> mcheck_eta red@(L v (App t (Var v')))
 >       | v == v' && (let (flag,_) = occurs t v in not flag)
 >         = do { note_reduction "eta" red; return t }
 > mcheck_eta term = return term
@@ -320,10 +387,17 @@ Now, let's define a few identifiers.
 
 ** Operators to build applications and abstractions
 
-> infixl 8 #
-> (#) = A
-> infixr 6 ^		-- a better notation for a lambda-abstraction
+> infixl 8 #, %
+> (#) = App
+> (%) = App
+> infixr 6 ^, !		-- a better notation for a lambda-abstraction
 > (Var v) ^ body = L v body
+> (Var v) ! body = L v body
+> _1 = Fst
+> _2 = Snd
+> infixr 7 *
+> (*) = Pair
+> make_set s = Set (make_var s) (x ! x)
 
 Note that
 LC> x # y # z
@@ -370,8 +444,20 @@ terms!
 > show_term term depth = showt term
 >  where
 >    showt (L v body) = "(\\" ++ (show v) ++ " -> " ++ (showt' body) ++ ")"
->    showt (A t1 t2@(A _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
->    showt (A t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (App t1 t2@(App _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
+>    showt (App t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (Pair t1 t2) = "<" <> showt' t1 <> ", " <> showt' t2 <> ">"
+>    showt (Fst p@(App _ _)) = "fst " <> "(" <> showt p <> ")"
+>    showt (Fst p) = "fst " <> showt p
+>    showt (Snd p@(App _ _)) = "snd " <> "(" <> showt p <> ")"
+>    showt (Snd p) = "snd " <> showt p
+>    showt e@(Set dom cond) =
+>      let s = VC 0 "s"
+>          (f, v') = occurs e s
+>          v = if f then bump_color v' s else s
+>       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+>    showt (Dom p) = "dom " <> showt p
+>    showt (Map p) = "map " <> showt p
 >    showt' term = show_term term (depth - 1)
 >
 > show_tex (Var v) _ = show v       -- show the variable regardless of depth
@@ -379,21 +465,48 @@ terms!
 > show_tex term depth = showt term
 >  where
 >    showt (L v body) = "(\\lambda " ++ (show v) ++ ". " ++ (showt' body) ++ ")"
->    showt (A t1 t2@(A _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
->    showt (A t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (App t1 t2@(App _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
+>    showt (App t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (Pair t1 t2) = "\\langle" <> showt' t1 <> ", " <> showt' t2 <> "\\rangle"
+>    showt (Fst p@(Pair _ _)) = "\\textsf{fst} " <> showt p
+>    showt (Fst p) = "\textsf{fst} " <> "(" <> showt p <> ")"
+>    showt (Snd p@(Pair _ _)) = "\textsf{snd} " <> showt p
+>    showt (Snd p) = "\textsf{snd} " <> "(" <> showt p <> ")"
+>    showt e@(Set dom cond) =
+>      let s = VC 0 "s"
+>          (f, v') = occurs e s
+>          v = if f then bump_color v' s else s
+>       in "\\{" <> showt' (eval $ cond # (Var v)) <> " \\mid " <> show v <> " \\in " <> showt' dom <> "\\}"
+>    showt (Dom p) = "\textsf{dom} " <> showt p
+>    showt (Map p) = "\textsf{map} " <> showt p
 >    showt' term = show_tex term (depth - 1)
 >
-> show_hs (Var v) _ = show v       -- show the variable regardless of depth
 > show_hs _ depth | depth <= 0 = "..."
 > show_hs term depth = showt term
 >  where
+>    showt (Var v) = show v
 >    showt (L v body) = "(\\textbackslash " ++ (show v) ++ " -> " ++ (showt' body) ++ ")"
->    showt (A t1 t2@(A _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
->    showt (A t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (App t1 t2@(App _ _)) = (showt' t1) ++ " " ++ "(" ++ (showt' t2) ++ ")"
+>    showt (App t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+>    showt (App t1 t2@(Snd  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
+>    showt (App t1 t2) = (showt' t1) ++ " " ++ (showt' t2)
+>    showt (Pair t1 t2) = "(" <> showt' t1 <> ", " <> showt' t2 <> ")"
+>    showt (Fst p@(App _ _)) = "fst " <> "(" <> showt p <> ")"
+>    showt (Fst p) = "fst " <> showt p
+>    showt (Snd p@(App _ _)) = "snd " <> "(" <> showt p <> ")"
+>    showt (Snd p) = "snd " <> showt p
+>    showt e@(Set dom cond) =
+>      let s = VC 0 "s"
+>          (f, v') = occurs e s
+>          v = if f then bump_color v' s else s
+>       in "[" <> showt' (eval $ cond # (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
+>    showt (Dom p) = "dom " <> showt p
+>    showt (Map p) = "map " <> showt p
 >    showt' term = show_hs term (depth - 1)
 >
-> instance Show Term where
->    show term = show_term term 100
+> -- instance Show Term where
+> --    show term = show_term term 100
+> deriving instance Show Term
 
 
 
@@ -411,8 +524,16 @@ variables.
 >    where
 >      -- free_vars' term list-of-bound-vars list-of-free-vars-so-far
 >      free_vars' (Var v) bound free = if v `elem` bound then free else v:free
->      free_vars' (A t1 t2) bound free =
+>      free_vars' (App t1 t2) bound free =
 > 		free_vars' t1 bound $ free_vars' t2 bound free
+>      free_vars' (Pair t1 t2) bound free =
+>        free_vars' t1 bound $ free_vars' t2 bound free
+>      free_vars' (Fst p) bound free = free_vars' p bound free
+>      free_vars' (Snd p) bound free = free_vars' p bound free
+>      free_vars' (Set t1 t2) bound free =
+>        free_vars' t1 bound $ free_vars' t2 bound free
+>      free_vars' (Dom p) bound free = free_vars' p bound free
+>      free_vars' (Map p) bound free = free_vars' p bound free
 >      free_vars' (L v body) bound free = free_vars' body (v:bound) free
 
 
@@ -447,9 +568,23 @@ counter to maintain the unique binding values.
 > 		  ((v1,counter):bdic1,(v2,counter):bdic2,counter+1)
 >
 >   -- both terms are applications
->   term_equal_p' (A t1 t1') (A t2 t2') env =
+>   term_equal_p' (App t1 t1') (App t2 t2') env =
 >      term_equal_p' t1  t2  env &&
 >      term_equal_p' t1' t2' env
+>
+>   term_equal_p' (Pair t1 t1') (Pair t2 t2') env =
+>      term_equal_p' t1  t2  env &&
+>      term_equal_p' t1' t2' env
+>
+>   term_equal_p' (Fst p1) (Fst p2) env = term_equal_p' p1 p2 env
+>   term_equal_p' (Snd p1) (Snd p2) env = term_equal_p' p1 p2 env
+>
+>   term_equal_p' (Set t1 t1') (Set t2 t2') env =
+>      term_equal_p' t1  t2  env &&
+>      term_equal_p' t1' t2' env
+>
+>   term_equal_p' (Dom p1) (Dom p2) env = term_equal_p' p1 p2 env
+>   term_equal_p' (Map p1) (Map p2) env = term_equal_p' p1 p2 env
 >
 >   -- otherwise, the terms do not compare
 >   term_equal_p' _ _ _ = False
@@ -458,8 +593,8 @@ counter to maintain the unique binding values.
 * Examples
 
 Long notation:
-LC>-- eval (A (L x (A (Var x) (Var x))) (L y (A (Var y) (Var z))))
-LC>-- -- A (Var (VC 0 "z")) (Var (VC 0 "z"))
+LC>-- eval (App (L x (App (Var x) (Var x))) (L y (App (Var y) (Var z))))
+LC>-- -- App (Var (VC 0 "z")) (Var (VC 0 "z"))
 
 Short notation:
 LC> eval $ (x ^ x # x) # (y ^ y # z)
@@ -467,8 +602,8 @@ LC> -- z z
 
 The following example checks the hygiene of substitutions:
 
-LC> -- eval (L a (A (L x (L a (A (Var x) (Var a)))) (Var a)))
-LC> --- - L (VC 0 "a") (L (VC 1 "a") (A (Var (VC 0 "a")) (Var (VC 1 "a"))))
+LC> -- eval (L a (App (L x (L a (App (Var x) (Var a)))) (Var a)))
+LC> --- - L (VC 0 "a") (L (VC 1 "a") (App (Var (VC 0 "a")) (Var (VC 1 "a"))))
 
 LC> eval $ a ^ (x ^ a ^ a # x) # (a # x)
 LC> --- (\a. (\a~1. a~1 (a x)))
@@ -477,7 +612,7 @@ LC> subst (c^c)  (VC 1 "c") c
 LC> -- (\c~2. c~2)
 
 LC> -- Substituting (c~1 c~2) for c in (\c~1. c (c~1 (c~2 c~3)))
-LC> subst (L (VC 1 "c") (A (Var (VC 0 "c")) (A (Var (VC 1 "c")) (A (Var (VC 2 "c")) (Var (VC 3 "c") ))))) (VC 0 "c") (A (Var (VC 1 "c")) (Var (VC 2 "c")))
+LC> subst (L (VC 1 "c") (App (Var (VC 0 "c")) (App (Var (VC 1 "c")) (App (Var (VC 2 "c")) (Var (VC 3 "c") ))))) (VC 0 "c") (App (Var (VC 1 "c")) (Var (VC 2 "c")))
 LC> -- (\c~4. c~1 c~2 (c~4 (c~2 c~3)))
 
 Now check eta-reductions:
@@ -556,9 +691,9 @@ LC> -- c (c (c (c (c (c (c (c (c (c (...))))))))))
 >
 > subst_tests = and [
 >   expectd (subst (c^c)  (VC 1 "c") c) (z^z),
->   expectd (subst (L (VC 1 "c") (A (Var (VC 0 "c")) (A (Var (VC 1 "c"))
->                  (A (Var (VC 2 "c")) (Var (VC 3 "c") )))))
->                  (VC 0 "c") (A (Var (VC 1 "c")) (Var (VC 2 "c"))))
+>   expectd (subst (L (VC 1 "c") (App (Var (VC 0 "c")) (App (Var (VC 1 "c"))
+>                  (App (Var (VC 2 "c")) (Var (VC 3 "c") )))))
+>                  (VC 0 "c") (App (Var (VC 1 "c")) (Var (VC 2 "c"))))
 >         (a^(Var $ VC 1 "c")#(Var $ VC 2 "c")#
 >            (a#((Var $ VC 2 "c")#(Var $ VC 3 "c"))))
 >   ]
@@ -628,4 +763,3 @@ addition, subtraction, multiplication and division are to come soon.
 
 See also:
     http://pobox.com/~oleg/ftp/Computation/lambda-calc.html
-

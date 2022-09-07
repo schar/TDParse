@@ -5,6 +5,7 @@ module TDPretty where
 
 import qualified Data.Sequence as DS
 import Data.List (intercalate)
+import Data.Maybe
 import TDParseCFG
 import Lambda_calc
 import Prelude hiding ((<>), (^), and)
@@ -13,7 +14,7 @@ import Text.PrettyPrint hiding (Mode, cat)
 
 {- Various pretty printers -}
 
-prettyTy :: Doc -> Type -> Doc
+prettyTy :: Doc -> Ty -> Doc
 prettyTy a = \case
   E           -> "e"
   T           -> "t"
@@ -28,13 +29,13 @@ prettyF a = \case
   S     -> "S"
   R r   -> "R" -- <+> prettyParam a r
   W w   -> "W" -- <+> prettyParam a w
-  C r o -> "K" <+> prettyParam a r <+> prettyParam a o
+  C r o -> "C" -- <+> prettyParam a r <+> prettyParam a o
 
 prettyParam a r@(t1 :-> t2) = parens (prettyTy a r)
 prettyParam a r@(Eff f t)   = parens (prettyTy a r)
 prettyParam a r             = prettyTy a r
 
-showType :: Doc -> Type -> String
+showType :: Doc -> Ty -> String
 showType a = show . prettyTy a
 
 arrow = " -> "
@@ -43,7 +44,7 @@ prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> " :: " <>
-        prettyTy arrow ty <> " = " <> text (show (eval (semTerm val)))
+        prettyTy arrow ty <> " = " <> prettyVal True val
    in case daughters of -- no unary inferences
         []     -> "  " <> details
         [a, b] -> "  " <> (details $+$ prettyProof a $+$ prettyProof b)
@@ -54,18 +55,18 @@ prettyProof (Proof phrase val ty daughters) =
 
 prettyOp :: Op -> Doc
 prettyOp = \case
-  BA  -> "\\comb{<}"
-  FA  -> "\\comb{>}"
-  PM  -> "\\comb{\\&}"
-  FC  -> "\\comb{\\circ}"
-  ML  -> "\\comb{L},"
-  MR  -> "\\comb{R},"
-  UL  -> "\\comb{UL},"
-  UR  -> "\\comb{UR},"
-  A   -> "\\comb{A},"
-  J   -> "\\comb{J},"
-  Eps -> "\\comb{Eps},"
-  D   -> "\\comb{D},"
+  BA   -> "\\comb{<}"
+  FA   -> "\\comb{>}"
+  PM   -> "\\comb{\\&}"
+  FC   -> "\\comb{\\circ}"
+  ML f -> "\\comb{L},"
+  MR f -> "\\comb{R},"
+  UL f -> "\\comb{UL},"
+  UR f -> "\\comb{UR},"
+  A f  -> "\\comb{A},"
+  J    -> "\\comb{J},"
+  Eps  -> "\\comb{Eps},"
+  D    -> "\\comb{D},"
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty
@@ -94,7 +95,7 @@ prettyProofTree norm proof =
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
         "\\comb{Lex}" $+$
-        brackets ("\\texttt{" <> text (show w) <> "}") <>
+        brackets ("\\texttt{" <> text (show word) <> "}") <>
         "]"
 
       Proof phrase v@(Comb op _ _) ty [l, r] ->
@@ -119,7 +120,7 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
   where
     bp = \case
       Proof word v@(Lex w) ty _ ->
-        "\\AXC{$\\mathstrut\\text{" <> text w <> "}" <>
+        "\\AXC{$\\mathstrut\\text{" <> text word <> "}" <>
         "\\vdash " <>
         "\\texttt{" <> prettyVal True v <> "}" <> ":" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
@@ -138,16 +139,16 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = show . (<> "\n\n") . disp
 
-showParse' :: CFG -> (Proof -> Bool) -> (Proof -> Doc) -> Phrase -> [String]
-showParse' cfg p disp input = go $ parse cfg input
+showParse' :: CFG -> Lexicon -> (Proof -> Bool) -> (Proof -> Doc) -> String -> Maybe [String]
+showParse' cfg lex p disp input = go <$> parse cfg lex input
   where
     go = map (showProof disp) . filter p . concatMap synsem
 
-showParse cfg = showParse' cfg (const True) prettyProof
-showParseTree' norm cfg p = showParse' cfg p (prettyProofTree norm)
-showParseTree cfg = showParse' cfg (const True) (prettyProofTree False)
-showParseBuss' cfg p = showParse' cfg p prettyProofBuss
-showParseBuss cfg = showParse' cfg (const True) prettyProofBuss
+showParse cfg lex = showParse' cfg lex (const True) prettyProof
+showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
+showParseTree cfg lex = showParse' cfg lex (const True) (prettyProofTree False)
+showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
+showParseBuss cfg lex = showParse' cfg lex (const True) prettyProofBuss
 
 standaloneTrees trees =
   "\\documentclass{article}" $+$
@@ -159,25 +160,25 @@ standaloneTrees trees =
   text (if null trees then "Nothing doing" else (intercalate "\n\n" trees)) $+$
   "\n\\end{document}"
 
-typeTrees', denTrees', outTrees' :: CFG -> (Proof -> Bool) -> Phrase -> IO ()
-typeTrees' cfg p ws = mapM_ print $ showParseTree' False cfg p ws
-denTrees'  cfg p ws = mapM_ print $ showParseTree' True  cfg p ws
-outTrees' cfg p ws =
+typeTrees', denTrees' :: CFG -> Lexicon -> (Proof -> Bool) -> String -> IO ()
+typeTrees' cfg lex p ws = mapM_ print . fromMaybe ["Nothin"] $ showParseTree' False cfg lex p ws
+denTrees'  cfg lex p ws = mapM_ print . fromMaybe ["Nothin"] $ showParseTree' True  cfg lex p ws
+outTrees' norm cfg lex p ws =
   let path = "test/out.tex"
-   in writeFile path . show . standaloneTrees $ showParseTree' False cfg p ws
+   in writeFile path . show . standaloneTrees . fromMaybe ["Nothin"] $ showParseTree' norm cfg lex p ws
 
-typeTrees cfg = typeTrees' cfg (const True)
-denTrees  cfg = denTrees'  cfg (const True)
-outTrees  cfg = outTrees'  cfg (const True)
+typeTrees cfg lex = typeTrees' cfg lex (const True)
+denTrees  cfg lex = denTrees'  cfg lex (const True)
+outTrees  cfg lex = outTrees' False cfg lex (const True)
 
-showParses' :: CFG -> (Proof -> Bool) -> (Proof -> Doc) -> Phrase -> [[String]]
-showParses' cfg p disp input = go <$> parse cfg input
+showParses' :: CFG -> Lexicon -> (Proof -> Bool) -> (Proof -> Doc) -> String -> Maybe [[String]]
+showParses' cfg lex p disp input = fmap go <$> parse cfg lex input
   where
     go = map (showProof disp) . filter p . synsem
 
-outTreesBatch' :: CFG -> (Proof -> Bool) -> Phrase -> IO ()
-outTreesBatch' cfg p ws = do
-  DS.traverseWithIndex go . DS.fromList $ showParses' cfg p (prettyProofTree False) ws
+outTreesBatch' :: CFG -> Lexicon -> (Proof -> Bool) -> String -> IO ()
+outTreesBatch' cfg lex p ws = do
+  DS.traverseWithIndex go . DS.fromList . fromMaybe [["Double Nothing"]] $ showParses' cfg lex p (prettyProofTree False) ws
   return ()
   where
     go n trees =
