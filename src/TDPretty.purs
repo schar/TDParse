@@ -92,13 +92,12 @@ displayTerm term depth              = go term
       (Var v) ->
         [ HE.text (show v) ]       -- show the variable regardless of depth
       (Lam v body) ->
-        [ HE.span [HA.class' "den-punct"] [HE.text "(λ"] ]
+        [ HE.span [HA.class' "den-punct"] [HE.text "λ"] ]
         <> [ HE.text (show v) ]
         <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
         <> go' body
-        <> [ HE.span [HA.class' "den-punct"] [HE.text ")"] ]
       (Ap t1 t2) ->
-        go' t1
+        displayLeft t1 (go' t1)
         <> [ HE.text " " ]
         <> displayRight t2 (go' t2)
       (Pair t1 t2) ->
@@ -145,10 +144,15 @@ displayTerm term depth              = go term
     go' term = displayTerm term (depth - 1)
 
     displayRight = case _ of
-      (Ap _ _) -> parens
-      (Fst _)  -> parens
-      (Snd _)  -> parens
-      _        -> identity
+      (Ap _ _)  -> parens
+      (Fst _)   -> parens
+      (Snd _)   -> parens
+      (Lam _ _) -> parens
+      _         -> identity
+
+    displayLeft = case _ of
+      (Lam _ _) -> parens
+      _         -> identity
 
     parens s =
       [HE.span [HA.class' "den-punct"] [HE.text "("]]

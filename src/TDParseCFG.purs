@@ -223,7 +223,7 @@ instance Commute Ty where
 instance Commute F where
   commutative = case _ of
     S     -> true
-    R _   -> false -- just to have a simple test case
+    R _   -> true
     W w   -> commutative w
     C _ _ -> false
 
@@ -366,13 +366,13 @@ sweepSpurious ops = foldr filter ops
       <> ( (J S:identity:Nil) <#> \k -> J S (A  S (k (MR S FA))) )
       <> ( (J S:identity:Nil) <#> \k -> J S (ML S (k (A  S FA))) )
 
-  -- for commutative effects, all Js over ops of the same effect are detours
+  -- for commutative effects, all Js immediately over ops of the same effect are detours
   , \(m ^ _) -> not $ any (m `contains 2` _) $
 
-         ( commuter <#> \f -> J S (MR f    (A  f FA) ) )
-      <> ( commuter <#> \f -> J S (A  f    (ML f FA) ) )
-      <> ( commuter >>= \f -> (J S:identity:Nil) >>= \k -> pure $ J S (MR f (k (ML f FA))) )
-      <> ( commuter >>= \f -> (J S:identity:Nil) >>= \k -> pure $ J S (A  f (k (A  f FA))) )
+         ( commuter <#> \f -> J f (MR f    (A  f FA) ) )
+      <> ( commuter <#> \f -> J f (A  f    (ML f FA) ) )
+      <> ( commuter >>= \f -> (J f:identity:Nil) >>= \k -> pure $ J f (MR f (k (ML f FA))) )
+      <> ( commuter >>= \f -> (J f:identity:Nil) >>= \k -> pure $ J f (A  f (k (A  f FA))) )
 
   -- avoid higher-order detours given D
   , \(m ^ _) -> not $ any (m `contains 0` _) $

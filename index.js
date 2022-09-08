@@ -9077,7 +9077,7 @@
       }
       ;
       if (v instanceof R) {
-        return false;
+        return true;
       }
       ;
       if (v instanceof W) {
@@ -9160,16 +9160,16 @@
       return !any3(function(v1) {
         return contains2(2)(v.value0)(v1);
       })(append12(mapFlipped2(commuter)(function(f) {
-        return new J(S.value, new MR(f, new A(f, FA.value)));
+        return new J(f, new MR(f, new A(f, FA.value)));
       }))(append12(mapFlipped2(commuter)(function(f) {
-        return new J(S.value, new A(f, new ML(f, FA.value)));
+        return new J(f, new A(f, new ML(f, FA.value)));
       }))(append12(bind6(commuter)(function(f) {
-        return bind6(new Cons(J.create(S.value), new Cons(identity8, Nil.value)))(function(k1) {
-          return pure5(new J(S.value, new MR(f, k1(new ML(f, FA.value)))));
+        return bind6(new Cons(J.create(f), new Cons(identity8, Nil.value)))(function(k1) {
+          return pure5(new J(f, new MR(f, k1(new ML(f, FA.value)))));
         });
       }))(bind6(commuter)(function(f) {
-        return bind6(new Cons(J.create(S.value), new Cons(identity8, Nil.value)))(function(k1) {
-          return pure5(new J(S.value, new A(f, k1(new A(f, FA.value)))));
+        return bind6(new Cons(J.create(f), new Cons(identity8, Nil.value)))(function(k1) {
+          return pure5(new J(f, new A(f, k1(new A(f, FA.value)))));
         });
       })))));
     }, function(v) {
@@ -33083,6 +33083,17 @@
           return parens3;
         }
         ;
+        if (v1 instanceof Lam) {
+          return parens3;
+        }
+        ;
+        return identity11;
+      };
+      var displayLeft = function(v1) {
+        if (v1 instanceof Lam) {
+          return parens3;
+        }
+        ;
         return identity11;
       };
       var go = function(v1) {
@@ -33091,11 +33102,11 @@
         }
         ;
         if (v1 instanceof Lam) {
-          return append13([span4([class$prime2("den-punct")])([text("(\u03BB")])])(append13([text(show12(v1.value0))])(append13([span4([class$prime2("den-punct")])([text(". ")])])(append13(go$prime(v1.value1))([span4([class$prime2("den-punct")])([text(")")])]))));
+          return append13([span4([class$prime2("den-punct")])([text("\u03BB")])])(append13([text(show12(v1.value0))])(append13([span4([class$prime2("den-punct")])([text(". ")])])(go$prime(v1.value1))));
         }
         ;
         if (v1 instanceof Ap) {
-          return append13(go$prime(v1.value0))(append13([text(" ")])(displayRight(v1.value1)(go$prime(v1.value1))));
+          return append13(displayLeft(v1.value0)(go$prime(v1.value0)))(append13([text(" ")])(displayRight(v1.value1)(go$prime(v1.value1))));
         }
         ;
         if (v1 instanceof Pair) {
@@ -33150,7 +33161,7 @@
           return append13([span4([class$prime2("den-op")])([text("map ")])])(displayRight(v1.value0)(go(v1.value0)));
         }
         ;
-        throw new Error("Failed pattern match at TDPretty (line 91, column 10 - line 143, column 33): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at TDPretty (line 91, column 10 - line 142, column 33): " + [v1.constructor.name]);
       };
       return go(v);
     };
