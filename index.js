@@ -33266,8 +33266,8 @@
   var input2 = /* @__PURE__ */ input(arrayToNodeData3);
   var div5 = /* @__PURE__ */ div3(arrayToNodeData3)(arrayToNodeData12);
   var button2 = /* @__PURE__ */ button(arrayToNodeData3)(arrayToNodeData12);
-  var p1 = /* @__PURE__ */ p(stringToNodeData)(arrayToNodeData12);
   var span1 = /* @__PURE__ */ span(arrayToNodeData3)(arrayToNodeData12);
+  var p1 = /* @__PURE__ */ p(stringToNodeData)(arrayToNodeData12);
   var show8 = /* @__PURE__ */ show(showInt);
   var div1 = /* @__PURE__ */ div3(stringToNodeData)(arrayToNodeData12);
   var mapFlipped1 = /* @__PURE__ */ mapFlipped(functorMaybe);
@@ -33456,14 +33456,13 @@
       }
       ;
       return "show";
-    }() + " lexicon")]), button2([id("den-button"), onClick(ToggleDen.value)])([text(function() {
-      var $78 = snd(model.lex);
-      if ($78) {
+    }() + " lexicon")]), span1([id("denInput")])([text(function() {
+      if (model.densOn) {
         return "hide";
       }
       ;
       return "show";
-    }() + " meanings")]), p1("current")([text("Showing "), span1([style2({
+    }() + " meanings"), input2([id("den-button"), type$prime("checkbox"), onClick(ToggleDen.value)])]), p1("current")([text("Showing "), span1([style2({
       color: "var(--accent)"
     })])([text(show8(maybe(0)(function() {
       var $81 = filter(model.typeOfInterest);

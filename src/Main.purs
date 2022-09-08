@@ -100,8 +100,11 @@ view model =
     , HE.button [HA.id "lex-button", HA.onClick ToggleLex]
         [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " lexicon" ]
 
-    , HE.button [HA.id "den-button", HA.onClick ToggleDen]
-        [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " meanings" ]
+    , HE.span [HA.id "denInput"]
+      [ HE.text $ (if model.densOn then "hide" else "show") <> " meanings"
+      , HE.input [HA.id "den-button", HA.type' "checkbox", HA.onClick ToggleDen]
+      ]
+        -- [ HE.text $ (if model.densOn then "hide" else "show") <> " meanings" ]
 
     , HE.p "current"
        [ HE.text $ "Showing "
