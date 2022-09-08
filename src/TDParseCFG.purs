@@ -161,8 +161,8 @@ data Mode
   | MR F Mode | ML F Mode -- Functor     map
   | UR F Mode | UL F Mode -- Applicative pure
   | A F Mode              -- Applicative <*>
-  | J Mode                -- Monad       join
-  | Eps Mode              -- Adjoint     counit
+  | J F Mode              -- Monad       join
+  | Eps Mode              -- Adjoint     counitTerm
   | D Mode                -- Cont        lower
 derive instance Eq Mode
 derive instance Generic Mode _
@@ -177,7 +177,7 @@ instance Show Mode where
     UL _ op -> "UL, "  <> show op
     UR _ op -> "UR, "  <> show op
     A  _ op -> "A, "   <> show op
-    J op    -> "J, "   <> show op
+    J  _ op -> "J, "   <> show op
     Eps op  -> "Eps, " <> show op
     D op    -> "D, "   <> show op
 
@@ -188,7 +188,7 @@ modeAsList v = case _ of
   UL f op -> "UL"   <> showF f <> "," <> modeAsList v op
   UR f op -> "UR"   <> showF f <> "," <> modeAsList v op
   A  f op -> "A,"   <> showF f <> "," <> modeAsList v op
-  J op    -> "J,"   <> modeAsList v op
+  J  f op -> "J,"   <> showF f <> "," <> modeAsList v op
   Eps op  -> "Eps," <> modeAsList v op
   D op    -> "D,"   <> modeAsList v op
   _       -> ""
@@ -334,7 +334,7 @@ openCombine combine (l ^ r) = sweepSpurious <<< join <$>
 addJ :: (Mode ^ Ty) -> List (Mode ^ Ty)
 addJ   (op ^ t) | Eff f (Eff g a) <- t
                 , monad f
-                  = combineFs f g <#> \h -> (J op ^ Eff h a)
+                  = combineFs f g <#> \h -> (J h op ^ Eff h a)
                 | otherwise = Nil
 
 -- addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
@@ -361,18 +361,18 @@ sweepSpurious ops = foldr filter ops
   -- avoid higher-order detours
   , \(m ^ _) -> not $ any (m `contains 0` _) $
 
-         ( (J:identity:Nil) >>= \k -> (MR:ML:Nil) >>= \m -> pure $ J (m S (k (m S FA))) )
-      <> ( (J:identity:Nil) <#> \k -> J (ML S (k (MR S FA))) )
-      <> ( (J:identity:Nil) <#> \k -> J (A  S (k (MR S FA))) )
-      <> ( (J:identity:Nil) <#> \k -> J (ML S (k (A  S FA))) )
+         ( (J S:identity:Nil) >>= \k -> (MR:ML:Nil) >>= \m -> pure $ J S (m S (k (m S FA))) )
+      <> ( (J S:identity:Nil) <#> \k -> J S (ML S (k (MR S FA))) )
+      <> ( (J S:identity:Nil) <#> \k -> J S (A  S (k (MR S FA))) )
+      <> ( (J S:identity:Nil) <#> \k -> J S (ML S (k (A  S FA))) )
 
   -- for commutative effects, all Js over ops of the same effect are detours
   , \(m ^ _) -> not $ any (m `contains 2` _) $
 
-         ( commuter <#> \f -> J (MR f    (A  f FA) ) )
-      <> ( commuter <#> \f -> J (A  f    (ML f FA) ) )
-      <> ( commuter >>= \f -> (J:identity:Nil) >>= \k -> pure $ J (MR f (k (ML f FA))) )
-      <> ( commuter >>= \f -> (J:identity:Nil) >>= \k -> pure $ J (A  f (k (A  f FA))) )
+         ( commuter <#> \f -> J S (MR f    (A  f FA) ) )
+      <> ( commuter <#> \f -> J S (A  f    (ML f FA) ) )
+      <> ( commuter >>= \f -> (J S:identity:Nil) >>= \k -> pure $ J S (MR f (k (ML f FA))) )
+      <> ( commuter >>= \f -> (J S:identity:Nil) >>= \k -> pure $ J S (A  f (k (A  f FA))) )
 
   -- avoid higher-order detours given D
   , \(m ^ _) -> not $ any (m `contains 0` _) $
@@ -385,8 +385,8 @@ sweepSpurious ops = foldr filter ops
   -- eliminate eps/J(D) duplication (Eps,J(D) == J(D),Eps)
   , \(m ^ _) -> not $ any (m `contains 0` _) $
 
-         (        J (Eps FA) )
-       : ( pure $ D (Eps FA) )
+         (        J S (Eps FA) )
+       : ( pure $ D (Eps FA)   )
 
   -- -- EXPERIMENTAL: W's only take surface scope over W's
   -- , \(m ^ _) -> not $ any (m `contains 1` _) $
@@ -431,28 +431,28 @@ modeTerm = case _ of
   FC      -> l ! r ! a ! l % (r % a)
 
           -- \l R -> (\a -> op l a) <$> R
-  MR f op -> l ! r ! fmap f % (a ! (modeTerm op % l % a)) % r
+  MR f op -> l ! r ! fmapTerm f % (a ! (modeTerm op % l % a)) % r
 
           -- \L r -> (\a -> op a r) <$> L
-  ML f op -> l ! r ! fmap f % (a ! (modeTerm op % a % r)) % l
+  ML f op -> l ! r ! fmapTerm f % (a ! (modeTerm op % a % r)) % l
 
           -- \l R -> op (\a -> R (pure a)) l
-  UL f op -> l ! r ! modeTerm op % (a ! r % (pr f % a)) % l
+  UL f op -> l ! r ! modeTerm op % (a ! r % (pureTerm f % a)) % l
 
           -- \L r -> op (\a -> L (pure a)) r
-  UR f op -> l ! r ! modeTerm op % (a ! l % (pr f % a)) % r
+  UR f op -> l ! r ! modeTerm op % (a ! l % (pureTerm f % a)) % r
 
           -- \L R -> op <$> L <*> R
-  A  _ op -> l ! r ! make_var "(<*>)" % (make_var "fmap" % modeTerm op % l) % r
+  A  _ op -> l ! r ! make_var "(<*>)" % (make_var "fmapTerm" % modeTerm op % l) % r
 
           -- \l r a -> op l (r a) a
   -- Z op    -> l ! r ! a ! modeTerm op % l % (r % a) % a
 
           -- \l r -> join (op l r)
-  J op    -> l ! r ! make_var "join" % (modeTerm op % l % r)
+  J  f op -> l ! r ! joinTerm f % (modeTerm op % l % r)
 
-          -- \l r -> counit $ (\a -> op a <$> r) <$> l
-  Eps op  -> l ! r ! counit % (fmap (W E) % (a ! fmap (R E) % (modeTerm op % a) % r) % l)
+          -- \l r -> counitTerm $ (\a -> op a <$> r) <$> l
+  Eps op  -> l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (modeTerm op % a) % r) % l)
 
           -- \l r -> op l r id
   D op    -> l ! r ! modeTerm op % l % r % (a ! a)
@@ -463,20 +463,29 @@ a = make_var "a"
 g = make_var "g"
 k = make_var "k"
 m = make_var "m"
+mm = make_var "mm"
 c = make_var "c"
 o = make_var "o"
 
-fmap = case _ of
-  S     -> k ! m ! Set (Dom m) (a ! k % (Map m % a))
+fmapTerm = case _ of
+  S     -> k ! m ! Set (Dom m) (a ! k % ((Map m) % a))
   R _   -> k ! m ! g ! k % (m % g)
-  W _   -> k ! m ! _1 m * (k % (_2 m))
+  W _   -> k ! m ! (_1 m) * (k % (_2 m))
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
-pr = case _ of
+pureTerm = case _ of
   S     -> a ! Set a (a ! a)
   R _   -> a ! g ! a
-  W t   -> a ! (mzero t * a)
+  W t   -> a ! ((mzeroTerm t) * a)
   C _ _ -> a ! k ! k % a
-mzero = case _ of
+counitTerm = m ! (_2 m) % (_1 m)
+joinTerm = case _ of
+  S     -> mm ! Set ((Dom mm) * (a ! Dom ((Map mm) % a))) (a ! b ! (Map ((Map mm) % a)) % b)
+  R _   -> mm ! g ! mm % g % g
+  W t   -> mm ! (mplusTerm t (_1 mm) (_1 (_1 mm))) * (_2 (_2 mm))
+  C _ _ -> mm ! c ! mm % (m ! m % c)
+mzeroTerm = case _ of
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"
-counit = m ! _2 m % (_1 m)
+mplusTerm = case _ of
+  T     -> \p q -> make_var "and" % p % q
+  _     -> \_ _ -> make_var "this really shouldn't happen"

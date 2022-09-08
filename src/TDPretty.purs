@@ -114,15 +114,26 @@ displayTerm term depth              = go term
         [ HE.span [HA.class' "den-op"] [HE.text "snd "] ]
         <> displayRight p (go p)
       e@(Set dom cond) ->
-        let s      = VC 0 "s"
-            (f^v') = occurs e s
-            v      = if f then bump_color v' s else s
+        let vars' = enough_vars dom
+            occs = map (\s -> occurs e s ^ s) vars'
+            vars = map (\((f^v')^s) -> Var $ if f then bump_color v' s else s) occs
+            getvar vs = fromMaybe (make_var "s") (head vs) ^ fromMaybe Nil (tail vs)
+            unrollDom t vs apps = let (v^rest) = getvar vs in
+              case t of
+                Pair t1 t2 ->
+                  go v
+                  <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
+                  <> go' (eval $ applyVars t1 apps)
+                  <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
+                  <> unrollDom t2 rest (v:apps)
+                _ ->
+                  go v
+                  <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
+                  <> go' (eval $ applyVars t apps)
          in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
-            <> go' (eval $ cond % (Var v))
+            <> go' (eval $ applyVars cond vars)
             <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
-            <> [ HE.text (show v) ]
-            <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-            <> go' dom
+            <> unrollDom dom vars Nil
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
       (Dom p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
@@ -155,7 +166,7 @@ prettyMode = case _ of
   UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
   UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
   A  _ op -> text "$\\comb{A},$"         <+> prettyMode op
-  J op    -> text "$\\comb{J}$,"         <+> prettyMode op
+  J  _ op -> text "$\\comb{J}$,"         <+> prettyMode op
   Eps op  -> text "$\\comb{Eps}$,"       <+> prettyMode op
   D op    -> text "$\\comb{D}$,"         <+> prettyMode op
 
