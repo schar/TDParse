@@ -9447,7 +9447,7 @@
     }
     ;
     if (v instanceof A) {
-      return lam(l)(lam(r)(new Ap(new Ap(make_var("(<*>)"), new Ap(new Ap(make_var("fmapTerm"), modeTerm(v.value1)), l)), r)));
+      return lam(l)(lam(r)(new Ap(joinTerm(v.value0), new Ap(new Ap(fmapTerm(v.value0), lam(a2)(new Ap(new Ap(fmapTerm(v.value0), new Ap(modeTerm(v.value1), a2)), r))), l))));
     }
     ;
     if (v instanceof J) {

@@ -443,7 +443,7 @@ modeTerm = case _ of
   UR f op -> l ! r ! modeTerm op % (a ! l % (pureTerm f % a)) % r
 
           -- \L R -> op <$> L <*> R
-  A  _ op -> l ! r ! make_var "(<*>)" % (make_var "fmapTerm" % modeTerm op % l) % r
+  A  f op -> l ! r ! joinTerm f % (fmapTerm f % (a ! fmapTerm f % (modeTerm op % a) % r) % l)
 
           -- \l r a -> op l (r a) a
   -- Z op    -> l ! r ! a ! modeTerm op % l % (r % a) % a
