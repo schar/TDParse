@@ -134,11 +134,11 @@ displayTerm term depth              = go term
             <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
             <> unrollDom dom vars Nil
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
-      (Dom p) ->
+      (Domain p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
         <> displayRight p (go p)
-      (Map p) ->
-        [ HE.span [HA.class' "den-op"] [HE.text "map "] ]
+      (Range p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "rng "] ]
         <> displayRight p (go p)
 
     go' term = displayTerm term (depth - 1)
@@ -176,7 +176,7 @@ prettyMode = case _ of
 
 prettyVal :: Boolean -> Sem -> Doc
 prettyVal norm v
-  | norm      = text $ show_term (eval (semTerm v)) 100
+  | norm      = text $ show_term (eval (semTerm v))
   | otherwise = text $ show v
 
 

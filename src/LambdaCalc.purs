@@ -23,7 +23,7 @@ derive instance Eq VarName
 data Term
   = Var VarName | Ap Term Term | Lam VarName Term
   | Pair Term Term | Fst Term | Snd Term
-  | Set Term Term | Dom Term | Map Term
+  | Set Term Term | Domain Term | Range Term
 derive instance Eq Term
 derive instance Generic Term _
 
@@ -34,9 +34,9 @@ eval' (Lam v body) Nil = check_eta $ Lam v (eval body)
 eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
 eval' (Ap t1 t2) stack = eval' t1 (t2:stack)
 eval' t@(Var v) stack = unwind t stack
-eval' (Pair t1 t2) stack = case stack of
-  Nil -> Pair (eval t1) (eval t2)
-  _ -> unsafeThrow ("trying to apply a pair")
+eval' e@(Pair t1 t2) stack = case stack of
+  Nil   -> Pair (eval t1) (eval t2)
+  (s:_) -> unsafeThrow ("trying to apply a pair: " <> show e <> " to " <> show s)
 eval' (Fst p) stack =
   case eval p of
     (Pair t1 t2)  -> eval' t1 stack
@@ -45,16 +45,16 @@ eval' (Snd p) stack =
   case eval p of
     (Pair t1 t2)  -> eval' t2 stack
     t             -> unwind (Snd t) stack
-eval' (Set t1 t2) stack = case stack of
+eval' e@(Set t1 t2) stack = case stack of
   Nil -> Set (eval t1) (eval t2)
-  _ -> unsafeThrow ("trying to apply a set")
-eval' (Dom s) stack = case stack of
-  Nil ->
+  (s:_) -> unsafeThrow ("trying to apply a set: " <> show e <> " to " <> show s)
+eval' e@(Domain s) stack = case stack of
+  Nil   ->
     case eval s of
       (Set t1 t2)  -> t1
       t            -> t
-  _ -> unsafeThrow ("trying to apply the domain of a set")
-eval' (Map s) stack =
+  (s:_) -> unsafeThrow ("trying to apply the domain of a set: " <> show e <> " to " <> show s)
+eval' (Range s) stack =
   case eval s of
     (Set t1 t2)  -> eval' t2 stack
     t            -> eval' (a ! a) stack
@@ -69,8 +69,8 @@ subst (Pair t1 t2) v st = Pair (subst t1 v st) (subst t2 v st)
 subst (Fst p) v st = Fst (subst p v st)
 subst (Snd p) v st = Snd (subst p v st)
 subst (Set t1 t2) v st = Set (subst t1 v st) (subst t2 v st)
-subst (Dom s) v st = Dom (subst s v st)
-subst (Map s) v st = Map (subst s v st)
+subst (Domain s) v st = Domain (subst s v st)
+subst (Range s) v st = Range (subst s v st)
 subst (Ap t1 t2) v st = Ap (subst t1 v st) (subst t2 v st)
 subst t@(Lam x _) v _ | v == x  = t  -- v is shadowed in lambda form
 subst (Lam x body) v st = (Lam x' (subst body' v st))
@@ -108,8 +108,8 @@ occurs (Set t1 t2) v
   = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
         (Tuple f2 v2@(VC c2 _)) = occurs t2 v
      in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
-occurs (Dom s) v = occurs s v
-occurs (Map s) v = occurs s v
+occurs (Domain s) v = occurs s v
+occurs (Range s) v = occurs s v
 occurs (Lam x body) v
   | x == v    = (Tuple false v)
   | otherwise = occurs body v
@@ -128,12 +128,12 @@ meval' a@(Lam v body) (t: rest) = do
   meval' (subst body v t) rest
 meval' (Ap t1 t2) stack = meval' t1 (t2:stack)
 meval' t@(Var v) stack = munwind t stack
-meval' (Pair t1 t2) stack = case stack of
+meval' e@(Pair t1 t2) stack = case stack of
   Nil -> do
     t1' <- meval' t1 Nil
     t2' <- meval' t2 Nil
     pure $ Pair t1' t2'
-  _ -> unsafeThrow ("trying to apply a pair")
+  (s:_) -> unsafeThrow ("trying to apply a pair: " <> show_term e <> " to " <> show_term s)
 meval' (Fst p) stack = do
   p' <- meval' p Nil
   case p' of
@@ -144,23 +144,23 @@ meval' (Snd p) stack = do
   case p' of
     (Pair t1 t2)  -> note_reduction "snd" (Snd p') *> meval' t2 stack
     t             -> munwind (Snd t) stack
-meval' (Set t1 t2) stack = case stack of
+meval' e@(Set t1 t2) stack = case stack of
   Nil -> do
     t1' <- meval' t1 Nil
     t2' <- meval' t2 Nil
     pure $ Set t1' t2'
-  _ -> unsafeThrow ("trying to apply a set")
-meval' (Dom s) stack = case stack of
+  (s:_) -> unsafeThrow ("trying to apply a set: " <> show_term e <> " to " <> show_term s)
+meval' e@(Domain s) stack = case stack of
   Nil -> do
     s' <- meval' s Nil
     case s' of
-      (Set t1 t2)  -> note_reduction "domain" (Dom s') *> pure t1
+      (Set t1 t2)  -> note_reduction "domain" (Domain s') *> pure t1
       t            -> pure t
-  _ -> unsafeThrow ("trying to apply the domain of a set")
-meval' (Map s) stack = do
+  (s:_) -> unsafeThrow ("trying to apply the domain of a set: " <> show_term e <> " to " <> show_term s)
+meval' (Range s) stack = do
   s' <- meval' s Nil
   case s' of
-    (Set t1 t2)  -> note_reduction "map" (Map s') *> meval' t2 stack
+    (Set t1 t2)  -> note_reduction "map" (Range s') *> meval' t2 stack
     t            -> meval' (a ! a) stack
 
 munwind :: Term -> List Term -> Writer (List (Tuple String Term)) Term
@@ -169,9 +169,9 @@ munwind t (t1:rest) =
   do t1' <- meval' t1 Nil
      munwind (Ap t t1') rest
 mcheck_eta red@(Lam v (Ap t (Var v')))
-      | v == v' && (let (Tuple flag _) = occurs t v in not flag)
-                                       = do note_reduction "eta" red
-                                            pure t
+  | v == v' && (let (Tuple flag _) = occurs t v in not flag)
+    = do note_reduction "eta" red
+         pure t
 mcheck_eta term = pure term
 mweval term = runWriter (meval' term Nil)
 make_var = Var <<< VC 0  -- a convenience function
@@ -188,6 +188,8 @@ c = make_var "c"
 p = make_var "p"
 q = make_var "q"
 
+-- a little DSL for building lambda terms
+
 infixl 8 Ap as %
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
@@ -196,9 +198,15 @@ _1 = Fst
 _2 = Snd
 infixr 7 Pair as *
 make_set s = Set (make_var s) (x ! x)
+get_dom = Domain
+get_rng = Range
+set' = flip Set
+infix 5 set' as :|
+set = identity
+
 instance Show VarName where
-   show (VC color name) = if color == 0 then name
-                                         else name <> "" <> (show color)
+   show (VC color name) | color == 0 = name
+                        | otherwise  = name <> show color
 -- The pretty-printer for terms
 --    show_term term max_depth
 -- prints terms up to the specific depth. Beyond that, we print ...
@@ -214,83 +222,70 @@ applyVars t = case _ of
   Nil -> t
   v:vs -> applyVars (t % v) vs
 
-show_term _ depth | depth <= 0 = "..."
-show_term term depth = showt term
-  where
-    showt (Var v) = show v       -- show the variable regardless of depth
-    showt (Lam v body) = "(\\" <> (show v) <> " -> " <> (showt' body) <> ")"
-    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2@(Snd  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-    showt (Pair t1 t2) = "<" <> showt' t1 <> ", " <> showt' t2 <> ">"
-    showt (Fst p@(Ap _ _)) = "fst " <> "(" <> showt p <> ")"
-    showt (Fst p) = "fst " <> showt p
-    showt (Snd p@(Ap _ _)) = "snd " <> "(" <> showt p <> ")"
-    showt (Snd p) = "snd " <> showt p
-    showt e@(Set dom cond) =
-      let vars' = enough_vars dom
-          occs = map (\s -> Tuple (occurs e s) s) vars'
-          vars = map (\(Tuple (Tuple f v') s) -> Var $ if f then bump_color v' s else s) occs
-          getvar vs = Tuple (fromMaybe (make_var "s") (head vs)) (fromMaybe Nil (tail vs))
-          unrollDom t vs apps = let (Tuple v rest) = getvar vs in
-            case t of
-              Pair t1 t2 ->
-                showt v <> " <- " <> showt (eval $ applyVars t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
-              _ ->
-                showt v <> " <- " <> showt (eval $ applyVars t apps)
-       in "[" <> showt' (eval $ applyVars cond vars) <> " | " <> unrollDom dom vars Nil <> "]"
-    showt (Dom p) = "dom " <> showt p
-    showt (Map p) = "map " <> showt p
-    showt' term = show_term term (depth - 1)
+showRight = case _ of
+  (Ap _ _)  -> parens
+  (Fst _)   -> parens
+  (Snd _)   -> parens
+  (Lam _ _) -> parens
+  _         -> identity
 
-show_tex _ depth | depth <= 0 = "..."
-show_tex term depth = showt term
-  where
-    showt (Var v) = {-replaceAll (Pattern "'") (Replacement "$$'$$") $ -}show v       -- show the variable regardless of depth
-    showt (Lam v body) = "(\\lambda " <> (show v) <> ". " <> (showt' body) <> ")"
-    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-    showt (Pair t1 t2) = "\\langle" <> showt' t1 <> ", " <> showt' t2 <> "\\rangle"
-    showt (Fst p@(Pair _ _)) = "\\textsf{fst} " <> showt p
-    showt (Fst p) = "\textsf{fst} " <> "(" <> showt p <> ")"
-    showt (Snd p@(Pair _ _)) = "\textsf{snd} " <> showt p
-    showt (Snd p) = "\textsf{snd} " <> "(" <> showt p <> ")"
-    showt e@(Set dom cond) =
-      let s = VC 0 "s"
-          (Tuple f v') = occurs e s
-          v = if f then bump_color v' s else s
-       in "\\{" <> showt' (eval $ cond % (Var v)) <> " \\mid " <> show v <> " \\in " <> showt' dom <> "\\}"
-    showt (Dom p) = "\textsf{dom} " <> showt p
-    showt (Map p) = "\textsf{map} " <> showt p
-    showt' term = show_tex term (depth - 1)
+showLeft = case _ of
+  (Lam _ _) -> parens
+  _         -> identity
 
-show_hs _ depth | depth <= 0 = "..."
-show_hs term depth = showt term
+parens s = "(" <> s <> ")"
+
+type Formatter =
+  { lambda :: String, arrow :: String, elem :: String, lb :: String, rb :: String
+  , mid :: String, la :: String, ra :: String, fst :: String, snd :: String, dom :: String, map :: String
+  }
+
+show_formatted_term form term depth
+  | depth <= 0 = "..."
+  | otherwise  = showt term
   where
-    showt (Var v) = {-replaceAll (Pattern "\'") (Replacement "$$'$$") $ -}show v       -- show the variable regardless of depth
-    showt (Lam v body) = "(\\textbackslash " <> (show v) <> " -> " <> (showt' body) <> ")"
-    showt (Ap t1 t2@(Ap _ _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2@(Fst  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2@(Snd  _)) = (showt' t1) <> " " <> "(" <> (showt' t2) <> ")"
-    showt (Ap t1 t2) = (showt' t1) <> " " <> (showt' t2)
-    showt (Pair t1 t2) = "(" <> showt' t1 <> ", " <> showt' t2 <> ")"
-    showt (Fst p@(Ap _ _)) = "fst " <> "(" <> showt p <> ")"
-    showt (Fst p) = "fst " <> showt p
-    showt (Snd p@(Ap _ _)) = "snd " <> "(" <> showt p <> ")"
-    showt (Snd p) = "snd " <> showt p
-    showt e@(Set dom cond) =
-      let s = VC 0 "s"
-          (Tuple f v') = occurs e s
-          v = if f then bump_color v' s else s
-       in "[" <> showt' (eval $ cond % (Var v)) <> " | " <> show v <> " <- " <> showt' dom <> "]"
-    showt (Dom p) = "dom " <> showt p
-    showt (Map p) = "map " <> showt p
-    showt' term = show_hs term (depth - 1)
+    showt = case _ of
+      Var v -> show v
+      Lam v body -> form.lambda <> (show v) <> form.arrow <> (showt' body)
+      Ap t1 t2 -> showLeft t1 (showt' t1) <> " " <> showRight t2 (showt' t2)
+      Pair t1 t2 -> form.la <> showt' t1 <> ", " <> showt' t2 <> form.ra
+      Fst p -> form.fst <> showRight p (showt p)
+      Snd p -> form.snd <> showRight p (showt p)
+      e@(Set dom cond) ->
+        let vars' = enough_vars dom
+            occs = map (\s -> Tuple (occurs e s) s) vars'
+            vars = map (\(Tuple (Tuple f v') s) -> Var $ if f then bump_color v' s else s) occs
+            getvar vs = Tuple (fromMaybe (make_var "s") (head vs)) (fromMaybe Nil (tail vs))
+            unrollDom t vs apps = let (Tuple v rest) = getvar vs in
+              case t of
+                Pair t1 t2 ->
+                  showt v <> form.elem <> showt (eval $ applyVars t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
+                _ ->
+                  showt v <> form.elem <> showt (eval $ applyVars t apps)
+         in form.lb <> showt' (eval $ applyVars cond vars) <> form.mid <> unrollDom dom vars Nil <> form.rb
+      Domain p -> form.dom <> showRight p (showt p)
+      Range p -> form.map <> showRight p (showt p)
+    showt' term = show_formatted_term form term (depth - 1)
+
+default_term_form =
+  { lambda: "\\", arrow: ". ", elem: " <- " , lb: "[", rb: "]", mid: " | ", la: "<", ra: ">"
+  , fst: "fst ", snd: "snd ", dom: "sdom ", map: "smap "
+  }
+
+show_term term = show_formatted_term default_term_form term 100
+show_hs = show_formatted_term hs_form
+  where
+    hs_form = default_term_form { lambda = "\\textbackslash ", arrow = " -> ", la = "(", ra = ")" }
+show_tex = show_formatted_term tex_form
+  where
+    tex_form =
+      { lambda: "\\lambda ", arrow: ". ", elem: " \\in " , lb: "\\{ ", rb: "\\} ", mid: " \\mid "
+      , la: "\\langle ", ra: "\\rangle " , fst: "\\textsf{fst} ", snd: "\\textsf{snd} ", dom: "\\textsf{dom} ", map: "\\textsf{map} "
+      }
 
 instance Show Term where
-   -- show term = show_term term 100
    show term = genericShow term
+
 free_vars:: Term -> Array VarName
 free_vars term = free_vars' term [] []
   where
@@ -305,8 +300,8 @@ free_vars term = free_vars' term [] []
     free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
     free_vars' (Set t1 t2) bound free =
       free_vars' t1 bound $ free_vars' t2 bound free
-    free_vars' (Dom p) bound free = free_vars' p bound free
-    free_vars' (Map p) bound free = free_vars' p bound free
+    free_vars' (Domain p) bound free = free_vars' p bound free
+    free_vars' (Range p) bound free = free_vars' p bound free
 term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   where
   -- both terms are variables
@@ -340,8 +335,8 @@ term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
      term_equal_p' t1  t2  env &&
      term_equal_p' t1' t2' env
 
-  term_equal_p' (Dom p1) (Dom p2) env = term_equal_p' p1 p2 env
-  term_equal_p' (Map p1) (Map p2) env = term_equal_p' p1 p2 env
+  term_equal_p' (Domain p1) (Domain p2) env = term_equal_p' p1 p2 env
+  term_equal_p' (Range p1) (Range p2) env = term_equal_p' p1 p2 env
 
   -- otherwise, the terms do not compare
   term_equal_p' _ _ _ = false

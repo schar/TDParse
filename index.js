@@ -6551,6 +6551,46 @@
 
   // output/LambdaCalc/index.js
   var show3 = /* @__PURE__ */ show(showInt);
+  var ApIsSymbol = {
+    reflectSymbol: function() {
+      return "Ap";
+    }
+  };
+  var LamIsSymbol = {
+    reflectSymbol: function() {
+      return "Lam";
+    }
+  };
+  var PairIsSymbol = {
+    reflectSymbol: function() {
+      return "Pair";
+    }
+  };
+  var FstIsSymbol = {
+    reflectSymbol: function() {
+      return "Fst";
+    }
+  };
+  var SndIsSymbol = {
+    reflectSymbol: function() {
+      return "Snd";
+    }
+  };
+  var SetIsSymbol = {
+    reflectSymbol: function() {
+      return "Set";
+    }
+  };
+  var DomainIsSymbol = {
+    reflectSymbol: function() {
+      return "Domain";
+    }
+  };
+  var RangeIsSymbol = {
+    reflectSymbol: function() {
+      return "Range";
+    }
+  };
   var map8 = /* @__PURE__ */ map(functorList);
   var max3 = /* @__PURE__ */ max(ordInt);
   var VC = /* @__PURE__ */ function() {
@@ -6648,36 +6688,133 @@
     };
     return $$Set2;
   }();
-  var Dom = /* @__PURE__ */ function() {
-    function Dom2(value0) {
+  var Domain = /* @__PURE__ */ function() {
+    function Domain2(value0) {
       this.value0 = value0;
     }
     ;
-    Dom2.create = function(value0) {
-      return new Dom2(value0);
+    Domain2.create = function(value0) {
+      return new Domain2(value0);
     };
-    return Dom2;
+    return Domain2;
   }();
-  var $$Map = /* @__PURE__ */ function() {
-    function $$Map2(value0) {
+  var Range = /* @__PURE__ */ function() {
+    function Range2(value0) {
       this.value0 = value0;
     }
     ;
-    $$Map2.create = function(value0) {
-      return new $$Map2(value0);
+    Range2.create = function(value0) {
+      return new Range2(value0);
     };
-    return $$Map2;
+    return Range2;
   }();
   var showVarName = {
     show: function(v) {
-      var $180 = v.value0 === 0;
-      if ($180) {
+      if (v.value0 === 0) {
         return v.value1;
       }
       ;
-      return v.value1 + ("" + show3(v.value0));
+      if (otherwise) {
+        return v.value1 + show3(v.value0);
+      }
+      ;
+      throw new Error("Failed pattern match at LambdaCalc (line 207, column 1 - line 209, column 58): " + [v.constructor.name]);
     }
   };
+  var genericShowArgsArgument2 = /* @__PURE__ */ genericShowArgsArgument(showVarName);
+  var genericShowSum2 = /* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor(genericShowArgsArgument2)({
+    reflectSymbol: function() {
+      return "Var";
+    }
+  }));
+  var genericShowArgsProduct2 = /* @__PURE__ */ genericShowArgsProduct(genericShowArgsArgument2);
+  var genericTerm_ = {
+    to: function(x1) {
+      if (x1 instanceof Inl) {
+        return new Var(x1.value0);
+      }
+      ;
+      if (x1 instanceof Inr && x1.value0 instanceof Inl) {
+        return new Ap(x1.value0.value0.value0, x1.value0.value0.value1);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && x1.value0.value0 instanceof Inl)) {
+        return new Lam(x1.value0.value0.value0.value0, x1.value0.value0.value0.value1);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && x1.value0.value0.value0 instanceof Inl))) {
+        return new Pair(x1.value0.value0.value0.value0.value0, x1.value0.value0.value0.value0.value1);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && (x1.value0.value0.value0 instanceof Inr && x1.value0.value0.value0.value0 instanceof Inl)))) {
+        return new Fst(x1.value0.value0.value0.value0.value0);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && (x1.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0 instanceof Inr && x1.value0.value0.value0.value0.value0 instanceof Inl))))) {
+        return new Snd(x1.value0.value0.value0.value0.value0.value0);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && (x1.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0.value0 instanceof Inr && x1.value0.value0.value0.value0.value0.value0 instanceof Inl)))))) {
+        return new $$Set(x1.value0.value0.value0.value0.value0.value0.value0.value0, x1.value0.value0.value0.value0.value0.value0.value0.value1);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && (x1.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0.value0.value0 instanceof Inr && x1.value0.value0.value0.value0.value0.value0.value0 instanceof Inl))))))) {
+        return new Domain(x1.value0.value0.value0.value0.value0.value0.value0.value0);
+      }
+      ;
+      if (x1 instanceof Inr && (x1.value0 instanceof Inr && (x1.value0.value0 instanceof Inr && (x1.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0.value0 instanceof Inr && (x1.value0.value0.value0.value0.value0.value0 instanceof Inr && x1.value0.value0.value0.value0.value0.value0.value0 instanceof Inr))))))) {
+        return new Range(x1.value0.value0.value0.value0.value0.value0.value0.value0);
+      }
+      ;
+      throw new Error("Failed pattern match at LambdaCalc (line 28, column 1 - line 28, column 31): " + [x1.constructor.name]);
+    },
+    from: function(x1) {
+      if (x1 instanceof Var) {
+        return new Inl(x1.value0);
+      }
+      ;
+      if (x1 instanceof Ap) {
+        return new Inr(new Inl(new Product(x1.value0, x1.value1)));
+      }
+      ;
+      if (x1 instanceof Lam) {
+        return new Inr(new Inr(new Inl(new Product(x1.value0, x1.value1))));
+      }
+      ;
+      if (x1 instanceof Pair) {
+        return new Inr(new Inr(new Inr(new Inl(new Product(x1.value0, x1.value1)))));
+      }
+      ;
+      if (x1 instanceof Fst) {
+        return new Inr(new Inr(new Inr(new Inr(new Inl(x1.value0)))));
+      }
+      ;
+      if (x1 instanceof Snd) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x1.value0))))));
+      }
+      ;
+      if (x1 instanceof $$Set) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(new Product(x1.value0, x1.value1))))))));
+      }
+      ;
+      if (x1 instanceof Domain) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inl(x1.value0))))))));
+      }
+      ;
+      if (x1 instanceof Range) {
+        return new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(new Inr(x1.value0))))))));
+      }
+      ;
+      throw new Error("Failed pattern match at LambdaCalc (line 28, column 1 - line 28, column 31): " + [x1.constructor.name]);
+    }
+  };
+  var genericShow2 = /* @__PURE__ */ genericShow(genericTerm_);
+  var showTerm = {
+    show: function(term) {
+      return genericShow2(genericShowSum2(genericShowSum(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument(showTerm))(genericShowArgsArgument(showTerm)))(ApIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsProduct2(genericShowArgsArgument(showTerm)))(LamIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument(showTerm))(genericShowArgsArgument(showTerm)))(PairIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showTerm))(FstIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showTerm))(SndIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument(showTerm))(genericShowArgsArgument(showTerm)))(SetIsSymbol))(genericShowSum(genericShowConstructor(genericShowArgsArgument(showTerm))(DomainIsSymbol))(genericShowConstructor(genericShowArgsArgument(showTerm))(RangeIsSymbol))))))))))(term);
+    }
+  };
+  var show22 = /* @__PURE__ */ show(showTerm);
   var eqVarName = {
     eq: function(x1) {
       return function(y1) {
@@ -6686,6 +6823,10 @@
     }
   };
   var eq2 = /* @__PURE__ */ eq(eqVarName);
+  var set$prime = /* @__PURE__ */ function() {
+    return flip($$Set.create);
+  }();
+  var set = identity;
   var occurs = function(v) {
     return function(v1) {
       if (v instanceof Var) {
@@ -6707,8 +6848,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $337 = v3.value1.value0 > v4.value1.value0;
-          if ($337) {
+          var $344 = v3.value1.value0 > v4.value1.value0;
+          if ($344) {
             return v3.value1;
           }
           ;
@@ -6720,8 +6861,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $350 = v3.value1.value0 > v4.value1.value0;
-          if ($350) {
+          var $357 = v3.value1.value0 > v4.value1.value0;
+          if ($357) {
             return v3.value1;
           }
           ;
@@ -6741,8 +6882,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $365 = v3.value1.value0 > v4.value1.value0;
-          if ($365) {
+          var $372 = v3.value1.value0 > v4.value1.value0;
+          if ($372) {
             return v3.value1;
           }
           ;
@@ -6750,11 +6891,11 @@
         }());
       }
       ;
-      if (v instanceof Dom) {
+      if (v instanceof Domain) {
         return occurs(v.value0)(v1);
       }
       ;
-      if (v instanceof $$Map) {
+      if (v instanceof Range) {
         return occurs(v.value0)(v1);
       }
       ;
@@ -6773,9 +6914,9 @@
     };
   };
   var make_var = /* @__PURE__ */ function() {
-    var $661 = VC.create(0);
-    return function($662) {
-      return Var.create($661($662));
+    var $599 = VC.create(0);
+    return function($600) {
+      return Var.create($599($600));
     };
   }();
   var x = /* @__PURE__ */ make_var("x");
@@ -6791,6 +6932,12 @@
   var make_set = function(s) {
     return new $$Set(make_var(s), lam(x)(x));
   };
+  var get_rng = /* @__PURE__ */ function() {
+    return Range.create;
+  }();
+  var get_dom = /* @__PURE__ */ function() {
+    return Domain.create;
+  }();
   var enough_vars = function(t) {
     var go = function(v) {
       return function(v1) {
@@ -6806,7 +6953,7 @@
           return new Cons(v1.value0, Nil.value);
         }
         ;
-        throw new Error("Failed pattern match at LambdaCalc (line 209, column 5 - line 209, column 19): " + [v.constructor.name, v1.constructor.name]);
+        throw new Error("Failed pattern match at LambdaCalc (line 217, column 5 - line 217, column 19): " + [v.constructor.name, v1.constructor.name]);
       };
     };
     return go(t)(map8(VC.create(0))(new Cons("s", new Cons("t", new Cons("u", new Cons("v", new Cons("w", new Cons("a", new Cons("b", new Cons("c", Nil.value))))))))));
@@ -6828,8 +6975,8 @@
   };
   var bump_color$prime = function(v) {
     return function(v1) {
-      var $435 = v.value1 === v1.value1;
-      if ($435) {
+      var $442 = v.value1 === v1.value1;
+      if ($442) {
         return bump_color(v)(v1);
       }
       ;
@@ -6870,12 +7017,12 @@
           return new $$Set(subst(v.value0)(v1)(v2), subst(v.value1)(v1)(v2));
         }
         ;
-        if (v instanceof Dom) {
-          return new Dom(subst(v.value0)(v1)(v2));
+        if (v instanceof Domain) {
+          return new Domain(subst(v.value0)(v1)(v2));
         }
         ;
-        if (v instanceof $$Map) {
-          return new $$Map(subst(v.value0)(v1)(v2));
+        if (v instanceof Range) {
+          return new Range(subst(v.value0)(v1)(v2));
         }
         ;
         if (v instanceof Ap) {
@@ -6929,7 +7076,7 @@
           return;
         }
         ;
-        throw new Error("Failed pattern match at LambdaCalc (line 213, column 15 - line 215, column 31): " + [v.constructor.name]);
+        throw new Error("Failed pattern match at LambdaCalc (line 221, column 15 - line 223, column 31): " + [v.constructor.name]);
       }
       ;
       while (!$tco_done) {
@@ -7006,8 +7153,12 @@
             return new Pair($$eval(v.value0), $$eval(v.value1));
           }
           ;
-          $tco_done = true;
-          return unsafeThrow("trying to apply a pair");
+          if (v1 instanceof Cons) {
+            $tco_done = true;
+            return unsafeThrow("trying to apply a pair: " + (show22(v) + (" to " + show22(v1.value0))));
+          }
+          ;
+          throw new Error("Failed pattern match at LambdaCalc (line 37, column 30 - line 39, column 82): " + [v1.constructor.name]);
         }
         ;
         if (v instanceof Fst) {
@@ -7040,11 +7191,15 @@
             return new $$Set($$eval(v.value0), $$eval(v.value1));
           }
           ;
-          $tco_done = true;
-          return unsafeThrow("trying to apply a set");
+          if (v1 instanceof Cons) {
+            $tco_done = true;
+            return unsafeThrow("trying to apply a set: " + (show22(v) + (" to " + show22(v1.value0))));
+          }
+          ;
+          throw new Error("Failed pattern match at LambdaCalc (line 48, column 29 - line 50, column 81): " + [v1.constructor.name]);
         }
         ;
-        if (v instanceof Dom) {
+        if (v instanceof Domain) {
           if (v1 instanceof Nil) {
             var v2 = $$eval(v.value0);
             if (v2 instanceof $$Set) {
@@ -7056,11 +7211,15 @@
             return v2;
           }
           ;
-          $tco_done = true;
-          return unsafeThrow("trying to apply the domain of a set");
+          if (v1 instanceof Cons) {
+            $tco_done = true;
+            return unsafeThrow("trying to apply the domain of a set: " + (show22(v) + (" to " + show22(v1.value0))));
+          }
+          ;
+          throw new Error("Failed pattern match at LambdaCalc (line 51, column 28 - line 56, column 95): " + [v1.constructor.name]);
         }
         ;
-        if (v instanceof $$Map) {
+        if (v instanceof Range) {
           var v2 = $$eval(v.value0);
           if (v2 instanceof $$Set) {
             $tco_var_v = v2.value1;
@@ -7469,7 +7628,7 @@
       return "E";
     }
   }));
-  var genericShowSum2 = /* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
+  var genericShowSum22 = /* @__PURE__ */ genericShowSum(/* @__PURE__ */ genericShowConstructor2({
     reflectSymbol: function() {
       return "T";
     }
@@ -7515,6 +7674,7 @@
   var bind22 = /* @__PURE__ */ bind(/* @__PURE__ */ bindStateT(monadIdentity));
   var map22 = /* @__PURE__ */ map(functorStateT2);
   var sequence22 = /* @__PURE__ */ sequence2(applicativeStateT2);
+  var set2 = /* @__PURE__ */ set(categoryFn);
   var S = /* @__PURE__ */ function() {
     function S2() {
     }
@@ -8028,7 +8188,7 @@
       throw new Error("Failed pattern match at TDParseCFG (line 66, column 1 - line 66, column 29): " + [x2.constructor.name]);
     }
   };
-  var genericShow2 = /* @__PURE__ */ genericShow(genericTy_);
+  var genericShow3 = /* @__PURE__ */ genericShow(genericTy_);
   var genericF_ = {
     to: function(x2) {
       if (x2 instanceof Inl) {
@@ -8071,7 +8231,7 @@
   };
   var showTy = {
     show: function(t) {
-      return genericShow2(genericShowSum1(genericShowSum2(genericShowSum(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument(showTy))(genericShowArgsArgument(showTy)))(ArrIsSymbol))(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument($lazy_showF(0)))(genericShowArgsArgument(showTy)))(EffIsSymbol)))))(t);
+      return genericShow3(genericShowSum1(genericShowSum22(genericShowSum(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument(showTy))(genericShowArgsArgument(showTy)))(ArrIsSymbol))(genericShowConstructor(genericShowArgsProduct(genericShowArgsArgument($lazy_showF(0)))(genericShowArgsArgument(showTy)))(EffIsSymbol)))))(t);
     }
   };
   var $lazy_showF = /* @__PURE__ */ $runtime_lazy6("showF", "TDParseCFG", function() {
@@ -9212,8 +9372,8 @@
       throw new Error("Failed pattern match at TDParseCFG (line 334, column 1 - line 334, column 40): " + [v.constructor.name]);
     };
     if (v.value1 instanceof Eff && v.value1.value1 instanceof Eff) {
-      var $1093 = monad(v.value1.value0);
-      if ($1093) {
+      var $1094 = monad(v.value1.value0);
+      if ($1094) {
         return mapFlipped2(combineFs(v.value1.value0)(v.value1.value1.value0))(function(h) {
           return new Tuple(new J(h, v.value0), new Eff(h, v.value1.value1.value1));
         });
@@ -9233,8 +9393,8 @@
       throw new Error("Failed pattern match at TDParseCFG (line 347, column 1 - line 347, column 40): " + [v.constructor.name]);
     };
     if (v.value1 instanceof Eff && v.value1.value0 instanceof C) {
-      var $1105 = eq3(v.value1.value0.value1)(v.value1.value1);
-      if ($1105) {
+      var $1106 = eq3(v.value1.value0.value1)(v.value1.value1);
+      if ($1106) {
         return pure5(new Tuple(new D(v.value0), v.value1.value0.value0));
       }
       ;
@@ -9255,8 +9415,8 @@
         var mapFlipped12 = mapFlipped(Apply0.Functor0());
         return function(combine1) {
           return function(v) {
-            return map32(function($1216) {
-              return sweepSpurious(join2($1216));
+            return map32(function($1217) {
+              return sweepSpurious(join2($1217));
             })(flippedApply2(apmplus2(pure32(modes(v.value0)(v.value1)))(apmplus1(function() {
               if (v.value0 instanceof Eff && functor(v.value0.value0)) {
                 return mapFlipped12(combine1(new Tuple(v.value0.value1, v.value1)))(map10(function(v1) {
@@ -9314,10 +9474,10 @@
     };
   };
   var combine = /* @__PURE__ */ curry(/* @__PURE__ */ fix(lazyFn)(/* @__PURE__ */ function() {
-    var $1217 = memoize$prime(ordTuple(ordTy)(ordTy));
-    var $1218 = openCombine(functorStateT2)(applyStateT(monadIdentity))(applicativeStateT2);
-    return function($1219) {
-      return $1217($1218($1219));
+    var $1218 = memoize$prime(ordTuple(ordTy)(ordTy));
+    var $1219 = openCombine(functorStateT2)(applyStateT(monadIdentity))(applicativeStateT2);
+    return function($1220) {
+      return $1218($1219($1220));
     };
   }()));
   var synsem = /* @__PURE__ */ function() {
@@ -9344,8 +9504,8 @@
       ;
       throw new Error("Failed pattern match at TDParseCFG (line 252, column 5 - line 252, column 65): " + [v.constructor.name]);
     };
-    return function($1220) {
-      return execute(go($1220));
+    return function($1221) {
+      return execute(go($1221));
     };
   }();
   var prove = function(cfg) {
@@ -9358,7 +9518,7 @@
   var a2 = /* @__PURE__ */ make_var("a");
   var fmapTerm = function(v) {
     if (v instanceof S) {
-      return lam(k)(lam(m)(new $$Set(new Dom(m), lam(a2)(new Ap(k, new Ap(new $$Map(m), a2))))));
+      return lam(k)(lam(m)(set2(set$prime(lam(a2)(new Ap(k, new Ap(get_rng(m), a2))))(get_dom(m)))));
     }
     ;
     if (v instanceof R) {
@@ -9377,7 +9537,7 @@
   };
   var joinTerm = function(v) {
     if (v instanceof S) {
-      return lam(mm)(new $$Set(new Pair(new Dom(mm), lam(a2)(new Dom(new Ap(new $$Map(mm), a2)))), lam(a2)(lam(b)(new Ap(new $$Map(new Ap(new $$Map(mm), a2)), b)))));
+      return lam(mm)(set2(set$prime(lam(a2)(lam(b)(new Ap(get_rng(new Ap(get_rng(mm), a2)), b))))(new Pair(get_dom(mm), lam(a2)(get_dom(new Ap(get_rng(mm), a2)))))));
     }
     ;
     if (v instanceof R) {
@@ -9392,11 +9552,11 @@
       return lam(mm)(lam(c)(new Ap(mm, lam(m)(new Ap(m, c)))));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 481, column 12 - line 485, column 37): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 481, column 12 - line 486, column 37): " + [v.constructor.name]);
   };
   var pureTerm = function(v) {
     if (v instanceof S) {
-      return lam(a2)(new $$Set(a2, lam(a2)(a2)));
+      return lam(a2)(set2(set$prime(lam(a2)(a2))(a2)));
     }
     ;
     if (v instanceof R) {
@@ -10261,7 +10421,7 @@
   var fromJust5 = /* @__PURE__ */ fromJust();
   var toEnum2 = /* @__PURE__ */ toEnum(boundedEnumChar);
   var show5 = /* @__PURE__ */ show(showString);
-  var show22 = /* @__PURE__ */ show(showChar);
+  var show23 = /* @__PURE__ */ show(showChar);
   var updatePosSingle = function(v) {
     return function(cp) {
       return function(after) {
@@ -10450,7 +10610,7 @@
   var $$char = function(c2) {
     return withErrorMessage(satisfy(function(v) {
       return v === c2;
-    }))(show22(c2));
+    }))(show23(c2));
   };
 
   // output/Data.Char/index.js
@@ -33054,7 +33214,7 @@
   var li_2 = /* @__PURE__ */ li_(arrayToNodeData1);
   var div4 = /* @__PURE__ */ div3(arrayToNodeData2)(arrayToNodeData1);
   var ul2 = /* @__PURE__ */ ul(arrayToNodeData2)(arrayToNodeData1);
-  var show23 = /* @__PURE__ */ show(showString);
+  var show24 = /* @__PURE__ */ show(showString);
   var show32 = /* @__PURE__ */ show(showMode);
   var ul_2 = /* @__PURE__ */ ul_(arrayToNodeData1);
   var show42 = /* @__PURE__ */ show(showInt);
@@ -33153,12 +33313,12 @@
           return append13([span4([class$prime2("den-punct")])([text("[")])])(append13(go$prime($$eval(applyVars(v1.value1)(vars))))(append13([span4([class$prime2("den-punct")])([text(" | ")])])(append13(unrollDom(v1.value0)(vars)(Nil.value))([span4([class$prime2("den-punct")])([text("]")])]))));
         }
         ;
-        if (v1 instanceof Dom) {
+        if (v1 instanceof Domain) {
           return append13([span4([class$prime2("den-op")])([text("dom ")])])(displayRight(v1.value0)(go(v1.value0)));
         }
         ;
-        if (v1 instanceof $$Map) {
-          return append13([span4([class$prime2("den-op")])([text("map ")])])(displayRight(v1.value0)(go(v1.value0)));
+        if (v1 instanceof Range) {
+          return append13([span4([class$prime2("den-op")])([text("rng ")])])(displayRight(v1.value0)(go(v1.value0)));
         }
         ;
         throw new Error("Failed pattern match at TDPretty (line 91, column 10 - line 142, column 33): " + [v1.constructor.name]);
@@ -33228,7 +33388,7 @@
               }
               ;
               return [];
-            }())(append13([br])([span4([class$prime2("mode")])([text("Lex")])])))), ul2([class$prime2("parse-lex")])([li_2([span4([class$prime2("leaf")])([text(show23(v.value0))])])])]);
+            }())(append13([br])([span4([class$prime2("mode")])([text("Lex")])])))), ul2([class$prime2("parse-lex")])([li_2([span4([class$prime2("leaf")])([text(show24(v.value0))])])])]);
           }
           ;
           if (v.value1 instanceof Comb && (v.value3 instanceof Cons && (v.value3.value1 instanceof Cons && v.value3.value1.value1 instanceof Nil))) {

@@ -468,20 +468,20 @@ c = make_var "c"
 o = make_var "o"
 
 fmapTerm = case _ of
-  S     -> k ! m ! Set (Dom m) (a ! k % ((Map m) % a))
+  S     -> k ! m ! set ( (a ! k % (get_rng m % a)) :| get_dom m )
   R _   -> k ! m ! g ! k % (m % g)
-  W _   -> k ! m ! (_1 m) * (k % (_2 m))
+  W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
 pureTerm = case _ of
-  S     -> a ! Set a (a ! a)
+  S     -> a ! set ( (a ! a) :| a )
   R _   -> a ! g ! a
-  W t   -> a ! ((mzeroTerm t) * a)
+  W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
-counitTerm = m ! (_2 m) % (_1 m)
+counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
-  S     -> mm ! Set ((Dom mm) * (a ! Dom ((Map mm) % a))) (a ! b ! (Map ((Map mm) % a)) % b)
+  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) :| (get_dom mm * (a ! get_dom (get_rng mm % a))) )
   R _   -> mm ! g ! mm % g % g
-  W t   -> mm ! (mplusTerm t (_1 mm) (_1 (_1 mm))) * (_2 (_2 mm))
+  W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
 mzeroTerm = case _ of
   T     -> make_var "true"
