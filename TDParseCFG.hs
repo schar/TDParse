@@ -6,7 +6,7 @@ module TDParseCFG where
 
 import Prelude hiding ( (<>), (^), Word, (*) )
 import Control.Monad ( join, liftM2 )
-import Lambda_calc (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*), (#), (^))
+import LambdaCalc (Term, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
@@ -52,6 +52,10 @@ showNoIndices = \case
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
+
+atomicTypes = [E,T]
+atomicEffects =
+  pure S ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
 
 -- convenience constructors
 effS     = Eff S
@@ -126,7 +130,7 @@ data Op
   | MR F | ML F       -- Functor     fmap
   | UR F | UL F       -- Applicative pure
   | A F               -- Applicative <*>
-  | J                 -- Monad       join
+  | J F               -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
   deriving (Eq)
@@ -142,7 +146,7 @@ instance Show Op where
     UL _ -> "UL"
     UR _ -> "UR"
     A _  -> "A"
-    J    -> "J"
+    J _  -> "J"
     Eps  -> "Eps"
     D    -> "D"
 
@@ -175,7 +179,7 @@ instance Commute F where
   -- commutative as a monad
   commutative = \case
     S     -> True
-    R _   -> False
+    R _   -> True
     W w   -> commutative w
     C _ _ -> False
 
@@ -314,24 +318,24 @@ addJ =
   \case
     (op, Eff f (Eff g a))
       | monad f
-      , normJ f op -> [(J:op, Eff h a) | h <- combineFs f g]
+      , normJ f op -> [(J h:op, Eff h a) | h <- combineFs f g]
     _ -> []
 
   where
     normJ f op = not $ any (`isPrefixOf` op) $
 
       -- avoid higher-order detours for all J-able effects
-         [ [m f]  ++ k ++ [m f]  | k <- [[J], []], m <- [MR, ML] ]
-      ++ [ [ML f] ++ k ++ [MR f] | k <- [[J], []] ]
-      ++ [ [A f]  ++ k ++ [MR f] | k <- [[J], []] ]
-      ++ [ [ML f] ++ k ++ [A f]  | k <- [[J], []] ]
+         [ [m f]  ++ k ++ [m f]  | k <- [[J f], []], m <- [MR, ML] ]
+      ++ [ [ML f] ++ k ++ [MR f] | k <- [[J f], []] ]
+      ++ [ [A f]  ++ k ++ [MR f] | k <- [[J f], []] ]
+      ++ [ [ML f] ++ k ++ [A f]  | k <- [[J f], []] ]
       ++ [ [Eps] ]
 
       -- for commutative effects
       ++ [ [MR f   ,     A  f]   | commutative f ]
       ++ [ [A f    ,     ML f]   | commutative f ]
-      ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J], []] ]
-      ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J], []] ]
+      ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J f], []] ]
+      ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J f], []] ]
 
 addD :: (Mode, Ty) -> [(Mode, Ty)]
 addD =
@@ -355,79 +359,87 @@ addD =
 
 semTerm :: Sem -> Term
 semTerm (Lex w)      = w
-semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
+semTerm (Comb m l r) = modeTerm m % semTerm l % semTerm r
 
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
-modeTerm (x:xs) = opTerm x # modeTerm xs
+modeTerm (x:xs) = opTerm x % modeTerm xs
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
 -- that we can display in various forms
 opTerm :: Op -> Term
 opTerm = \case
-      -- \l r -> l r
-  FA  -> l ^ r ^ l # r
+          -- \l r -> l r
+  FA      -> l ! r ! l % r
 
-      -- \l r -> r l
-  BA  -> l ^ r ^ r # l
+          -- \l r -> r l
+  BA      -> l ! r ! r % l
 
-      -- \l r a -> l a && r a
-  PM  -> l ^ r ^ a ^ make_var "and'" # (l # a) # (r # a)
+          -- \l r a -> l a `and` r a
+  PM      -> l ! r ! a ! make_var "and" % (l % a) % (r % a)
 
-      -- \l r a -> l (r a)
-  FC  -> l ^ r ^ a ^ l # (r # a)
+          -- \l r a -> l (r a)
+  FC      -> l ! r ! a ! l % (r % a)
 
-      -- \op l r -> (\a -> op l a) <$> r
-  -- MR  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # l # a)) # r
-  MR f -> op ! l ! r ! fMap f % (a ! (op % l % a)) % r
+          -- \l R -> (\a -> op l a) <$> R
+  MR f -> op ! l ! r ! fmapTerm f % (a ! (op % l % a)) % r
 
-      -- \op l r -> (\a -> op a r) <$> l
-  -- ML  -> op ^ l ^ r ^ make_var "fmap" # (a ^ (op # a # r)) # l
-  ML f -> op ! l ! r ! fMap f % (a ! (op % a % r)) % l
+       --    \L r -> (\a -> op a r) <$> L
+  ML f -> op ! l ! r ! fmapTerm f % (a ! (op % a % r)) % l
 
-      -- \op l r -> op (\a -> r (pure a)) l
-  -- UL  -> op ^ l ^ r ^ op # (a ^ r # (make_var "pure" # a)) # l
-  UL f -> op ! l ! r ! op % (a ! r % (pr f % a)) % l
+       --    \l R -> op (\a -> R (pure a)) l
+  UL f -> op ! l ! r ! op % (a ! r % (pureTerm f % a)) % l
 
-      -- \op l r -> op (\a -> l (pure a)) r
-  -- UR  -> op ^ l ^ r ^ op # (a ^ l # (make_var "pure" # a)) # r
-  UR f -> op ! l ! r ! op % (a ! l % (pr f % a)) % r
+       --    \L r -> op (\a -> L (pure a)) r
+  UR f -> op ! l ! r ! op % (a ! l % (pureTerm f % a)) % r
 
-      -- \op l l -> op <$> l <*> r
-  A _ -> op ^ l ^ r ^ make_var "(<*>)" # (make_var "fmap" # op # l) # r
+       --    \L R -> op <$> L <*> R
+  A  f -> op ! l ! r ! joinTerm f % (fmapTerm f % (a ! fmapTerm f % (op % a) % r) % l)
 
-      -- \l r -> join (op l r)
-  J   -> op ^ l ^ r ^ make_var "join" # (op # l # r)
+       --    \l r a -> op l (r a) a
+  -- Z    op ! -> l ! r ! a ! modeTerm op % l % (r % a) % a
 
-      -- \l r -> counit (op l r)
-  -- Eps -> op ^ l ^ r ^ make_var "counit" # (op # l # r)
-  Eps -> op ! l ! r ! counit % (fMap (W E) % (a ! fMap (R E) % (op % a) % r) % l)
+       --    \l r -> join (op l r)
+  J  f -> op ! l ! r ! joinTerm f % (op % l % r)
 
-      -- \l r -> op l r id
-  D   -> op ^ l ^ r ^ op # l # r # (a ^ a)
+          -- \l r -> counit $ (\a -> op a <$> r) <$> l
+  Eps  -> op ! l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (op % a) % r) % l)
+
+          -- \l r -> op l r id
+  D    -> op ! l ! r ! op % l % r % (a ! a)
 
 
 l = make_var "l"
 r = make_var "r"
 a = make_var "a"
+b = make_var "b"
 g = make_var "g"
 k = make_var "k"
 m = make_var "m"
+mm = make_var "mm"
 c = make_var "c"
 op = make_var "op"
 
-fMap = \case
-  S     -> k ! m ! Set (Dom m) (a ! k % (Map m % a))
+fmapTerm = \case
+  S     -> k ! m ! set ( (a ! k % (get_rng m % a)) |? get_dom m )
   R _   -> k ! m ! g ! k % (m % g)
-  W _   -> k ! m ! _1 m * (k % (_2 m))
+  W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
-pr = \case
-  S     -> a ! Set a (a ! a)
+pureTerm = \case
+  S     -> a ! set ( (a ! a) |? a )
   R _   -> a ! g ! a
-  W t   -> a ! (mzero t * a)
+  W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
-mzero = \case
+counitTerm = m ! _2 m % _1 m
+joinTerm = \case
+  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  R _   -> mm ! g ! mm % g % g
+  W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)
+  C _ _ -> mm ! c ! mm % (m ! m % c)
+mzeroTerm = \case
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"
-counit = m ! _2 m % (_1 m)
+mplusTerm = \case
+  T     -> \p q -> make_var "and" % p % q
+  _     -> \_ _ -> make_var "this really shouldn't happen"

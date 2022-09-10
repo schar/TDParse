@@ -5,7 +5,7 @@
 module TDDemo where
 
 import Prelude hiding ((*), (!))
-import Lambda_calc
+import LambdaCalc
 import TDPretty
 import TDParseCFG
 import Data.Maybe
@@ -66,14 +66,14 @@ lexicon = map mkLex $
     ann = make_var "a"
     mary = make_var "m"
     mref = mary * mary
-    ml = mary * make_var "ling" % mary
-    sc = make_var "s" * make_var "cat" % make_var "s"
+    ml = mary * (make_var "ling" % mary)
+    sc = make_var "s" * (make_var "cat" % make_var "s")
     she = a ! a
-    she2 = a ! a * a
+    she2 = a ! (a * a)
     so3 = make_set "person"
-    so2 = fMap S % she2 % so3
+    so2 = fmapTerm S % she2 % so3
     eo = make_var "everyone"
-    eo2 = fMap (C T T) % she2 % eo
+    eo2 = fmapTerm (C T T) % she2 % eo
 
 
 -- a toy Context-Free Grammar

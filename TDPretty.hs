@@ -5,10 +5,10 @@ module TDPretty where
 
 import qualified Data.Sequence as DS
 import Data.List (intercalate)
-import Data.Maybe
+import Data.Maybe (Maybe, fromMaybe)
 import TDParseCFG
-import Lambda_calc
-import Prelude hiding ((<>), (^), and)
+import LambdaCalc (eval, show_term, show_hs)
+import Prelude hiding ((<>))
 import Text.PrettyPrint hiding (Mode, cat)
 
 
@@ -64,7 +64,7 @@ prettyOp = \case
   UL f -> "\\comb{UL},"
   UR f -> "\\comb{UR},"
   A f  -> "\\comb{A},"
-  J    -> "\\comb{J},"
+  J f  -> "\\comb{J},"
   Eps  -> "\\comb{Eps},"
   D    -> "\\comb{D},"
 
@@ -80,6 +80,7 @@ prettyVal norm v
 
 -- Proofs displayed as trees with normalization controlled by `norm`
 -- Requires package forest with a command \comb{} defined to format modes
+-- as provided by `standaloneTrees` below
 prettyProofTree :: Bool -> Proof -> Doc
 prettyProofTree norm proof =
   "\\begin{forest}" $+$
@@ -91,26 +92,26 @@ prettyProofTree norm proof =
     forest = \case
       Proof word v@(Lex w) ty _ ->
         "[" <>
-        "$" <> label v "\\texttt{" <>
+        "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
-        "\\comb{Lex}" $+$
+        label v ("\\comb{Lex}") $+$
         brackets ("\\texttt{" <> text (show word) <> "}") <>
         "]"
 
       Proof phrase v@(Comb op _ _) ty [l, r] ->
         "[" <>
-        "$" <> label v "\\texttt{" <>
+        "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
-        braces (prettyMode op) $+$
+        label v (braces (prettyMode op)) $+$
         forest l $+$ forest r $+$
         "]"
 
       _ -> "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = ("\\texttt{" <> prettyVal norm v <> "}:" <+>)
+      | norm = ("$\\texttt{" <> prettyVal norm v <> "}$\\\\" $+$)
       | otherwise = id
 
 -- Proofs displayed as proofs with some normalization
@@ -157,7 +158,7 @@ standaloneTrees trees =
   "\\newcommand{\\comb}[1]{\\textbf{\\textsf{#1}}}" $+$
   "\\usepackage[T1]{fontenc}" $+$
   "\\begin{document}\\scriptsize\n" $+$
-  text (if null trees then "Nothing doing" else (intercalate "\n\n" trees)) $+$
+  text (if null trees then "Nothing doing" else (intercalate "\n\\bigskip\n" trees)) $+$
   "\n\\end{document}"
 
 typeTrees', denTrees' :: CFG -> Lexicon -> (Proof -> Bool) -> String -> IO ()
