@@ -6,7 +6,7 @@ module TDParseCFG where
 
 import Prelude hiding ( (<>), (^), Word, (*) )
 import Control.Monad ( join, liftM2 )
-import LambdaCalc (Term, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
+import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
@@ -119,7 +119,7 @@ parse cfg lex input = do
 -- two other semantic objects
 data Sem
   = Lex Term
-  | Comb Mode Sem Sem
+  | Comb Mode Term
   deriving (Show)
 
 -- Modes of combination
@@ -212,18 +212,19 @@ synsem = execute . go
         return do -- memo block
           combos <- combine lty rty
           return do -- list block
-            (op, ty) <- combos
-            return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
+            (op, d, ty) <- combos
+            let cval = Comb op (eval $ d %  semTerm lval % semTerm rval)
+            return $ Proof (lstr ++ " " ++ rstr) cval ty [lp, rp]
 
 prove :: CFG -> Lexicon -> String -> Maybe [Proof]
 prove cfg lex input = concatMap synsem <$> parse cfg lex input
 
 -- The basic unEffectful modes of combination (add to these as you like)
-modes :: Ty -> Ty -> [(Mode, Ty)]
+modes :: Ty -> Ty -> [(Mode, Term, Ty)]
 modes = curry \case
-  (a :-> b , r      ) | a == r -> [([FA], b)]
-  (l       , a :-> b) | l == a -> [([BA], b)]
-  (a :-> T , b :-> T) | a == b -> [([PM], a :-> T)]
+  (a :-> b , r      ) | a == r -> [([FA], opTerm FA, b)]
+  (l       , a :-> b) | l == a -> [([BA], opTerm BA, b)]
+  (a :-> T , b :-> T) | a == b -> [([PM], opTerm PM, a :-> T)]
   (_       , _      )          -> []
 
 -- Make sure that two Effects can compatibly be sequenced
@@ -242,9 +243,9 @@ combine = curry $ fix (memoize' . openCombine)
 -- what are all the ways that they may be combined
 openCombine ::
   Monad m
-  => ((Ty, Ty) -> m [(Mode, Ty)])
-  ->  (Ty, Ty) -> m [(Mode, Ty)]
-openCombine combine (l, r) = concat <$>
+  => ((Ty, Ty) -> m [(Mode, Term, Ty)])
+  ->  (Ty, Ty) -> m [(Mode, Term, Ty)]
+openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
 
   -- for starters, try the basic modes of combination
   return (modes l r)
@@ -252,50 +253,54 @@ openCombine combine (l, r) = concat <$>
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
-    Eff f a
-      | functor f -> combine (a,r) <&> map \(op,c) -> (ML f:op, Eff f c)
+    Eff f a | functor f ->
+      combine (a,r) <&>
+      map \(op,d,c) -> (ML f:op, (opTerm (ML f) % d), Eff f c)
     _ -> return []
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
-    Eff f a
-      | functor f -> combine (l,a) <&> map \(op,c) -> (MR f:op, Eff f c)
+    Eff f a | functor f ->
+      combine (l,a) <&>
+      map \(op,d,c) -> (MR f:op, (opTerm (MR f) % d), Eff f c)
     _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
-    Eff f a :-> b
-      | appl f ->
-        combine ((a :-> b),r) <&>
-        concatMap \(op,c) -> [(UR f:op, c) | normU (UR f) op]
+    Eff f a :-> b | appl f ->
+      combine ((a :-> b),r) <&>
+      concatMap \(op,d,c) -> let m = UR f
+                              in [(m:op, (opTerm m % d), c) | norm op m]
     _ -> return []
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
-    Eff f a :-> b
-      | appl f ->
-        combine (l,(a :-> b)) <&>
-        concatMap \(op,c) -> [(UL f:op, c) | normU (UL f) op]
+    Eff f a :-> b | appl f ->
+      combine (l,(a :-> b)) <&>
+      concatMap \(op,d,c) -> let m = UL f
+                              in [(m:op, (opTerm m % d), c) | norm op m]
     _ -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
   <+> case (l,r) of
-    (Eff f a, Eff g b)
-      | appl f ->
-        combine (a, b) <&>
-        liftM2 (\h (op,c) -> (A h:op, Eff h c)) (combineFs f g)
+    (Eff f a, Eff g b) | appl f ->
+      combine (a, b) <&>
+      liftM2 (\h (op,d,c) -> let m = A h
+                              in (m:op, (opTerm m % d), Eff h c)) (combineFs f g)
     _ -> return []
 
-  -- canonical Eps configuration is Eps, ML, MR
-  -- rules out xover, forces Eps to apply low
+  -- if the left daughter is left adjoint to the right daughter, cancel them out
+  -- and fina a mode `op` that will combine their underlying types
+  -- note that the asymmetry of adjunction rules out xover
   -- there remains some derivational ambiguity:
   -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
   <+> case (l,r) of
-    (Eff f a, Eff g b)
-      | adjoint f g ->
-        combine (a, b) <&> map \(op,c) -> (Eps:op, c)
+    (Eff f a, Eff g b) | adjoint f g ->
+      combine (a, b) <&>
+      map \(op,d,c) -> let m = Eps
+                        in (m:op, (opTerm m % d), c)
     _ -> return []
 
   -- finally see if the resulting types can additionally be lowered (D),
@@ -308,65 +313,63 @@ openCombine combine (l, r) = concat <$>
     infixl 5 <**>
     (<**>) = liftM2 (flip (<*>))
 
-    -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
-    normU = \case
-      UR f -> \op -> not $ any (`isPrefixOf` op) [[MR f], [D, MR f]]
-      UL f -> \op -> not $ any (`isPrefixOf` op) [[ML f], [D, ML f]]
+addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
+addJ = \case
+  (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
+    [(J h:op, (opTerm (J h) % d), Eff h a) | h <- combineFs f g]
+  _ -> []
 
-addJ :: (Mode, Ty) -> [(Mode, Ty)]
-addJ =
-  \case
-    (op, Eff f (Eff g a))
-      | monad f
-      , normJ f op -> [(J h:op, Eff h a) | h <- combineFs f g]
-    _ -> []
+addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
+addD = \case
+  (op, d, Eff (C i a) a') | a == a', norm op D ->
+    [(D:op, (opTerm D % d), i)]
+  _ -> []
+
+-- these filters prevent generating "spurious" derivations that are guaranteed
+-- to be equivalent to other derivations we're already generating
+norm op = \case
+  -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
+  UR f -> not $ (op `startsWith`) `anyOf` [[MR f], [D, MR f]]
+  UL f -> not $ (op `startsWith`) `anyOf` [[ML f], [D, ML f]]
+
+  D    -> not $ (op `startsWith`) `anyOf`
+       [ [m U, D, m U] | m <- [MR, ML] ]
+    ++ [ [ML U, D, MR U]
+       , [A U, D, MR U]
+       , [ML U, D, A U]
+       , [Eps]
+       ]
+  J f -> not $ (op `startsWith`) `anyOf`
+    -- avoid higher-order detours for all J-able effects
+       [ [m f]  ++ k ++ [m f]  | k <- [[J f], []], m <- [MR, ML] ]
+    ++ [ [ML f] ++ k ++ [MR f] | k <- [[J f], []] ]
+    ++ [ [A f]  ++ k ++ [MR f] | k <- [[J f], []] ]
+    ++ [ [ML f] ++ k ++ [A f]  | k <- [[J f], []] ]
+    ++ [ [Eps] ]
+    -- and all (non-split) inverse scope for commutative effects
+    ++ [ [MR f   ,     A  f]   | commutative f ]
+    ++ [ [A f    ,     ML f]   | commutative f ]
+    ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J f], []] ]
+    ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J f], []] ]
 
   where
-    normJ f op = not $ any (`isPrefixOf` op) $
-
-      -- avoid higher-order detours for all J-able effects
-         [ [m f]  ++ k ++ [m f]  | k <- [[J f], []], m <- [MR, ML] ]
-      ++ [ [ML f] ++ k ++ [MR f] | k <- [[J f], []] ]
-      ++ [ [A f]  ++ k ++ [MR f] | k <- [[J f], []] ]
-      ++ [ [ML f] ++ k ++ [A f]  | k <- [[J f], []] ]
-      ++ [ [Eps] ]
-
-      -- for commutative effects
-      ++ [ [MR f   ,     A  f]   | commutative f ]
-      ++ [ [A f    ,     ML f]   | commutative f ]
-      ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J f], []] ]
-      ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J f], []] ]
-
-addD :: (Mode, Ty) -> [(Mode, Ty)]
-addD =
-  \case
-    (op, Eff (C i a) a')
-      | a == a'
-      , normD op -> [(D:op, i)]
-    _ -> []
-
-  where
-    normD op = not $ any (`isPrefixOf` op) $
-         [ [m U, D, m U] | m <- [MR, ML] ]
-      ++ [ [ML U, D, MR U]
-         , [A U, D, MR U]
-         , [ML U, D, A U]
-         , [Eps]
-         ]
+    infixl 4 `anyOf`
+    anyOf = any
+    startsWith = flip isPrefixOf
 
 
-{- Mapping semantic values to (un-normalized) Lambda_calc terms -}
+{- Mapping semantic values to (un-normalized) lambda terms -}
 
 semTerm :: Sem -> Term
-semTerm (Lex w)      = w
-semTerm (Comb m l r) = modeTerm m % semTerm l % semTerm r
+semTerm (Lex w)    = w
+semTerm (Comb m d) = d
 
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x % modeTerm xs
 
 -- The definitions of the combinators that build our modes of combination
--- Here we are using the Lambda_calc library to write (untyped) lambda expressions
+-- Here we are using the LambdaCalc library to write (untyped) lambda expressions
 -- that we can display in various forms
 opTerm :: Op -> Term
 opTerm = \case

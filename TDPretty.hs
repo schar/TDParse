@@ -7,7 +7,7 @@ import qualified Data.Sequence as DS
 import Data.List (intercalate)
 import Data.Maybe (Maybe, fromMaybe)
 import TDParseCFG
-import LambdaCalc (eval, show_term, show_hs)
+import LambdaCalc (eval, evalFinal, show_term, show_hs)
 import Prelude hiding ((<>))
 import Text.PrettyPrint hiding (Mode, cat)
 
@@ -74,7 +74,7 @@ prettyMode (x:xs) = prettyOp x <+> prettyMode xs
 
 prettyVal :: Bool -> Sem -> Doc
 prettyVal norm v
-  | norm      = text $ show_hs (eval (semTerm v)) 100
+  | norm      = text $ show_term (evalFinal $ semTerm v)
   | otherwise = text $ show v
 
 
@@ -99,7 +99,7 @@ prettyProofTree norm proof =
         brackets ("\\texttt{" <> text (show word) <> "}") <>
         "]"
 
-      Proof phrase v@(Comb op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _) ty [l, r] ->
         "[" <>
         "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
@@ -126,7 +126,7 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
         "\\texttt{" <> prettyVal True v <> "}" <> ":" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
-      Proof phrase v@(Comb op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _) ty [l, r] ->
         bp l $+$
         bp r $+$
         "\\RightLabel{\\tiny " <> prettyMode op <> "}" $+$

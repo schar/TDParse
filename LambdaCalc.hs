@@ -8,7 +8,7 @@
 -- {f x | x <- dom} ~~> Set dom (\x -> f x)
 
 module LambdaCalc
-    ( eval
+    ( eval, evalFinal
     , (!), (%)
     , make_var
     , (|?), set, make_set, get_dom, get_rng
@@ -30,6 +30,13 @@ data Term
   | Pair Term Term | Fst Term | Snd Term
   | Set Term Term | Domain Term | Range Term
             deriving Eq -- (,Show)
+
+evalFinal term = evalFinal' term []
+evalFinal' (Domain (Set t1 t2)) [] = t1
+evalFinal' (Domain t) [] = t
+evalFinal' (Range (Set t1 t2)) stack = evalFinal' t2 stack
+evalFinal' (Range t) stack = evalFinal' (a ! a) stack
+evalFinal' t stack = eval' t stack
 
 eval term = eval' term []
 eval' t@(Var v) [] = t
@@ -55,12 +62,12 @@ eval' e@(Domain s) stack = case stack of
   []   ->
     case eval s of
       (Set t1 t2)  -> t1
-      t            -> t
+      t            -> Domain t
   (s:_) -> error ("trying to apply the domain of a set: " ++ show e ++ " to " ++ show s)
 eval' (Range s) stack =
   case eval s of
     (Set t1 t2)  -> eval' t2 stack
-    t            -> eval' (a ! a) stack
+    t            -> unwind (Range t) stack
 
 unwind t [] = t
 unwind t (t1:rest) = unwind (App t $ eval t1) rest
@@ -263,10 +270,10 @@ default_term_form = Form
   }
 
 show_term term = show_formatted_term default_term_form term 100
-show_hs = show_formatted_term hs_form
+show_hs term = show_formatted_term hs_form term 100
   where
     hs_form = default_term_form { lam' = "\\textbackslash ", arr' = " -> ", la' = "(", ra' = ")" }
-show_tex = show_formatted_term tex_form
+show_tex term = show_formatted_term tex_form term 100
   where
     tex_form = Form
       { lam' = "\\lambda ", arr' = ". "
