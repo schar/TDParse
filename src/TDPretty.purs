@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
 
 module TDPretty where
 
@@ -96,7 +94,7 @@ displayTerm term depth              = go term
         <> [ HE.text (show v) ]
         <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
         <> go' body
-      (Ap t1 t2) ->
+      (App t1 t2) ->
         displayLeft t1 (go' t1)
         <> [ HE.text " " ]
         <> displayRight t2 (go' t2)
@@ -122,15 +120,15 @@ displayTerm term depth              = go term
                 Pair t1 t2 ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ applyVars t1 apps)
+                  <> go' (eval $ applyAll t1 apps)
                   <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
                   <> unrollDom t2 rest (v:apps)
                 _ ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ applyVars t apps)
+                  <> go' (eval $ applyAll t apps)
          in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
-            <> go' (eval $ applyVars cond vars)
+            <> go' (eval $ applyAll cond vars)
             <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
             <> unrollDom dom vars Nil
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
@@ -144,11 +142,11 @@ displayTerm term depth              = go term
     go' term = displayTerm term (depth - 1)
 
     displayRight = case _ of
-      (Ap _ _)  -> parens
-      (Fst _)   -> parens
-      (Snd _)   -> parens
-      (Lam _ _) -> parens
-      _         -> identity
+      (App _ _)  -> parens
+      (Fst _)    -> parens
+      (Snd _)    -> parens
+      (Lam _ _)  -> parens
+      _          -> identity
 
     displayLeft = case _ of
       (Lam _ _) -> parens

@@ -1,10 +1,16 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
+
+-- | The following is adapted from Oleg Kiselyov's normal order
+-- lambda calculator:
+-- https://okmij.org/ftp/Computation/lambda-calc.html#lambda-calculator-haskell
+-- Here we add constructs and reductions for pairs and "sets"
+-- Sets are encoded as abstractions with explicit domains:
+-- {f x | x <- dom} ~~> Set dom (\x -> f x)
 
 module LambdaCalc where
 
 import Prelude
 
--- the following imports are required for a tracing eval
 import Control.Monad.Writer
 import Effect.Exception.Unsafe ( unsafeThrow )
 import Data.List
@@ -17,22 +23,21 @@ import Data.Tuple.Nested
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
 
-type VColor = Int  -- the "color" of a variable. 0 is the "transparent color"
+type VColor = Int
 data VarName = VC VColor String
 derive instance Eq VarName
 data Term
-  = Var VarName | Ap Term Term | Lam VarName Term
+  = Var VarName | App Term Term | Lam VarName Term
   | Pair Term Term | Fst Term | Snd Term
   | Set Term Term | Domain Term | Range Term
 derive instance Eq Term
 derive instance Generic Term _
 
-
 eval term = eval' term Nil
-eval' t@(Var v) Nil = t -- just a variable with nothing to apply it to
+eval' t@(Var v) Nil = t
 eval' (Lam v body) Nil = check_eta $ Lam v (eval body)
 eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
-eval' (Ap t1 t2) stack = eval' t1 (t2:stack)
+eval' (App t1 t2) stack = eval' t1 (t2:stack)
 eval' t@(Var v) stack = unwind t stack
 eval' e@(Pair t1 t2) stack = case stack of
   Nil   -> Pair (eval t1) (eval t2)
@@ -60,9 +65,9 @@ eval' (Range s) stack =
     t            -> eval' (a ! a) stack
 
 unwind t Nil = t
-unwind t (t1:rest) = unwind (Ap t $ eval t1) rest
+unwind t (t1:rest) = unwind (App t $ eval t1) rest
 
-subst term v (Var v') | v == v' = term -- identity substitution
+subst term v (Var v') | v == v' = term
 subst t@(Var x) v st | x == v    = st
                      | otherwise = t
 subst (Pair t1 t2) v st = Pair (subst t1 v st) (subst t2 v st)
@@ -71,8 +76,8 @@ subst (Snd p) v st = Snd (subst p v st)
 subst (Set t1 t2) v st = Set (subst t1 v st) (subst t2 v st)
 subst (Domain s) v st = Domain (subst s v st)
 subst (Range s) v st = Range (subst s v st)
-subst (Ap t1 t2) v st = Ap (subst t1 v st) (subst t2 v st)
-subst t@(Lam x _) v _ | v == x  = t  -- v is shadowed in lambda form
+subst (App t1 t2) v st = App (subst t1 v st) (subst t2 v st)
+subst t@(Lam x _) v _ | v == x  = t
 subst (Lam x body) v st = (Lam x' (subst body' v st))
   where
     (Tuple f x_occur_st) = occurs st x
@@ -82,7 +87,8 @@ subst (Lam x body) v st = (Lam x' (subst body' v st))
                  (Tuple bf x_occur_body) = occurs body x_uniq_st_v
                  x_unique =
                    if bf then bump_color x_uniq_st_v x_occur_body else x_uniq_st_v
-              in (Tuple x_unique (subst body x (Var x_unique))) -- x_unique used to be x'; seems the same?
+              -- x_unique used to be x'; seems the same?
+              in (Tuple x_unique (subst body x (Var x_unique)))
         else (Tuple x body)
 
 bump_color (VC color name) (VC color' _) =
@@ -94,7 +100,7 @@ occurs (Var v'@(VC c' name')) v@(VC c name)
   | not (name == name')  = (Tuple false v)
   | c == c'              = (Tuple true  v)
   | otherwise            = (Tuple false v')
-occurs (Ap t1 t2) v
+occurs (App t1 t2) v
   = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
         (Tuple f2 v2@(VC c2 _)) = occurs t2 v
      in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
@@ -113,20 +119,23 @@ occurs (Range s) v = occurs s v
 occurs (Lam x body) v
   | x == v    = (Tuple false v)
   | otherwise = occurs body v
-check_eta (Lam v (Ap t (Var v')))
+
+check_eta (Lam v (App t (Var v')))
   | v == v' && (let (Tuple flag _) = occurs t v in not flag) = t
 check_eta term = term
+
 note_reduction label redex = tell $ singleton (Tuple label redex)
 
-meval' :: Term -> List Term -> Writer (List (Tuple String Term)) Term
-meval' t@(Var v) Nil = pure t -- just a variable with nothing to apply it to
+mweval term = runWriter (meval' term Nil)
+
+meval' t@(Var v) Nil = pure t
 meval' (Lam v body) Nil = do
   body' <- meval' body Nil
   mcheck_eta $ Lam v body'
 meval' a@(Lam v body) (t: rest) = do
-  note_reduction "beta" (Ap a t)
+  note_reduction "beta" (App a t)
   meval' (subst body v t) rest
-meval' (Ap t1 t2) stack = meval' t1 (t2:stack)
+meval' (App t1 t2) stack = meval' t1 (t2:stack)
 meval' t@(Var v) stack = munwind t stack
 meval' e@(Pair t1 t2) stack = case stack of
   Nil -> do
@@ -163,20 +172,19 @@ meval' (Range s) stack = do
     (Set t1 t2)  -> note_reduction "map" (Range s') *> meval' t2 stack
     t            -> meval' (a ! a) stack
 
-munwind :: Term -> List Term -> Writer (List (Tuple String Term)) Term
+munwind ::  Term -> List Term -> Writer (List (Tuple String Term)) Term
 munwind t Nil = pure t
 munwind t (t1:rest) =
   do t1' <- meval' t1 Nil
-     munwind (Ap t t1') rest
-mcheck_eta red@(Lam v (Ap t (Var v')))
+     munwind (App t t1') rest
+
+mcheck_eta red@(Lam v (App t (Var v')))
   | v == v' && (let (Tuple flag _) = occurs t v in not flag)
     = do note_reduction "eta" red
          pure t
 mcheck_eta term = pure term
-mweval term = runWriter (meval' term Nil)
-make_var = Var <<< VC 0  -- a convenience function
--- [a,b,c,x,y,z,f,g,h,p,q] =
---    map make_var ["a","b","c","x","y","z","f","g","h","p","q"]
+
+make_var = Var <<< VC 0
 x = make_var "x"
 y = make_var "y"
 z = make_var "z"
@@ -190,7 +198,7 @@ q = make_var "q"
 
 -- a little DSL for building lambda terms
 
-infixl 8 Ap as %
+infixl 8 App as %
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
 infixr 6 lam as !
@@ -201,15 +209,12 @@ make_set s = Set (make_var s) (x ! x)
 get_dom = Domain
 get_rng = Range
 set' = flip Set
-infix 5 set' as :|
+infix 5 set' as |?
 set = identity
 
 instance Show VarName where
    show (VC color name) | color == 0 = name
                         | otherwise  = name <> show color
--- The pretty-printer for terms
---    show_term term max_depth
--- prints terms up to the specific depth. Beyond that, we print ...
 
 enough_vars :: Term -> List VarName
 enough_vars t = go t $ map (VC 0) $ "s":"t":"u":"v":"w":"a":"b":"c":Nil
@@ -218,26 +223,24 @@ enough_vars t = go t $ map (VC 0) $ "s":"t":"u":"v":"w":"a":"b":"c":Nil
     go (Pair t1 t2) (v:vars) = v : go t2 vars
     go _ (v:vars) = v:Nil
 
-applyVars t = case _ of
-  Nil -> t
-  v:vs -> applyVars (t % v) vs
+applyAll t Nil  = t
+applyAll (v:vs) = applyAll (t % v) vs
 
 showRight = case _ of
-  (Ap _ _)  -> parens
+  (App _ _) -> parens
   (Fst _)   -> parens
   (Snd _)   -> parens
   (Lam _ _) -> parens
   _         -> identity
-
 showLeft = case _ of
   (Lam _ _) -> parens
   _         -> identity
-
 parens s = "(" <> s <> ")"
 
 type Formatter =
-  { lambda :: String, arrow :: String, elem :: String, lb :: String, rb :: String
-  , mid :: String, la :: String, ra :: String, fst :: String, snd :: String, dom :: String, map :: String
+  { lam' :: String, arr' :: String
+  , lb' :: String, rb' :: String, mid' :: String, la' :: String, ra' :: String
+  , fst' :: String, snd' :: String, elem' :: String, dom' :: String, rng' :: String
   }
 
 show_formatted_term form term depth
@@ -246,11 +249,11 @@ show_formatted_term form term depth
   where
     showt = case _ of
       Var v -> show v
-      Lam v body -> form.lambda <> (show v) <> form.arrow <> (showt' body)
-      Ap t1 t2 -> showLeft t1 (showt' t1) <> " " <> showRight t2 (showt' t2)
-      Pair t1 t2 -> form.la <> showt' t1 <> ", " <> showt' t2 <> form.ra
-      Fst p -> form.fst <> showRight p (showt p)
-      Snd p -> form.snd <> showRight p (showt p)
+      Lam v body -> form.lam' <> (show v) <> form.arr' <> (showt' body)
+      App t1 t2 -> showLeft t1 (showt' t1) <> " " <> showRight t2 (showt' t2)
+      Pair t1 t2 -> form.la' <> showt' t1 <> ", " <> showt' t2 <> form.ra'
+      Fst p -> form.fst' <> showRight p (showt p)
+      Snd p -> form.snd' <> showRight p (showt p)
       e@(Set dom cond) ->
         let vars' = enough_vars dom
             occs = map (\s -> Tuple (occurs e s) s) vars'
@@ -259,88 +262,82 @@ show_formatted_term form term depth
             unrollDom t vs apps = let (Tuple v rest) = getvar vs in
               case t of
                 Pair t1 t2 ->
-                  showt v <> form.elem <> showt (eval $ applyVars t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
+                  showt v <> form.elem' <> showt (eval $ applyAll t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
                 _ ->
-                  showt v <> form.elem <> showt (eval $ applyVars t apps)
-         in form.lb <> showt' (eval $ applyVars cond vars) <> form.mid <> unrollDom dom vars Nil <> form.rb
-      Domain p -> form.dom <> showRight p (showt p)
-      Range p -> form.map <> showRight p (showt p)
+                  showt v <> form.elem' <> showt (eval $ applyAll t apps)
+         in form.lb' <> showt' (eval $ applyAll cond vars) <> form.mid' <> unrollDom dom vars Nil <> form.rb'
+      Domain p -> form.dom' <> showRight p (showt p)
+      Range p -> form.rng' <> showRight p (showt p)
     showt' term = show_formatted_term form term (depth - 1)
 
 default_term_form =
-  { lambda: "\\", arrow: ". ", elem: " <- " , lb: "[", rb: "]", mid: " | ", la: "<", ra: ">"
-  , fst: "fst ", snd: "snd ", dom: "sdom ", map: "smap "
+  { lam': "\\", arr': ". "
+  ,lb': "[", rb': "]", mid': " | ", la': "<", ra': ">"
+  , fst': "fst ", snd': "snd ", elem': " <- " , dom': "sdom ", rng': "srng "
   }
 
 show_term term = show_formatted_term default_term_form term 100
 show_hs = show_formatted_term hs_form
   where
-    hs_form = default_term_form { lambda = "\\textbackslash ", arrow = " -> ", la = "(", ra = ")" }
+    hs_form = default_term_form { lam' = "\\textbackslash ", arr' = " -> ", la' = "(", ra' = ")" }
 show_tex = show_formatted_term tex_form
   where
     tex_form =
-      { lambda: "\\lambda ", arrow: ". ", elem: " \\in " , lb: "\\{ ", rb: "\\} ", mid: " \\mid "
-      , la: "\\langle ", ra: "\\rangle " , fst: "\\textsf{fst} ", snd: "\\textsf{snd} ", dom: "\\textsf{dom} ", map: "\\textsf{map} "
+      { lam': "\\lambda ", arr': ". "
+      , lb': "\\{ ", rb': "\\} ", mid': " \\mid ", la': "\\langle ", ra': "\\rangle "
+      , fst': "\\textsf{fst} ", snd': "\\textsf{snd} ", elem': " \\in " , dom': "\\textsf{dom} ", rng': "\\textsf{rng} "
       }
 
 instance Show Term where
    show term = genericShow term
 
-free_vars:: Term -> Array VarName
 free_vars term = free_vars' term [] []
   where
-    -- free_vars' term list-of-bound-vars list-of-free-vars-so-far
     free_vars' (Var v) bound free = if v `elem` bound then free else v `cons` free
-    free_vars' (Ap t1 t2) bound free =
+    free_vars' (App t1 t2) bound free =
       free_vars' t1 bound $ free_vars' t2 bound free
+    free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
     free_vars' (Pair t1 t2) bound free =
       free_vars' t1 bound $ free_vars' t2 bound free
     free_vars' (Fst p) bound free = free_vars' p bound free
     free_vars' (Snd p) bound free = free_vars' p bound free
-    free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
     free_vars' (Set t1 t2) bound free =
       free_vars' t1 bound $ free_vars' t2 bound free
     free_vars' (Domain p) bound free = free_vars' p bound free
     free_vars' (Range p) bound free = free_vars' p bound free
+
 term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   where
-  -- both terms are variables
   term_equal_p' (Var v1) (Var v2) (bdic1 /\ bdic2 /\ _) =
     case (Tuple (lookup v1 bdic1) (lookup v2 bdic2)) of
     (Tuple (Just bv1) (Just bv2)) -> bv1 == bv2 -- both v1 v2 are bound to the same val
     (Tuple Nothing Nothing)       -> v1 == v2   -- both v1 and v2 are free
     _                             -> false
 
-  -- both terms are abstractions
   term_equal_p' (Lam v1 b1) (Lam v2 b2) (bdic1 /\ bdic2 /\ counter) =
-              -- we bind both v1 and v2 to the common value,
-              -- and compare the bodies of the abstractions in the
-              -- amended environment
-     term_equal_p' b1 b2
-                (Tuple ((Tuple v1 counter):bdic1) (Tuple ((Tuple v2 counter):bdic2) (counter+1)))
+    term_equal_p' b1 b2
+      (Tuple ((Tuple v1 counter):bdic1) (Tuple ((Tuple v2 counter):bdic2) (counter+1)))
 
-  -- both terms are applications
-  term_equal_p' (Ap t1 t1') (Ap t2 t2') env =
-     term_equal_p' t1  t2  env &&
-     term_equal_p' t1' t2' env
+  term_equal_p' (App t1 t1') (App t2 t2') env =
+    term_equal_p' t1  t2  env &&
+    term_equal_p' t1' t2' env
 
   term_equal_p' (Pair t1 t1') (Pair t2 t2') env =
-     term_equal_p' t1  t2  env &&
-     term_equal_p' t1' t2' env
+    term_equal_p' t1  t2  env &&
+    term_equal_p' t1' t2' env
 
   term_equal_p' (Fst p1) (Fst p2) env = term_equal_p' p1 p2 env
   term_equal_p' (Snd p1) (Snd p2) env = term_equal_p' p1 p2 env
 
   term_equal_p' (Set t1 t1') (Set t2 t2') env =
-     term_equal_p' t1  t2  env &&
-     term_equal_p' t1' t2' env
+    term_equal_p' t1  t2  env &&
+    term_equal_p' t1' t2' env
 
   term_equal_p' (Domain p1) (Domain p2) env = term_equal_p' p1 p2 env
   term_equal_p' (Range p1) (Range p2) env = term_equal_p' p1 p2 env
 
-  -- otherwise, the terms do not compare
   term_equal_p' _ _ _ = false
--- Generic tester
+
 expectg f exp expected_result = case f exp expected_result of
   true -> true
   false -> unsafeThrow ("Test case failure: Expected " <> (show expected_result)
@@ -349,14 +346,14 @@ expect :: forall a. Eq a => Show a => a -> a -> Boolean
 expect = expectg (==)
 expectd = expectg term_equal_p -- test using comparison modulo alpha-renaming
 notexpectd = expectg (\x y -> not $ term_equal_p x y)
--- free_var_tests = and [
---    expect (map Var (free_vars $ x))  [x],
---    expect (map Var (free_vars $ x!x)) [],
---    expect (map Var (free_vars $ x%y%z)) [x,y,z],
---    expect (map Var (free_vars $ x!x%y)) [y],
---    expect (map Var (free_vars $ (x!x%y)%(x%y%z))) [y,x,y,z],
---    expect (map Var (free_vars $ (x!x!x%y)%(x!y!x%y))) [y]
---    ]
+free_var_tests = and [
+   expect (map Var (free_vars $ x))  [x],
+   expect (map Var (free_vars $ x!x)) [],
+   expect (map Var (free_vars $ x%y%z)) [x,y,z],
+   expect (map Var (free_vars $ x!x%y)) [y],
+   expect (map Var (free_vars $ (x!x%y)%(x%y%z))) [y,x,y,z],
+   expect (map Var (free_vars $ (x!x!x%y)%(x!y!x%y))) [y]
+   ]
 alpha_comparison_tests = and [
    expectd    x x,
    notexpectd x y,
@@ -386,9 +383,9 @@ alpha_comparison_tests = and [
 
 subst_tests = and [
   expectd (subst (c!c)  (VC 1 "c") c) (z!z),
-  expectd (subst (Lam (VC 1 "c") (Ap (Var (VC 0 "c")) (Ap (Var (VC 1 "c"))
-                 (Ap (Var (VC 2 "c")) (Var (VC 3 "c") )))))
-                 (VC 0 "c") (Ap (Var (VC 1 "c")) (Var (VC 2 "c"))))
+  expectd (subst (Lam (VC 1 "c") (App (Var (VC 0 "c")) (App (Var (VC 1 "c"))
+                 (App (Var (VC 2 "c")) (Var (VC 3 "c") )))))
+                 (VC 0 "c") (App (Var (VC 1 "c")) (Var (VC 2 "c"))))
         (a!(Var $ VC 1 "c")%(Var $ VC 2 "c")%
            (a%((Var $ VC 2 "c")%(Var $ VC 3 "c"))))
   ]

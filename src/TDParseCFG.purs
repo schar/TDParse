@@ -29,7 +29,7 @@ import Data.String.Utils (words)
 import Data.Traversable (sequence)
 import Data.Traversable (traverse)
 import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc -- (Term(Set,Dom,Map), make_var, (!), (%), _1, _2, (*))
+import LambdaCalc (Term, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
 import Unsafe.Coerce (unsafeCoerce)
 import Utils ((<**>), one, (<+>), (^), type (^))
 
@@ -425,7 +425,7 @@ modeTerm = case _ of
   BA      -> l ! r ! r % l
 
           -- \l r a -> l a `and` r a
-  PM      -> l ! r ! a ! make_var "and'" % (l % a) % (r % a)
+  PM      -> l ! r ! a ! make_var "and" % (l % a) % (r % a)
 
           -- \l r a -> l (r a)
   FC      -> l ! r ! a ! l % (r % a)
@@ -451,7 +451,7 @@ modeTerm = case _ of
           -- \l r -> join (op l r)
   J  f op -> l ! r ! joinTerm f % (modeTerm op % l % r)
 
-          -- \l r -> counitTerm $ (\a -> op a <$> r) <$> l
+          -- \l r -> counit $ (\a -> op a <$> r) <$> l
   Eps op  -> l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (modeTerm op % a) % r) % l)
 
           -- \l r -> op l r id
@@ -460,6 +460,7 @@ modeTerm = case _ of
 l = make_var "l"
 r = make_var "r"
 a = make_var "a"
+b = make_var "b"
 g = make_var "g"
 k = make_var "k"
 m = make_var "m"
@@ -468,18 +469,18 @@ c = make_var "c"
 o = make_var "o"
 
 fmapTerm = case _ of
-  S     -> k ! m ! set ( (a ! k % (get_rng m % a)) :| get_dom m )
+  S     -> k ! m ! set ( (a ! k % (get_rng m % a)) |? get_dom m )
   R _   -> k ! m ! g ! k % (m % g)
   W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
 pureTerm = case _ of
-  S     -> a ! set ( (a ! a) :| a )
+  S     -> a ! set ( (a ! a) |? a )
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
-  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) :| (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
   R _   -> mm ! g ! mm % g % g
   W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
