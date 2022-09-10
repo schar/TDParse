@@ -325,8 +325,8 @@ addD = \case
     [(D:op, (opTerm D % d), i)]
   _ -> []
 
--- these filters prevent generating "spurious" derivations that are guaranteed
--- to be equivalent to other derivations we're already generating
+-- these filters prevent generating "spurious" derivations, which are
+-- guaranteed to be equivalent to other derivations we're already generating
 norm op = \case
   -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
   UR f -> not $ (op `startsWith`) `anyOf` [[MR f], [D, MR f]]

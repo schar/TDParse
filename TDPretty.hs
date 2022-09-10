@@ -7,7 +7,7 @@ import qualified Data.Sequence as DS
 import Data.List (intercalate)
 import Data.Maybe (Maybe, fromMaybe)
 import TDParseCFG
-import LambdaCalc (eval, evalFinal, show_term, show_hs)
+import LambdaCalc (Term, eval, evalFinal, show_term, show_hs, show_tex)
 import Prelude hiding ((<>))
 import Text.PrettyPrint hiding (Mode, cat)
 
@@ -44,7 +44,7 @@ prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> " :: " <>
-        prettyTy arrow ty <> " = " <> prettyVal True val
+        prettyTy arrow ty <> " = " <> prettyVal True show_term val
    in case daughters of -- no unary inferences
         []     -> "  " <> details
         [a, b] -> "  " <> (details $+$ prettyProof a $+$ prettyProof b)
@@ -72,9 +72,9 @@ prettyMode :: Mode -> Doc
 prettyMode [] = empty
 prettyMode (x:xs) = prettyOp x <+> prettyMode xs
 
-prettyVal :: Bool -> Sem -> Doc
-prettyVal norm v
-  | norm      = text $ show_term (evalFinal $ semTerm v)
+prettyVal :: Bool -> (Term -> String) -> Sem -> Doc
+prettyVal norm disp v
+  | norm      = text $ disp (evalFinal $ semTerm v)
   | otherwise = text $ show v
 
 
@@ -111,7 +111,7 @@ prettyProofTree norm proof =
       _ -> "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = ("$\\texttt{" <> prettyVal norm v <> "}$\\\\" $+$)
+      | norm = ("$\\texttt{" <> prettyVal norm show_tex v <> "}$\\\\" $+$)
       | otherwise = id
 
 -- Proofs displayed as proofs with some normalization
@@ -123,7 +123,7 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
       Proof word v@(Lex w) ty _ ->
         "\\AXC{$\\mathstrut\\text{" <> text word <> "}" <>
         "\\vdash " <>
-        "\\texttt{" <> prettyVal True v <> "}" <> ":" <+>
+        "\\texttt{" <> prettyVal True show_term v <> "}" <> ":" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       Proof phrase v@(Comb op _) ty [l, r] ->
@@ -132,7 +132,7 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
         "\\RightLabel{\\tiny " <> prettyMode op <> "}" $+$
         "\\BIC{$\\mathstrut\\text{" <> text phrase <> "}" <+>
         "\\vdash" <+>
-        "\\texttt{" <> prettyVal True v <> "}:" <+>
+        "\\texttt{" <> prettyVal True show_term v <> "}:" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       _ -> "\\AXC{wrong number of daughters}"

@@ -276,9 +276,11 @@ show_hs term = show_formatted_term hs_form term 100
 show_tex term = show_formatted_term tex_form term 100
   where
     tex_form = Form
-      { lam' = "\\lambda ", arr' = ". "
-      , lb' = "\\{ ", rb' = "\\} ", mid' = " \\mid ", la' = "\\langle ", ra' = "\\rangle "
-      , fst' = "\\textsf{fst} ", snd' = "\\textsf{snd} ", elem' = " \\in " , dom' = "\\textsf{dom} ", rng' = "\\textsf{rng} "
+      { lam' = "\\ensuremath{\\lambda}", arr' = ".\\;"
+      , lb' = "\\ensuremath{\\{}", rb' = "\\ensuremath{\\}}"
+      , mid' = "\\ensuremath{\\mid}", la' = "\\ensuremath{\\langle}", ra' = "\\ensuremath{\\rangle}"
+      , fst' = "\\textsf{fst} ", snd' = "\\textsf{snd} "
+      , elem' = "\\ensuremath{\\in}" , dom' = "\\textsf{dom} ", rng' = "\\textsf{rng} "
       }
 
 deriving instance Show Term
