@@ -47,6 +47,7 @@ prettyF a = case _ of
   R r   -> text "R" -- <+> prettyParam a r
   W w   -> text "W" -- <+> prettyParam a w
   C r o -> text "C" -- <+> prettyParam a r <+> prettyParam a o
+  U     -> text "_"
 
 -- this is painfully duplicative
 displayTy :: forall m. Ty -> Html m
@@ -79,8 +80,8 @@ displayTy ty = HE.span [HA.class' "type"] $ go ty
 displayF :: forall m. F -> Html m
 displayF f = HE.span [HA.class' "constructor"] [HE.text $ showNoIndices f]
 
-displayDen :: forall m. Sem -> Html m
-displayDen d = HE.span [HA.class' "den"] $ displayTerm (eval (semTerm d)) 100
+displayVal :: forall m. Sem -> Html m
+displayVal v = HE.span [HA.class' "den"] $ displayTerm (evalFinal (semTerm v)) 100
 
 displayTerm :: forall m. Term -> Int -> Array (Html m)
 displayTerm _    depth | depth <= 0 = [ HE.text "..." ]
@@ -120,15 +121,15 @@ displayTerm term depth              = go term
                 Pair t1 t2 ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ applyAll t1 apps)
+                  <> go' (eval $ unwind t1 apps)
                   <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
                   <> unrollDom t2 rest (v:apps)
                 _ ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ applyAll t apps)
+                  <> go' (eval $ unwind t apps)
          in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
-            <> go' (eval $ applyAll cond vars)
+            <> go' (eval $ unwind cond vars)
             <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
             <> unrollDom dom vars Nil
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
@@ -157,24 +158,28 @@ displayTerm term depth              = go term
       <> s
       <> [HE.span [HA.class' "den-punct"] [HE.text ")"]]
 
-prettyMode :: Mode -> Doc
-prettyMode = case _ of
-  BA      -> text "$\\comb{<}$"
-  FA      -> text "$\\comb{>}$"
-  PM      -> text "$\\comb{PM}$"
-  FC      -> text "$\\comb{FC}$"
-  ML _ op -> text "$\\comb{L}$,"         <+> prettyMode op
-  MR _ op -> text "$\\comb{R}$,"         <+> prettyMode op
-  UL _ op -> text "$\\eta_{\\comb{L}}$," <+> prettyMode op
-  UR _ op -> text "$\\eta_{\\comb{R}}$," <+> prettyMode op
-  A  _ op -> text "$\\comb{A},$"         <+> prettyMode op
-  J  _ op -> text "$\\comb{J}$,"         <+> prettyMode op
-  Eps op  -> text "$\\comb{Eps}$,"       <+> prettyMode op
-  D op    -> text "$\\comb{D}$,"         <+> prettyMode op
+prettyOp :: Op -> Doc
+prettyOp = case _ of
+  BA   -> text "$\\comb{<}$"
+  FA   -> text "$\\comb{>}$"
+  PM   -> text "$\\comb{PM}$"
+  FC   -> text "$\\comb{FC}$"
+  ML _ -> text "$\\comb{L}$,"
+  MR _ -> text "$\\comb{R}$,"
+  UL _ -> text "$\\eta_{\\comb{L}}$,"
+  UR _ -> text "$\\eta_{\\comb{R}}$,"
+  A  _ -> text "$\\comb{A},$"
+  J  _ -> text "$\\comb{J}$,"
+  Eps  -> text "$\\comb{Eps}$,"
+  D    -> text "$\\comb{D}$,"
 
-prettyVal :: Boolean -> Sem -> Doc
-prettyVal norm v
-  | norm      = text $ show_term (eval (semTerm v))
+prettyMode :: Mode -> Doc
+prettyMode Nil = mempty
+prettyMode (x:xs) = prettyOp x <+> prettyMode xs
+
+prettyVal :: Boolean -> (Term -> String) -> Sem -> Doc
+prettyVal norm disp v
+  | norm      = text $ disp (evalFinal (semTerm v))
   | otherwise = text $ show v
 
 
@@ -183,7 +188,7 @@ prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> text " :: " <>
         prettyTy arrow ty <> text " = " <> -- text (show (eval (semTerm val)))
-                                           prettyVal true val
+                                           prettyVal true show_term val
    in case daughters of -- no unary inferences
         Nil       -> text "  " <> details
         (a:b:Nil) -> text "  " <> (vcat $ details : prettyProof a : prettyProof b : Nil)
@@ -204,22 +209,24 @@ prettyProofTree norm proof =
     forest = case _ of
       Proof word v@(Lex w) ty _ ->
         text "[" <>
-        text "$" <> label v (text "\\texttt{") <>
+        text "$" <> text "\\texttt{" <>
         prettyTy arrow ty <> text "}$" <>
-        vcat (text "\\\\" : text "\\comb{Lex}" :
+        vcat (text "\\\\" : label v (text "\\comb{Lex}") :
         brackets (text "\\texttt{" <> text (show word) <> text "}") : Nil) <>
         text "]"
 
-      Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
+      Proof phrase v@(Comb op d) ty (l:r:Nil) ->
         text "[" <>
-        text "$" <> label v (text "\\texttt{") <>
+        text "$" <> text "\\texttt{" <>
         prettyTy arrow ty <> text "}$" <>
-        vcat (text "\\\\" : braces (prettyMode op) : forest l : forest r : text "]" : Nil)
+        vcat (text "\\\\" : label v (braces (prettyMode op)) :
+              forest l : forest r :
+              text "]" : Nil)
 
       _ -> text "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = \x -> text "\\texttt{" <> prettyVal norm v <> text "}:" <+> x
+      | norm = \x -> text "$\\texttt{" <> prettyVal norm show_tex v <> text "}$\\\\" <+> x
       | otherwise = identity
 
 prettyProofBuss :: Proof -> Doc
@@ -229,15 +236,15 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
       Proof word v@(Lex w) ty _ ->
         text "\\AXC{$\\mathstrut\\text{" <> text word <> text "}" <>
         text "\\vdash " <>
-        text "\\texttt{" <> prettyVal true v <> text "}" <> text ":" <+>
+        text "\\texttt{" <> prettyVal true show_term v <> text "}" <> text ":" <+>
         text "\\texttt{" <> prettyTy arrow ty <> text "}$}"
 
-      Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
+      Proof phrase v@(Comb op _) ty (l:r:Nil) ->
         vcat (bp l : bp r :
           (text "\\RightLabel{\\small " <> prettyMode op <> text "}") :
           (text "\\BIC{$\\mathstrut\\text{" <> text phrase <> text "}" <+>
           text "\\vdash" <+>
-          text "\\texttt{" <> prettyVal true v <> text "}:" <+>
+          text "\\texttt{" <> prettyVal true show_term v <> text "}:" <+>
           text "\\texttt{" <> prettyTy arrow ty <> text "}$}") :
           Nil)
 
@@ -255,30 +262,33 @@ displayProof dens i proof =
         HE.li_
           [ HE.div [HA.class' "tf-nc"] $
             [ displayTy ty ]
-            <> (if dens then [ HE.br, displayDen v ] else [])
+            <> (if dens then [ HE.br, displayVal v ] else [])
             <> [ HE.br ]
             <> [ HE.span [HA.class' "mode"] [HE.text $ "Lex"] ]
           , HE.ul [HA.class' "parse-lex"]
             [ HE.li_ [HE.span [HA.class' "leaf"] [HE.text $ show word]] ]
           ]
 
-      Proof phrase v@(Comb op _ _) ty (l:r:Nil) ->
+      Proof phrase v@(Comb m d) ty (l:r:Nil) ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"] $
             [ displayTy ty ]
-            <> (if dens then [ HE.br, displayDen v ] else [])
+            <> (if dens then [ HE.br, displayVal v ] else [])
             <> [ HE.br ]
-            <> [ HE.span [HA.class' "mode"] [HE.text $ show op] ]
+            <> [ HE.span [HA.class' "mode"] [HE.text $ showMode m] ]
           , HE.ul_ [ html l, html r ]
           ]
 
       _ -> HE.li_ [ HE.span [HA.class' "tf-nc"] [HE.text $ "wrong number of daughters"] ]
 
+showMode :: Mode -> String
+showMode mode = intercalate ", " (map show mode)
+
 showTy :: Doc -> Ty -> String
 showTy a = render 100 <<< prettyTy a
 
 showProof :: (Proof -> Doc) -> Proof -> String
-showProof disp = render 100 <<< (_ <> text "\n") <<< disp
+showProof disp = render 100 <<< (_ <> text "\n\n") <<< disp
 
 showParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
 showParse' cfg lex p disp input = go <$> parse cfg lex input

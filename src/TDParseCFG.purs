@@ -4,34 +4,26 @@
 
 module TDParseCFG where
 
-import Data.Bounded
 import Data.Enum
 import Data.List
 import Data.Maybe
-import Data.Either
 import Data.Tuple
-import Data.Tuple.Nested
 import Memo
 import Prelude hiding ((#), (*))
 
 import Control.Alternative (guard)
 import Control.Apply (lift2)
 import Control.Lazy (fix)
-import Control.Monad (join)
 import Data.Bounded.Generic (genericBottom, genericTop)
-import Data.Enum.Generic (genericCardinality, genericFromEnum, genericPred, genericSucc, genericToEnum)
+import Data.Enum.Generic (genericPred, genericSucc)
 import Data.Foldable (lookup)
 import Data.Generic.Rep (class Generic)
-import Data.Maybe (fromMaybe)
 import Data.Show.Generic (genericShow)
-import Data.String as DS
+-- import Data.String as DS
 import Data.String.Utils (words)
-import Data.Traversable (sequence)
-import Data.Traversable (traverse)
-import Effect.Exception.Unsafe (unsafeThrow)
-import LambdaCalc (Term, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
-import Unsafe.Coerce (unsafeCoerce)
-import Utils ((<**>), one, (<+>), (^), type (^))
+import Data.Traversable (sequence, traverse)
+import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng)
+import Utils ((<**>), (<+>), (^), type (^))
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -70,22 +62,28 @@ instance Show Ty where
 infixr 1 Arr as :->
 
 -- Effects
-data F = S | R Ty | W Ty | C Ty Ty
-derive instance Eq F
+data F = S | R Ty | W Ty | C Ty Ty | U
 derive instance Ord F
 derive instance Generic F _
 instance Show F where
   show = genericShow
+
+instance Eq F where
+  eq U _ = true
+  eq _ U = true
+  eq S S = true
+  eq (R t) (R u) = t == u
+  eq (W t) (W u) = t == u
+  eq (C t u) (C v w) = t == v && u == w
+  eq _  _ = false
+
 showNoIndices :: F -> String
 showNoIndices = case _ of
   S     -> "S"
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
-
-atomicTypes = E : T : Nil
-atomicEffects =
-  pure S <> (R <$> atomicTypes) <> (W <$> atomicTypes) <> (lift2 C atomicTypes atomicTypes)
+  U     -> "_"
 
 -- convenience constructors
 effS     = Eff S
@@ -93,6 +91,9 @@ effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
 
+atomicTypes = E : T : Nil
+atomicEffects =
+  pure S <> (R <$> atomicTypes) <> (W <$> atomicTypes) <> (lift2 C atomicTypes atomicTypes)
 
 {- Syntactic parsing -}
 
@@ -142,61 +143,62 @@ protoParse cfg f phrase =
 -- and throwing away the category information
 parse :: CFG -> Lexicon -> String -> Maybe (List Syn)
 parse cfg lex input = do
-  ws <- sequence $ map (\s -> map (s ^ _) $ lookup s lex) <<< fromFoldable $ words input
-  pure $ snd <$> memo (protoParse cfg) (0 ^ (length ws - 1) ^ ws)
+  ws <- traverse (\s -> map (s ^ _) $ lookup s lex) <<< fromFoldable $ words input
+  pure $ snd <$> memo (protoParse cfg) (0 ^ length ws - 1 ^ ws)
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
 data Sem
   = Lex Term
-  | Comb Mode Sem Sem
+  | Comb Mode Term
 derive instance Eq Sem
 derive instance Generic Sem _
 instance Show Sem where
   show t = genericShow t
 
 -- Modes of combination
-data Mode
-  = FA | BA | PM | FC     -- Base        > < & .
-  | MR F Mode | ML F Mode -- Functor     map
-  | UR F Mode | UL F Mode -- Applicative pure
-  | A F Mode              -- Applicative <*>
-  | J F Mode              -- Monad       join
-  | Eps Mode              -- Adjoint     counitTerm
-  | D Mode                -- Cont        lower
-derive instance Eq Mode
-derive instance Generic Mode _
-instance Show Mode where
+type Mode = List Op
+data Op
+  = FA | BA | PM | FC -- Base        > < & .
+  | MR F | ML F       -- Functor     fmap
+  | UR F | UL F       -- Applicative pure
+  | A F               -- Applicative <*>
+  | J F               -- Monad       join
+  | Eps               -- Adjoint     counit
+  | D                 -- Cont        lowerderive instance Eq Mode
+derive instance Eq Op
+derive instance Generic Op _
+instance Show Op where
   show = case _ of
-    FA      -> ">"
-    BA      -> "<"
-    PM      -> "&"
-    FC      -> "."
-    MR _ op -> "R, "   <> show op
-    ML _ op -> "L, "   <> show op
-    UL _ op -> "UL, "  <> show op
-    UR _ op -> "UR, "  <> show op
-    A  _ op -> "A, "   <> show op
-    J  _ op -> "J, "   <> show op
-    Eps op  -> "Eps, " <> show op
-    D op    -> "D, "   <> show op
+    FA   -> ">"
+    BA   -> "<"
+    PM   -> "&"
+    FC   -> "."
+    MR _ -> "R"
+    ML _ -> "L"
+    UL _ -> "UL"
+    UR _ -> "UR"
+    A _  -> "A"
+    J _  -> "J"
+    Eps  -> "Eps"
+    D    -> "D"
 
-modeAsList :: Int -> Mode -> String
-modeAsList v = case _ of
-  MR f op -> "R"    <> showF f <> "," <> modeAsList v op
-  ML f op -> "L"    <> showF f <> "," <> modeAsList v op
-  UL f op -> "UL"   <> showF f <> "," <> modeAsList v op
-  UR f op -> "UR"   <> showF f <> "," <> modeAsList v op
-  A  f op -> "A,"   <> showF f <> "," <> modeAsList v op
-  J  f op -> "J,"   <> showF f <> "," <> modeAsList v op
-  Eps op  -> "Eps," <> modeAsList v op
-  D op    -> "D,"   <> modeAsList v op
-  _       -> ""
-  where
-    showF = case v of
-      0 -> const ""        -- just the unparameterized combinators
-      1 -> showNoIndices   -- the combinators parameterized by Effect constructor
-      _ -> show            -- the combinators parameterized by full indexed Effect type
+-- modeAsList :: Int -> Mode -> String
+-- modeAsList v = case _ of
+--   MR f op -> "R"    <> showF f <> "," <> modeAsList v op
+--   ML f op -> "L"    <> showF f <> "," <> modeAsList v op
+--   UL f op -> "UL"   <> showF f <> "," <> modeAsList v op
+--   UR f op -> "UR"   <> showF f <> "," <> modeAsList v op
+--   A  f op -> "A,"   <> showF f <> "," <> modeAsList v op
+--   J  f op -> "J,"   <> showF f <> "," <> modeAsList v op
+--   Eps op  -> "Eps," <> modeAsList v op
+--   D op    -> "D,"   <> modeAsList v op
+--   _       -> ""
+--   where
+--     showF = case v of
+--       0 -> const ""        -- just the unparameterized combinators
+--       1 -> showNoIndices   -- the combinators parameterized by Effect constructor
+--       _ -> show            -- the combinators parameterized by full indexed Effect type
 
 
 {- Type classes -}
@@ -226,6 +228,7 @@ instance Commute F where
     R _   -> true
     W w   -> commutative w
     C _ _ -> false
+    U     -> false
 
 
 {- Type-driven combination -}
@@ -259,36 +262,40 @@ synsem = execute <<< go
         pure do -- memo block
           combos <- combine lty rty
           pure do -- list block
-            (op ^ ty) <- combos
-            singleton $ Proof (lstr <> " " <> rstr) (Comb op lval rval) ty (lp:rp:Nil)
+            (op ^ d ^ ty) <- combos
+            let cval = Comb op (eval $ d % semTerm lval % semTerm rval)
+            pure $ Proof (lstr <> " " <> rstr) cval ty (lp:rp:Nil)
 
 prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
 prove cfg lex input = concatMap synsem <$> parse cfg lex input
 
 -- The basic unEffectful modes of combination (add to these as you like)
-modes :: Ty -> Ty -> List (Mode ^ Ty)
+modes :: Ty -> Ty -> List (Mode ^ Term ^ Ty)
 modes = case _,_ of
-  a :-> b , r       | a == r -> pure (FA ^ b)
-  l       , a :-> b | l == a -> pure (BA ^ b)
-  a :-> T , b :-> T | a == b -> pure (PM ^ (a :-> T))
+  a :-> b , r       | a == r -> pure (pure FA ^ opTerm FA ^ b)
+  l       , a :-> b | l == a -> pure (pure BA ^ opTerm BA ^ b)
+  a :-> T , b :-> T | a == b -> pure (pure PM ^ opTerm PM ^ (a :-> T))
   _       , _                -> Nil
 
 -- Make sure that two Effects can compatibly be sequenced
 -- (only relevant to A and J modes)
 combineFs :: F -> F -> List F
 combineFs = case _,_ of
-  S    , S                -> pure $ S
-  R i  , R j    | i == j  -> pure $ R i
-  W i  , W j    | i == j  -> pure $ W i
-  C i j, C j' k | j == j' -> pure $ C i k
-  _    , _                -> Nil
+  S     , S                -> pure $ S
+  R i   , R j    | i == j  -> pure $ R i
+  W i   , W j    | i == j  -> pure $ W i
+  C i j , C j' k | j == j' -> pure $ C i k
+  _     , _                -> Nil
 
 combine = curry $ fix (memoize' <<< openCombine)
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
--- openCombine :: Ty -> Ty -> List (Mode ^ Ty)
-openCombine combine (l ^ r) = sweepSpurious <<< join <$>
+openCombine ::
+  forall m. Monad m
+  => ((Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty)))
+  ->  (Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty))
+openCombine combine (l ^ r) = map (\(m^d^t) -> (m ^ eval d ^ t)) <<< concat <$>
 
   -- for starters, try the basic modes of combination
   pure (modes l r)
@@ -296,98 +303,108 @@ openCombine combine (l ^ r) = sweepSpurious <<< join <$>
   -- then if the left daughter is Functorial, try to find a mode
   -- `op` that would combine its underlying type with the right daughter
   <+> case l of
-        Eff f a        | functor f -> combine (a^r) <#> map \(op ^ c) -> (ML f op ^ Eff f c)
-        _                          -> pure Nil
+    Eff f a | functor f ->
+      combine (a ^ r) <#>
+      map \(op^d^c) -> (ML f:op ^ opTerm (ML f) % d ^ Eff f c)
+    _ -> pure Nil
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
-        Eff f b        | functor f -> combine (l^b) <#> map \(op ^ c) -> (MR f op ^ Eff f c)
-        _                          -> pure Nil
+    Eff f a | functor f ->
+      combine (l ^ a) <#>
+      map \(op^d^c) -> (MR f:op ^ opTerm (MR f) % d ^ Eff f c)
+    _ -> pure Nil
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
-        Eff f a :-> b  | appl f    -> combine ((a :-> b)^r) <#> map \(op ^ c) -> (UR f op ^ c)
-        _                          -> pure Nil
+    Eff f a :-> b | appl f ->
+      combine (a :-> b ^ r) <#>
+      concatMap \(op^d^c) -> let m = UR f
+                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
+    _ -> pure Nil
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
-        Eff f a :-> b  | appl f    -> combine (l^(a :-> b)) <#> map \(op ^ c) -> (UL f op ^ c)
-        _                          -> pure Nil
+    Eff f a :-> b | appl f ->
+      combine (l ^ a :-> b) <#>
+      concatMap \(op^d^c) -> let m = UL f
+                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
+    _ -> pure Nil
 
   -- additionally, if both daughters are Applicative, then see if there's
   -- some mode `op` that would combine their underlying types
-  <+> case l,r of
-        Eff f a, Eff g b | appl f  -> combine (a^b) <#> lift2 (\h (op ^ c) -> (A h op ^ Eff h c)) (combineFs f g)
-        _      , _                 -> pure Nil
+  <+> case (l ^r) of
+    (Eff f a ^ Eff g b) | appl f ->
+      combine (a ^ b) <#>
+      lift2 (\h (op^d^c) -> let m = A h
+                              in (m:op ^ opTerm m % d ^ Eff h c)) (combineFs f g)
+    _ -> pure Nil
 
-  -- if the left daughter is left adjoint to the right, tthen cancel out the
-  -- adjoint effects and try to combine the underlying types
-  <+> case l,r of
-        Eff f a, Eff g b | adjoint f g -> combine (a^b) <#> map \(op ^ c) -> (Eps op ^ c)
-        _      , _                     -> pure Nil
+  -- if the left daughter is left adjoint to the right daughter, cancel them out
+  -- and fina a mode `op` that will combine their underlying types
+  -- note that the asymmetry of adjunction rules out xover
+  -- there remains some derivational ambiguity:
+  -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+  <+> case (l ^r) of
+    (Eff f a ^ Eff g b) | adjoint f g ->
+      combine (a ^ b) <#>
+      map \(op^d^c) -> let m = Eps
+                        in (m:op ^ opTerm m % d ^ c)
+    _ -> pure Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
-  -- joined (J), or canceled out (Eps)
+  -- joined (J)
   <**> pure (addD : {-addEps :-} addJ : pure : Nil)
 
-addJ :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addJ   (op ^ t) | Eff f (Eff g a) <- t
-                , monad f
-                  = combineFs f g <#> \h -> (J h op ^ Eff h a)
-                | otherwise = Nil
+addJ :: (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
+addJ = case _ of
+  (op ^ d ^ Eff f (Eff g a)) | monad f, norm op (J f) ->
+    combineFs f g <#> \h -> (J h:op ^ opTerm (J h) % d ^ Eff h a)
+  _ -> Nil
 
--- addEps :: (Mode ^ Ty) -> List (Mode ^ Ty)
--- addEps (op ^ t) | Eff f (Eff g a) <- t
---                 , adjoint f g
---                 , ML _ (MR _ _) <- op
---                   = pure (Eps op ^ a)
---                 | otherwise = Nil
+addD :: (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
+addD = case _ of
+  (op ^ d ^ Eff (C i a) a') | a == a', norm op D ->
+    pure (D:op ^ opTerm D % d ^ i)
+  _ -> Nil
 
-addD :: (Mode ^ Ty) -> List (Mode ^ Ty)
-addD   (op ^ t) | Eff (C i a) a' <- t
-                , a == a'
-                  = pure (D op ^ i)
-                | otherwise = Nil
+norm :: Mode -> Op -> Boolean
+norm op = case _ of
+  UR f -> not $ (op `startsWith`_) `anyOf` [[MR f], [D, MR f]]
+  UL f -> not $ (op `startsWith`_) `anyOf` [[ML f], [D, ML f]]
+  D    -> not $ (op `startsWith`_) `anyOf`
+    (map (\m -> [m  U, D, m  U]) [MR, ML]
+           <> [ [ML U, D, MR U]
+              , [A  U, D, MR U]
+              , [ML U, D, A  U]
+              , [Eps]
+              ])
+  J f -> not $ (op `startsWith` _) `anyOf`
+    -- avoid higher-order detours for all J-able effects
+    (lift2 (\k m -> [m  f] <> k <> [m  f]) [[J f], []] [MR, ML]
+    <> map (\k -> [ML f] <> k <> [MR f])  [[J f], []]
+    <> map (\k -> [A  f] <> k <> [MR f])  [[J f], []]
+    <> map (\k -> [ML f] <> k <> [A  f])  [[J f], []]
+    <> [ [Eps] ]
+    -- and all (non-split) inverse scope for commutative effects
+    <> if commutative f
+          then    [ [MR f, A  f] ]
+               <> [ [A  f, ML f] ]
+               <> map (\k -> [MR f] <> k <> [ML f]) [[J f], []]
+               <> map (\k -> [A  f] <> k <> [A  f]) [[J f], []]
+          else [])
+  _ -> true
 
-sweepSpurious :: List (Mode ^ Ty) -> List (Mode ^ Ty)
+  where
+    startsWith Nil _         = false
+    startsWith _  Nil        = true
+    startsWith (x:xs) (y:ys) = x == y && startsWith xs ys
+    anyOf p as = any p (map fromFoldable as)
+
+sweepSpurious :: List (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
 sweepSpurious ops = foldr filter ops
   [
-  -- eliminate unit/map duplication (UR,MR == MR,UR)
-    \(m ^ _) -> not $ m `contains 0` UR S (MR S FA)
-                                   --   ^     ^  the Effects on these modes are
-                                   --            ignored by `contains 0`
-
-  -- avoid higher-order detours
-  , \(m ^ _) -> not $ any (m `contains 0` _) $
-
-         ( (J S:identity:Nil) >>= \k -> (MR:ML:Nil) >>= \m -> pure $ J S (m S (k (m S FA))) )
-      <> ( (J S:identity:Nil) <#> \k -> J S (ML S (k (MR S FA))) )
-      <> ( (J S:identity:Nil) <#> \k -> J S (A  S (k (MR S FA))) )
-      <> ( (J S:identity:Nil) <#> \k -> J S (ML S (k (A  S FA))) )
-
-  -- for commutative effects, all Js immediately over ops of the same effect are detours
-  , \(m ^ _) -> not $ any (m `contains 2` _) $
-
-         ( commuter <#> \f -> J f (MR f    (A  f FA) ) )
-      <> ( commuter <#> \f -> J f (A  f    (ML f FA) ) )
-      <> ( commuter >>= \f -> (J f:identity:Nil) >>= \k -> pure $ J f (MR f (k (ML f FA))) )
-      <> ( commuter >>= \f -> (J f:identity:Nil) >>= \k -> pure $ J f (A  f (k (A  f FA))) )
-
-  -- avoid higher-order detours given D
-  , \(m ^ _) -> not $ any (m `contains 0` _) $
-
-         ( (MR:ML:Nil) <#> \m -> D (m  S (D (m  S FA))) )
-      <> ( pure $ D (ML S (D (MR S FA))) )
-      <> ( pure $ D (A  S (D (MR S FA))) )
-      <> ( pure $ D (ML S (D (A  S FA))) )
-
-  -- eliminate eps/J(D) duplication (Eps,J(D) == J(D),Eps)
-  , \(m ^ _) -> not $ any (m `contains 0` _) $
-
-         (        J S (Eps FA) )
-       : ( pure $ D (Eps FA)   )
-
   -- -- EXPERIMENTAL: W's only take surface scope over W's
   -- , \(m ^ _) -> not $ any (m `contains 1` _) $
 
@@ -398,26 +415,26 @@ sweepSpurious ops = foldr filter ops
 
   --        ( scopetakers >>= \f -> (ML f (MR (W E) FA) : MR f (ML (W E) FA) : Nil) )
   ]
-  where
-    contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack
-    commuter = filter commutative atomicEffects
-    scopetakers = atomicEffects >>= case _ of
-      W _ -> Nil
-      R _ -> Nil
-      x   -> pure x
+  -- where
+  --   contains n haystack needle = DS.contains (DS.Pattern $ modeAsList n needle) $ modeAsList n haystack
+  --   commuter = filter commutative atomicEffects
+  --   scopetakers = atomicEffects >>= case _ of
+  --     W _ -> Nil
+  --     R _ -> Nil
+  --     x   -> pure x
 
 
 {- Mapping semantic values to (un-normalized) Lambda_calc terms -}
 
 semTerm :: Sem -> Term
-semTerm (Lex w)       = w
-semTerm (Comb op l r) = modeTerm op % semTerm l % semTerm r
+semTerm (Lex w)    = w
+semTerm (Comb m d) = d
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
 -- that we can display in various forms
-modeTerm :: Mode -> Term
-modeTerm = case _ of
+opTerm :: Op -> Term
+opTerm = case _ of
           -- \l r -> l r
   FA      -> l ! r ! l % r
 
@@ -431,31 +448,31 @@ modeTerm = case _ of
   FC      -> l ! r ! a ! l % (r % a)
 
           -- \l R -> (\a -> op l a) <$> R
-  MR f op -> l ! r ! fmapTerm f % (a ! (modeTerm op % l % a)) % r
+  MR f -> op ! l ! r ! fmapTerm f % (a ! (op % l % a)) % r
 
-          -- \L r -> (\a -> op a r) <$> L
-  ML f op -> l ! r ! fmapTerm f % (a ! (modeTerm op % a % r)) % l
+       --    \L r -> (\a -> op a r) <$> L
+  ML f -> op ! l ! r ! fmapTerm f % (a ! (op % a % r)) % l
 
-          -- \l R -> op (\a -> R (pure a)) l
-  UL f op -> l ! r ! modeTerm op % (a ! r % (pureTerm f % a)) % l
+       --    \l R -> op (\a -> R (pure a)) l
+  UL f -> op ! l ! r ! op % (a ! r % (pureTerm f % a)) % l
 
-          -- \L r -> op (\a -> L (pure a)) r
-  UR f op -> l ! r ! modeTerm op % (a ! l % (pureTerm f % a)) % r
+       --    \L r -> op (\a -> L (pure a)) r
+  UR f -> op ! l ! r ! op % (a ! l % (pureTerm f % a)) % r
 
-          -- \L R -> op <$> L <*> R
-  A  f op -> l ! r ! joinTerm f % (fmapTerm f % (a ! fmapTerm f % (modeTerm op % a) % r) % l)
+       --    \L R -> op <$> L <*> R
+  A  f -> op ! l ! r ! joinTerm f % (fmapTerm f % (a ! fmapTerm f % (op % a) % r) % l)
 
-          -- \l r a -> op l (r a) a
-  -- Z op    -> l ! r ! a ! modeTerm op % l % (r % a) % a
+       --    \l r a -> op l (r a) a
+  -- Z    op ! -> l ! r ! a ! modeTerm op % l % (r % a) % a
 
-          -- \l r -> join (op l r)
-  J  f op -> l ! r ! joinTerm f % (modeTerm op % l % r)
+       --    \l r -> join (op l r)
+  J  f -> op ! l ! r ! joinTerm f % (op % l % r)
 
           -- \l r -> counit $ (\a -> op a <$> r) <$> l
-  Eps op  -> l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (modeTerm op % a) % r) % l)
+  Eps  -> op ! l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (op % a) % r) % l)
 
           -- \l r -> op l r id
-  D op    -> l ! r ! modeTerm op % l % r % (a ! a)
+  D    -> op ! l ! r ! op % l % r % (a ! a)
 
 l = make_var "l"
 r = make_var "r"
@@ -466,24 +483,27 @@ k = make_var "k"
 m = make_var "m"
 mm = make_var "mm"
 c = make_var "c"
-o = make_var "o"
+op = make_var "op"
 
 fmapTerm = case _ of
   S     -> k ! m ! set ( (a ! k % (get_rng m % a)) |? get_dom m )
   R _   -> k ! m ! g ! k % (m % g)
   W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
+  _     -> k ! m ! make_var "fmap" % k % m
 pureTerm = case _ of
   S     -> a ! set ( (a ! a) |? a )
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
+  _     -> a ! make_var "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
   S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
   R _   -> mm ! g ! mm % g % g
   W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
+  _     -> mm ! make_var "join" % mm
 mzeroTerm = case _ of
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"

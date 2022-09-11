@@ -7,21 +7,35 @@
 -- Sets are encoded as abstractions with explicit domains:
 -- {f x | x <- dom} ~~> Set dom (\x -> f x)
 
-module LambdaCalc where
-
-import Prelude
+module LambdaCalc
+  ( eval, evalFinal
+  , lam, (!), (%)
+  , make_var
+  , (|?), set, make_set, get_dom, get_rng, set'
+  , (*), _1, _2
+  -- , a,b,c,x,y,z,f,g,h,p,q
+  , show_term
+  , show_tex
+  , show_hs
+  , enough_vars, unwind, occurs, bump_color
+  , Term(..), VarName
+  ) where
 
 import Control.Monad.Writer
-import Effect.Exception.Unsafe ( unsafeThrow )
 import Data.List
-import Data.String ( replaceAll, Pattern(..), Replacement(..) )
-import Data.Array ( cons )
-import Data.Foldable ( lookup, and )
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
+import Prelude
+import Control.Lazy
+
+
+import Data.Array (cons)
+import Data.Foldable (lookup, and)
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
+import Data.String (replaceAll, Pattern(..), Replacement(..))
+import Effect.Exception.Unsafe (unsafeThrow)
 
 type VColor = Int
 data VarName = VC VColor String
@@ -33,36 +47,50 @@ data Term
 derive instance Eq Term
 derive instance Generic Term _
 
-eval term = eval' term Nil
-eval' t@(Var v) Nil = t
-eval' (Lam v body) Nil = check_eta $ Lam v (eval body)
-eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
-eval' (App t1 t2) stack = eval' t1 (t2:stack)
-eval' t@(Var v) stack = unwind t stack
-eval' e@(Pair t1 t2) stack = case stack of
-  Nil   -> Pair (eval t1) (eval t2)
-  (s:_) -> unsafeThrow ("trying to apply a pair: " <> show e <> " to " <> show s)
-eval' (Fst p) stack =
-  case eval p of
-    (Pair t1 t2)  -> eval' t1 stack
-    t             -> unwind (Fst t) stack
-eval' (Snd p) stack =
-  case eval p of
-    (Pair t1 t2)  -> eval' t2 stack
-    t             -> unwind (Snd t) stack
-eval' e@(Set t1 t2) stack = case stack of
-  Nil -> Set (eval t1) (eval t2)
-  (s:_) -> unsafeThrow ("trying to apply a set: " <> show e <> " to " <> show s)
-eval' e@(Domain s) stack = case stack of
-  Nil   ->
-    case eval s of
-      (Set t1 t2)  -> t1
-      t            -> t
-  (s:_) -> unsafeThrow ("trying to apply the domain of a set: " <> show e <> " to " <> show s)
-eval' (Range s) stack =
-  case eval s of
-    (Set t1 t2)  -> eval' t2 stack
-    t            -> eval' (a ! a) stack
+
+evalFinal term = fix (openFinal <<< openEval) Nil term
+
+openFinal eval' s e = case e,s of
+  (Domain t0) , Nil     -> case eval' Nil t0 of
+    (Set t1 _)          -> eval' Nil t1
+    t                   -> t
+  (Range t0)  , _       -> case eval' Nil t0 of
+    (Set _ t2)          -> eval' s t2
+    _                   -> eval' s (a ! a)
+  _           , _       -> eval' s e
+
+eval term = fix openEval Nil term
+
+openEval eval' s e = case e,s of
+  (Var v)      , Nil    -> e
+  (Var v)      , _      -> unwind e s
+  (Lam v body) , Nil    -> check_eta $ Lam v (ev body)
+  (Lam v body) , (t:ts) -> eval' ts (subst body v t)
+  (App t1 t2)  , _      -> eval' (t2:s) t1
+  (Pair t1 t2) , Nil    -> Pair (ev t1) (ev t2)
+  (Pair _ _)   , (a:_)  -> unsafeThrow ("trying to apply a pair: "
+                                        <> show e <> " to " <> show a)
+  (Fst t0)     , _      -> case ev t0 of
+    (Pair t1 _)         -> eval' s t1 -- might not need eval' here
+    t                   -> unwind (Fst t) s
+  (Snd t0)     , _      -> case ev t0 of
+    (Pair _ t2)         -> eval' s t2 -- or here
+    t                   -> unwind (Snd t) s
+  (Set t1 t2)  , Nil    -> Set (ev t1) (ev t2)
+  (Set _ _)    , (a:_)  -> unsafeThrow ("trying to apply a set: "
+                                        <> show e <> " to " <> show a)
+  (Domain t0)  , Nil    -> case ev t0 of
+    (Set t1 _)          -> ev t1 -- or here
+    t                   -> Domain t
+  (Domain _)   , (a:_)  -> unsafeThrow ("trying to apply a dom: "
+                                        <> show e <> " to " <> show a)
+  (Range t0)   , _      -> case ev t0 of
+    (Set _ t2)          -> eval' s t2
+    t                   -> unwind (Range t) s
+  where
+    unwind t Nil = t
+    unwind t (t1:rest) = unwind (App t $ eval' Nil t1) rest
+    ev = eval' Nil
 
 unwind t Nil = t
 unwind t (t1:rest) = unwind (App t $ eval t1) rest
@@ -223,9 +251,6 @@ enough_vars t = go t $ map (VC 0) $ "s":"t":"u":"v":"w":"a":"b":"c":Nil
     go (Pair t1 t2) (v:vars) = v : go t2 vars
     go _ (v:vars) = v:Nil
 
-applyAll t Nil  = t
-applyAll (v:vs) = applyAll (t % v) vs
-
 showRight = case _ of
   (App _ _) -> parens
   (Fst _)   -> parens
@@ -262,10 +287,10 @@ show_formatted_term form term depth
             unrollDom t vs apps = let (Tuple v rest) = getvar vs in
               case t of
                 Pair t1 t2 ->
-                  showt v <> form.elem' <> showt (eval $ applyAll t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
+                  showt v <> form.elem' <> showt (eval $ unwind t1 apps) <> ", " <> unrollDom t2 rest (v:apps)
                 _ ->
-                  showt v <> form.elem' <> showt (eval $ applyAll t apps)
-         in form.lb' <> showt' (eval $ applyAll cond vars) <> form.mid' <> unrollDom dom vars Nil <> form.rb'
+                  showt v <> form.elem' <> showt (eval $ unwind t apps)
+         in form.lb' <> showt' (eval $ unwind cond vars) <> form.mid' <> unrollDom dom vars Nil <> form.rb'
       Domain p -> form.dom' <> showRight p (showt p)
       Range p -> form.rng' <> showRight p (showt p)
     showt' term = show_formatted_term form term (depth - 1)
@@ -277,10 +302,10 @@ default_term_form =
   }
 
 show_term term = show_formatted_term default_term_form term 100
-show_hs = show_formatted_term hs_form
+show_hs term = show_formatted_term hs_form term 100
   where
     hs_form = default_term_form { lam' = "\\textbackslash ", arr' = " -> ", la' = "(", ra' = ")" }
-show_tex = show_formatted_term tex_form
+show_tex term = show_formatted_term tex_form term 100
   where
     tex_form =
       { lam': "\\lambda ", arr': ". "
