@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE TupleSections #-}
 
 module TDParseCFG where
 
@@ -28,9 +29,9 @@ data Cat
 -- semantic types
 infixr :->
 data Ty
-  = E | T           -- Base types
+  = E | T       -- Base types
   | Ty :-> Ty   -- Functions
-  | Eff F Ty      -- F-ectful
+  | Eff F Ty    -- F-ectful
   deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
@@ -52,10 +53,11 @@ showNoIndices = \case
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
+  U     -> "_"
 
 atomicTypes = [E,T]
 atomicEffects =
-  pure S ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ (liftM2 C atomicTypes atomicTypes)
+  pure S ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ liftM2 C atomicTypes atomicTypes
 
 -- convenience constructors
 effS     = Eff S
@@ -112,8 +114,8 @@ protoParse cfg f phrase             = concat <$> mapM help (bisect phrase)
 -- and throwing away the category information
 parse :: CFG -> Lexicon -> String -> Maybe [Syn]
 parse cfg lex input = do
-  ws <- sequence . map (\s -> (s,) <$> lookup s lex) $ words input
-  return $ snd <$> memo (protoParse cfg) (0, (length ws - 1), ws)
+  ws <- mapM (\s -> (s,) <$> lookup s lex) $ words input
+  return $ snd <$> memo (protoParse cfg) (0, length ws - 1, ws)
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
@@ -182,6 +184,7 @@ instance Commute F where
     R _   -> True
     W w   -> commutative w
     C _ _ -> False
+    U     -> False
 
 
 {- Type-driven combination -}
@@ -206,14 +209,14 @@ synsem = execute . go
     go (Branch l r) = do -- memo block
       lefts  <- go l
       rights <- go r
-      fmap concat $ sequence do -- list block
+      concat <$> sequence do -- list block
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
           combos <- combine lty rty
           return do -- list block
             (op, d, ty) <- combos
-            let cval = Comb op (eval $ d %  semTerm lval % semTerm rval)
+            let cval = Comb op (eval $ d % semTerm lval % semTerm rval)
             return $ Proof (lstr ++ " " ++ rstr) cval ty [lp, rp]
 
 prove :: CFG -> Lexicon -> String -> Maybe [Proof]
@@ -222,20 +225,20 @@ prove cfg lex input = concatMap synsem <$> parse cfg lex input
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Ty -> Ty -> [(Mode, Term, Ty)]
 modes = curry \case
-  (a :-> b , r      ) | a == r -> [([FA], opTerm FA, b)]
-  (l       , a :-> b) | l == a -> [([BA], opTerm BA, b)]
-  (a :-> T , b :-> T) | a == b -> [([PM], opTerm PM, a :-> T)]
-  (_       , _      )          -> []
+  (,) (a :-> b) r         | a == r -> [([FA], opTerm FA, b)]
+  (,) l         (a :-> b) | l == a -> [([BA], opTerm BA, b)]
+  (,) (a :-> T) (b :-> T) | a == b -> [([PM], opTerm PM, a :-> T)]
+  (,) _         _                  -> []
 
 -- Make sure that two Effects can compatibly be sequenced
 -- (only relevant to A and J modes)
 combineFs :: F -> F -> [F]
 combineFs = curry \case
-  (S    , S     )           -> [S]
-  (R i  , R j   ) | i == j  -> [R i]
-  (W i  , W j   ) | i == j  -> [W i]
-  (C i j, C j' k) | j == j' -> [C i k]
-  _                         -> []
+  (,) S       S                  -> [S]
+  (,) (R i)   (R j)    | i == j  -> [R i]
+  (,) (W i)   (W j)    | i == j  -> [W i]
+  (,) (C i j) (C j' k) | j == j' -> [C i k]
+  (,) _        _                 -> []
 
 combine = curry $ fix (memoize' . openCombine)
 
@@ -255,31 +258,31 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
   <+> case l of
     Eff f a | functor f ->
       combine (a,r) <&>
-      map \(op,d,c) -> (ML f:op, (opTerm (ML f) % d), Eff f c)
+      map \(op,d,c) -> (ML f:op, opTerm (ML f) % d, Eff f c)
     _ -> return []
 
   -- vice versa if the right daughter is Functorial
   <+> case r of
     Eff f a | functor f ->
       combine (l,a) <&>
-      map \(op,d,c) -> (MR f:op, (opTerm (MR f) % d), Eff f c)
+      map \(op,d,c) -> (MR f:op, opTerm (MR f) % d, Eff f c)
     _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
   -- `op` that would combine it with a `pure`ified right daughter
   <+> case l of
     Eff f a :-> b | appl f ->
-      combine ((a :-> b),r) <&>
+      combine (a :-> b,r) <&>
       concatMap \(op,d,c) -> let m = UR f
-                              in [(m:op, (opTerm m % d), c) | norm op m]
+                              in [(m:op, opTerm m % d, c) | norm op m]
     _ -> return []
 
   -- vice versa if the right daughter requests something Functorial
   <+> case r of
     Eff f a :-> b | appl f ->
-      combine (l,(a :-> b)) <&>
+      combine (l,a :-> b) <&>
       concatMap \(op,d,c) -> let m = UL f
-                              in [(m:op, (opTerm m % d), c) | norm op m]
+                              in [(m:op, opTerm m % d, c) | norm op m]
     _ -> return []
 
   -- additionally, if both daughters are Applicative, then see if there's
@@ -288,7 +291,7 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
     (Eff f a, Eff g b) | appl f ->
       combine (a, b) <&>
       liftM2 (\h (op,d,c) -> let m = A h
-                              in (m:op, (opTerm m % d), Eff h c)) (combineFs f g)
+                              in (m:op, opTerm m % d, Eff h c)) (combineFs f g)
     _ -> return []
 
   -- if the left daughter is left adjoint to the right daughter, cancel them out
@@ -300,11 +303,11 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
     (Eff f a, Eff g b) | adjoint f g ->
       combine (a, b) <&>
       map \(op,d,c) -> let m = Eps
-                        in (m:op, (opTerm m % d), c)
+                        in (m:op, opTerm m % d, c)
     _ -> return []
 
   -- finally see if the resulting types can additionally be lowered (D),
-  -- joined (J), or canceled out (Eps)
+  -- joined (J)
   <**> return [addD, addJ, return]
 
   where
@@ -316,13 +319,13 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
 addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
 addJ = \case
   (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
-    [(J h:op, (opTerm (J h) % d), Eff h a) | h <- combineFs f g]
+    [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
   _ -> []
 
 addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
 addD = \case
   (op, d, Eff (C i a) a') | a == a', norm op D ->
-    [(D:op, (opTerm D % d), i)]
+    [(D:op, opTerm D % d, i)]
   _ -> []
 
 -- these filters prevent generating "spurious" derivations, which are
@@ -331,7 +334,6 @@ norm op = \case
   -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
   UR f -> not $ (op `startsWith`) `anyOf` [[MR f], [D, MR f]]
   UL f -> not $ (op `startsWith`) `anyOf` [[ML f], [D, ML f]]
-
   D    -> not $ (op `startsWith`) `anyOf`
        [ [m U, D, m U] | m <- [MR, ML] ]
     ++ [ [ML U, D, MR U]
@@ -352,6 +354,8 @@ norm op = \case
     ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J f], []] ]
     ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J f], []] ]
 
+  _ -> True
+
   where
     infixl 4 `anyOf`
     anyOf = any
@@ -365,6 +369,7 @@ semTerm (Lex w)    = w
 semTerm (Comb m d) = d
 
 modeTerm :: Mode -> Term
+modeTerm [] = make_var "disaster"
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x % modeTerm xs
 
@@ -429,17 +434,20 @@ fmapTerm = \case
   R _   -> k ! m ! g ! k % (m % g)
   W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
+  _     -> k ! m ! make_var "fmap" % k % m
 pureTerm = \case
   S     -> a ! set ( (a ! a) |? a )
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
+  _     -> a ! make_var "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = \case
   S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
   R _   -> mm ! g ! mm % g % g
   W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
+  _     -> mm ! make_var "join" % mm
 mzeroTerm = \case
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"

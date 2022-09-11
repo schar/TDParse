@@ -14,6 +14,8 @@ import Text.PrettyPrint hiding (Mode, cat)
 
 {- Various pretty printers -}
 
+arrow = " -> "
+
 prettyTy :: Doc -> Ty -> Doc
 prettyTy a = \case
   E           -> "e"
@@ -23,6 +25,10 @@ prettyTy a = \case
     case t1 of
       t3 :-> t4 -> parens (prettyTy a t1) <> a <> prettyTy a t2
       _         -> prettyTy a t1 <> a <> prettyTy a t2
+  where
+    prettyParam a r@(_ :-> _) = parens (prettyTy a r)
+    prettyParam a r@(Eff _ _) = parens (prettyTy a r)
+    prettyParam a r           =         prettyTy a r
 
 prettyF :: Doc -> F -> Doc
 prettyF a = \case
@@ -30,15 +36,12 @@ prettyF a = \case
   R r   -> "R" -- <+> prettyParam a r
   W w   -> "W" -- <+> prettyParam a w
   C r o -> "C" -- <+> prettyParam a r <+> prettyParam a o
+  U     -> "_"
 
-prettyParam a r@(t1 :-> t2) = parens (prettyTy a r)
-prettyParam a r@(Eff f t)   = parens (prettyTy a r)
-prettyParam a r             = prettyTy a r
-
-showType :: Doc -> Ty -> String
-showType a = show . prettyTy a
-
-arrow = " -> "
+prettyVal :: Bool -> (Term -> String) -> Sem -> Doc
+prettyVal norm disp v
+  | norm      = text $ disp (evalFinal $ semTerm v)
+  | otherwise = text $ show v
 
 prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
@@ -71,12 +74,6 @@ prettyOp = \case
 prettyMode :: Mode -> Doc
 prettyMode [] = empty
 prettyMode (x:xs) = prettyOp x <+> prettyMode xs
-
-prettyVal :: Bool -> (Term -> String) -> Sem -> Doc
-prettyVal norm disp v
-  | norm      = text $ disp (evalFinal $ semTerm v)
-  | otherwise = text $ show v
-
 
 -- Proofs displayed as trees with normalization controlled by `norm`
 -- Requires package forest with a command \comb{} defined to format modes
@@ -136,6 +133,12 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       _ -> "\\AXC{wrong number of daughters}"
+
+showMode :: Mode -> String
+showMode mode = intercalate ", " (map show mode)
+
+showTy :: Doc -> Ty -> String
+showTy a = show . prettyTy a
 
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = show . (<> "\n\n") . disp

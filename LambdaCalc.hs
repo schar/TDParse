@@ -1,4 +1,6 @@
+{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 -- | The following is adapted from Oleg Kiselyov's normal order
 -- lambda calculator:
@@ -18,6 +20,7 @@ module LambdaCalc
     , show_tex
     , show_hs
     , Term
+    , ea
     ) where
 
 import Prelude hiding ((!), (*))
@@ -31,43 +34,43 @@ data Term
   | Set Term Term | Domain Term | Range Term
             deriving Eq -- (,Show)
 
-evalFinal term = evalFinal' term []
-evalFinal' (Domain (Set t1 t2)) [] = t1
-evalFinal' (Domain t) [] = t
-evalFinal' (Range (Set t1 t2)) stack = evalFinal' t2 stack
-evalFinal' (Range t) stack = evalFinal' (a ! a) stack
-evalFinal' t stack = eval' t stack
+eval term = fix openEval [] term
+openEval eval' s e = case (e, s) of
+  (,) (Var v)                   []     -> e
+  (,) (Var v)                   _      -> unwind e s
+  (,) (Lam v body)              []     -> check_eta $ Lam v (ev body)
+  (,) (Lam v body)              (t:ts) -> eval' ts (subst body v t)
+  (,) (App t1 t2)               _      -> eval' (t2:s) t1
+  (,) (Pair t1 t2)              []     -> Pair (ev t1) (ev t2)
+  (,) (Pair _  _ )              (a:_)  -> error ("trying to apply a pair: "
+                                                 ++ show e ++ " to " ++ show a)
+  (,) (Fst (ev -> Pair t1 _))   _      -> eval' s t1 -- might not need eval' here
+  (,) (Fst (ev -> t))           _      -> unwind (Fst t) s
+  (,) (Snd (ev -> Pair _ t2))   _      -> eval' s t2 -- or here
+  (,) (Snd (ev -> t))           _      -> unwind (Snd t) s
+  (,) (Set t1 t2)               []     -> Set (ev t1) (ev t2) 
+  (,) (Set _  _ )               (a:_)  -> error ("trying to apply a set: "
+                                                 ++ show e ++ " to " ++ show a)
+  (,) (Domain (ev -> Set t1 _)) []     -> ev t1 -- or here
+  (,) (Domain (ev -> t))        []     -> Domain t
+  (,) (Domain _)                (a:_)  -> error ("trying to apply a dom: "
+                                                 ++ show e ++ " to " ++ show a)
+  (,) (Range (ev -> Set _ t2))  _      -> eval' s t2
+  (,) (Range (ev -> t))         _      -> unwind (Range t) s
+  where
+    unwind t [] = t
+    unwind t (t1:rest) = unwind (App t $ ev t1) rest
+    ev = eval' []
 
-eval term = eval' term []
-eval' t@(Var v) [] = t
-eval' (Lam v body) [] = check_eta $ Lam v (eval body)
-eval' (Lam v body) (t: rest) = eval' (subst body v t) rest
-eval' (App t1 t2) stack = eval' t1 (t2:stack)
-eval' t@(Var v) stack = unwind t stack
-eval' e@(Pair t1 t2) stack = case stack of
-  []   -> Pair (eval t1) (eval t2)
-  (s:_) -> error ("trying to apply a pair: " ++ show e ++ " to " ++ show s)
-eval' (Fst p) stack =
-  case eval p of
-    (Pair t1 t2)  -> eval' t1 stack
-    t             -> unwind (Fst t) stack
-eval' (Snd p) stack =
-  case eval p of
-    (Pair t1 t2)  -> eval' t2 stack
-    t             -> unwind (Snd t) stack
-eval' e@(Set t1 t2) stack = case stack of
-  [] -> Set (eval t1) (eval t2)
-  (s:_) -> error ("trying to apply a set: " ++ show e ++ " to " ++ show s)
-eval' e@(Domain s) stack = case stack of
-  []   ->
-    case eval s of
-      (Set t1 t2)  -> t1
-      t            -> Domain t
-  (s:_) -> error ("trying to apply the domain of a set: " ++ show e ++ " to " ++ show s)
-eval' (Range s) stack =
-  case eval s of
-    (Set t1 t2)  -> eval' t2 stack
-    t            -> unwind (Range t) stack
+evalFinal term = fix (openFinal . openEval) [] term
+openFinal eval' s e = case (e, s) of
+  (,) (Domain (ev -> Set t1 t2)) [] -> ev t1
+  (,) (Domain (ev -> t))         [] -> t
+  (,) (Range (ev -> Set _ t2))   _  -> eval' s t2
+  (,) (Range _)                  _  -> eval' s (a ! a)
+  (,) _                          _  -> eval' s e
+  where
+    ev = eval' []
 
 unwind t [] = t
 unwind t (t1:rest) = unwind (App t $ eval t1) rest
@@ -81,7 +84,7 @@ subst (Snd p) v st = Snd (subst p v st)
 subst (Set t1 t2) v st = Set (subst t1 v st) (subst t2 v st)
 subst (Domain s) v st = Domain (subst s v st)
 subst (Range s) v st = Range (subst s v st)
-subst (App t1 t2) v st = App (subst t1 v st) $ (subst t2 v st)
+subst (App t1 t2) v st = App (subst t1 v st) (subst t2 v st)
 subst t@(Lam x _) v _ | v == x  = t
 subst (Lam x body) v st = (Lam x' (subst body' v st))
   where
@@ -129,10 +132,13 @@ check_eta (Lam v (App t (Var v')))
   | v == v' && (let (flag,_) = occurs t v in not flag) = t
 check_eta term = term
 
+
+note_reduction :: a -> b -> Writer [(a,b)] ()
 note_reduction label redex = tell [(label,redex)]
 
 mweval term = runWriter (meval' term [])
 
+meval' :: Term -> [Term] -> Writer [(String,Term)] Term
 meval' t@(Var v) [] = return t
 meval' (Lam v body) [] = do { body' <- meval' body []; mcheck_eta $ Lam v body' }
 meval' a@(Lam v body) (t: rest) = do
@@ -215,10 +221,6 @@ enough_vars t = go t $ map (VC 0) ["s","t","u","v","w","a","b","c"]
     go (Pair t1 t2) (v:vars) = v : go t2 vars
     go _ (v:vars) = [v]
 
-applyAll t = \case
-  [] -> t
-  v:vs -> applyAll (t % v) vs
-
 showRight = \case
   (App _ _) -> parens
   (Fst _)   -> parens
@@ -255,10 +257,10 @@ show_formatted_term form term depth
             unrollDom t vs apps = let (v, rest) = getvar vs in
               case t of
                 Pair t1 t2 ->
-                  showt v ++ elem' form ++ showt (eval $ applyAll t1 apps) ++ ", " ++ unrollDom t2 rest (v:apps)
+                  showt v ++ elem' form ++ showt (eval $ unwind t1 apps) ++ ", " ++ unrollDom t2 rest (v:apps)
                 _ ->
-                  showt v ++ elem' form ++ showt (eval $ applyAll t apps)
-         in lb' form ++ showt' (eval $ applyAll cond vars) ++ mid' form ++ unrollDom dom vars [] ++ rb' form
+                  showt v ++ elem' form ++ showt (eval $ unwind t apps)
+         in lb' form ++ showt' (eval $ unwind cond vars) ++ mid' form ++ unrollDom dom vars [] ++ rb' form
       Domain p -> dom' form ++ showRight p (showt p)
       Range p -> rng' form ++ showRight p (showt p)
     showt' term = show_formatted_term form term (depth - 1)
@@ -424,10 +426,26 @@ mweval_tests = and [
    expectd (fst $ mweval $ a ! (x ! a ! x % a) % a)
          (z!z),
    expectd (fst $ mweval $ a ! (x ! b ! x % a) % a)
-         (a!b!a%a)
-   -- , expect (show $ mweval $ a ! (x ! a ! x % a) % a)
-   --        "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
+         (a!b!a%a),
+   expect (fmap (fmap show_term) $ snd $ mweval $ a ! (x ! a ! x % a) % a)
+         [("beta","(\\x. \\a. x a) a"),("eta","\\a1. a a1")],
+   expect (show_term $ evalFinal ea)
+        "[saw t s | s <- person, t <- some (\\a1. and (cat a1) (near s a1))]"
    ]
 
+ea = let a = make_var "a"
+         person = make_var "person"
+         some = make_var "some"
+         a1 = make_var "a1"
+         and' = make_var "and"
+         cat = make_var "cat"
+         near = make_var "near"
+         saw = make_var "saw"
+         b = make_var ""
+      in set (
+           (a ! b ! (saw % ((get_rng (some % (a1 ! (and' % (cat % a1) % (near % a % a1))))) % b) % a))
+         |? person * (a ! (get_dom (some % (a1 ! and' % (cat % a1) % (near % a % (a1))))))
+         )
 all_tests = and [ free_var_tests, alpha_comparison_tests,
                   subst_tests, eval_tests, mweval_tests ]
+
