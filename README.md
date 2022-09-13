@@ -22,4 +22,4 @@ tree output with types and rules:
 <img width="566" alt="image" src="https://user-images.githubusercontent.com/1521291/188498076-b1dfe76a-be6a-4975-9cba-0b4d5539dd58.png">
 </p>
 
-Online version [here](https://schar.github.io/TDParse).
+Online version [here](https://schar.github.io/TDParse). Some notes on the general approach [here](https://simoncharlow.com/esslli/).
