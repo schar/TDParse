@@ -10,6 +10,7 @@ import Data.Maybe
 import Data.Tuple
 import Memo
 import Prelude hiding ((#), (*))
+import Debug
 
 import Control.Alternative (guard)
 import Control.Apply (lift2)
@@ -22,7 +23,7 @@ import Data.Show.Generic (genericShow)
 -- import Data.String as DS
 import Data.String.Utils (words)
 import Data.Traversable (sequence, traverse)
-import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng)
+import LambdaCalc -- (Term(..), eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set, conc)
 import Utils ((<**>), (<+>), (^), type (^))
 
 
@@ -174,31 +175,14 @@ instance Show Op where
     BA   -> "<"
     PM   -> "&"
     FC   -> "."
-    MR _ -> "R"
-    ML _ -> "L"
-    UL _ -> "UL"
-    UR _ -> "UR"
-    A _  -> "A"
-    J _  -> "J"
+    MR f -> "R"  -- <> " " <> show f
+    ML f -> "L"  -- <> " " <> show f
+    UL f -> "UL" -- <> " " <> show f
+    UR f -> "UR" -- <> " " <> show f
+    A f  -> "A"  -- <> " " <> show f
+    J f  -> "J"  -- <> " " <> show f
     Eps  -> "Eps"
     D    -> "D"
-
--- modeAsList :: Int -> Mode -> String
--- modeAsList v = case _ of
---   MR f op -> "R"    <> showF f <> "," <> modeAsList v op
---   ML f op -> "L"    <> showF f <> "," <> modeAsList v op
---   UL f op -> "UL"   <> showF f <> "," <> modeAsList v op
---   UR f op -> "UR"   <> showF f <> "," <> modeAsList v op
---   A  f op -> "A,"   <> showF f <> "," <> modeAsList v op
---   J  f op -> "J,"   <> showF f <> "," <> modeAsList v op
---   Eps op  -> "Eps," <> modeAsList v op
---   D op    -> "D,"   <> modeAsList v op
---   _       -> ""
---   where
---     showF = case v of
---       0 -> const ""        -- just the unparameterized combinators
---       1 -> showNoIndices   -- the combinators parameterized by Effect constructor
---       _ -> show            -- the combinators parameterized by full indexed Effect type
 
 
 {- Type classes -}
@@ -263,6 +247,10 @@ synsem = execute <<< go
           combos <- combine lty rty
           pure do -- list block
             (op ^ d ^ ty) <- combos
+            -- traceM ("left: " <>  show (semTerm lval))
+            -- traceM ("right: " <> show (semTerm rval))
+            -- traceM ("op: " <> show op <> " = " <> show d)
+            -- traceM ("result: " <> show_term (eval $ d % semTerm lval % semTerm rval))
             let cval = Comb op (eval $ d % semTerm lval % semTerm rval)
             pure $ Proof (lstr <> " " <> rstr) cval ty (lp:rp:Nil)
 
@@ -295,7 +283,7 @@ openCombine ::
   forall m. Monad m
   => ((Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty)))
   ->  (Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty))
-openCombine combine (l ^ r) = map (\(m^d^t) -> (m ^ eval d ^ t)) <<< concat <$>
+openCombine combine (l ^ r) = {-map (\(m^d^t) -> (m ^ eval d ^ t)) <<< -}concat <$>
 
   -- for starters, try the basic modes of combination
   pure (modes l r)
@@ -386,7 +374,7 @@ norm op = case _ of
     <> map (\k -> [ML f] <> k <> [MR f])  [[J f], []]
     <> map (\k -> [A  f] <> k <> [MR f])  [[J f], []]
     <> map (\k -> [ML f] <> k <> [A  f])  [[J f], []]
-    <> [ [Eps] ]
+    <> map (\k ->           k <> [Eps] )  [[A f], []] -- safe if no lexical FRFs
     -- and all (non-split) inverse scope for commutative effects
     <> if commutative f
           then    [ [MR f, A  f] ]
@@ -481,6 +469,7 @@ b = make_var "b"
 g = make_var "g"
 k = make_var "k"
 m = make_var "m"
+p = make_var "p"
 mm = make_var "mm"
 c = make_var "c"
 op = make_var "op"
@@ -492,14 +481,15 @@ fmapTerm = case _ of
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
   _     -> k ! m ! make_var "fmap" % k % m
 pureTerm = case _ of
-  S     -> a ! set ( (a ! a) |? a )
+  S     -> a ! make_set a
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
   _     -> a ! make_var "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
-  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  -- S     -> mm ! set ( (p ! get_rng (get_rng mm % (_1 p)) % (_2 p)) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
   W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
@@ -510,3 +500,7 @@ mzeroTerm = case _ of
 mplusTerm = case _ of
   T     -> \p q -> make_var "and" % p % q
   _     -> \_ _ -> make_var "this really shouldn't happen"
+
+left = (Lex (Set (App (Var (VC 0 "some")) (Var (VC 0 "person"))) (Lam (VC 0 "x") (Var (VC 0 "x")))))
+right = (Comb (A S : BA : Nil) (Set (Pair (Dom (App (Var (VC 0 "some")) (Var (VC 0 "cat")))) (Lam (VC 0 "s") (Dom (App (Var (VC 0 "some")) (Var (VC 0 "dog")))))) (Lam (VC 0 "p") (App (App (Var (VC 0 "gave")) (App (Rng (App (Var (VC 0 "some")) (Var (VC 0 "cat")))) (Fst (Spl 1 (Var (VC 0 "p")))))) (App (Rng (App (Var (VC 0 "some")) (Var (VC 0 "dog")))) (Snd (Spl 1 (Var (VC 0 "p")))))))))
+res = eval $ opTerm (A S) % opTerm BA % semTerm left % semTerm right

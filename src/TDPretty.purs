@@ -7,6 +7,7 @@ import LambdaCalc
 import Prelude
 import TDParseCFG
 import Text.Pretty
+import Effect.Exception.Unsafe (unsafeThrow)
 
 import Data.Foldable (sequence_, traverse_)
 import Data.Traversable (sequence)
@@ -49,6 +50,11 @@ prettyF a = case _ of
   C r o -> text "C" -- <+> prettyParam a r <+> prettyParam a o
   U     -> text "_"
 
+prettyVal :: Boolean -> (Term -> String) -> Sem -> Doc
+prettyVal norm disp v
+  | norm      = text $ disp (evalFinal (semTerm v))
+  | otherwise = text $ show (evalFinal (semTerm v))
+
 -- this is painfully duplicative
 displayTy :: forall m. Ty -> Html m
 displayTy ty = HE.span [HA.class' "type"] $ go ty
@@ -89,10 +95,10 @@ displayTerm term depth              = go term
   where
     go = case _ of
       (Var v) ->
-        [ HE.text (show v) ]       -- show the variable regardless of depth
+        [ HE.text (showVar v) ]
       (Lam v body) ->
         [ HE.span [HA.class' "den-punct"] [HE.text "λ"] ]
-        <> [ HE.text (show v) ]
+        <> [ HE.text (showVar v) ]
         <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
         <> go' body
       (App t1 t2) ->
@@ -111,43 +117,46 @@ displayTerm term depth              = go term
       (Snd p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "snd "] ]
         <> displayRight p (go p)
-      e@(Set dom cond) ->
-        let vars' = enough_vars dom
-            occs = map (\s -> occurs e s ^ s) vars'
-            vars = map (\((f^v')^s) -> Var $ if f then bump_color v' s else s) occs
-            getvar vs = fromMaybe (make_var "s") (head vs) ^ fromMaybe Nil (tail vs)
-            unrollDom t vs apps = let (v^rest) = getvar vs in
+      e@(Set _ cond) ->
+        let (dom ^ vars) = unrollDom e var_stock
+            getvar vs = (maybe (make_var "s") Var (head vs)) ^ (fromMaybe Nil (tail vs))
+            showDom t vs = let (v^rest) = getvar vs in
               case t of
-                Pair t1 t2 ->
+                Pair a b ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ unwind t1 apps)
+                  <> go' a
                   <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
-                  <> unrollDom t2 rest (v:apps)
+                  <> showDom b rest
                 _ ->
                   go v
                   <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' (eval $ unwind t apps)
+                  <> go' t
          in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
-            <> go' (eval $ unwind cond vars)
+            <> go' (eval $ cond % (tuple $ map Var vars))
             <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
-            <> unrollDom dom vars Nil
+            <> showDom dom vars
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
-      (Domain p) ->
+      (Dom p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
         <> displayRight p (go p)
-      (Range p) ->
+      (Rng p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "rng "] ]
+        <> displayRight p (go p)
+      (Cct p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text "concat "] ]
+        <> displayRight p (go p)
+      (Spl n p) ->
+        [ HE.span [HA.class' "den-op"] [HE.text $ "splitAt " <> show n <> " "] ]
         <> displayRight p (go p)
 
     go' term = displayTerm term (depth - 1)
 
     displayRight = case _ of
-      (App _ _)  -> parens
-      (Fst _)    -> parens
-      (Snd _)    -> parens
-      (Lam _ _)  -> parens
-      _          -> identity
+      (Set _ _)  -> identity
+      (Pair _ _) -> identity
+      (Var _)    -> identity
+      _          -> parens
 
     displayLeft = case _ of
       (Lam _ _) -> parens
@@ -157,6 +166,19 @@ displayTerm term depth              = go term
       [HE.span [HA.class' "den-punct"] [HE.text "("]]
       <> s
       <> [HE.span [HA.class' "den-punct"] [HE.text ")"]]
+
+prettyProof :: Proof -> Doc
+prettyProof (Proof phrase val ty daughters) =
+  let details =
+        text phrase <> text " :: " <>
+        prettyTy arrow ty <> text " = " <> prettyVal true show_term val
+   in case daughters of -- no unary inferences
+        Nil       -> text "  " <> details
+        (a:b:Nil) -> text "  " <> (vcat $ details : prettyProof a : prettyProof b : Nil)
+        _         -> text "  wrong number of daughters somehow"
+
+
+{- Outputting latex -}
 
 prettyOp :: Op -> Doc
 prettyOp = case _ of
@@ -176,26 +198,6 @@ prettyOp = case _ of
 prettyMode :: Mode -> Doc
 prettyMode Nil = mempty
 prettyMode (x:xs) = prettyOp x <+> prettyMode xs
-
-prettyVal :: Boolean -> (Term -> String) -> Sem -> Doc
-prettyVal norm disp v
-  | norm      = text $ disp (evalFinal (semTerm v))
-  | otherwise = text $ show v
-
-
-prettyProof :: Proof -> Doc
-prettyProof (Proof phrase val ty daughters) =
-  let details =
-        text phrase <> text " :: " <>
-        prettyTy arrow ty <> text " = " <> -- text (show (eval (semTerm val)))
-                                           prettyVal true show_term val
-   in case daughters of -- no unary inferences
-        Nil       -> text "  " <> details
-        (a:b:Nil) -> text "  " <> (vcat $ details : prettyProof a : prettyProof b : Nil)
-        _         -> text "  wrong number of daughters somehow"
-
-
-{- Outputting latex -}
 
 prettyProofTree :: Boolean -> Proof -> Doc
 prettyProofTree norm proof =

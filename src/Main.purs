@@ -49,7 +49,7 @@ init =
   , currentProofs: Just []
   , lex: fromFoldable Demo.lexicon ^ false
   , lexFeedback: Nothing
-  , densOn: false
+  , densOn: true
   }
 
 proofs :: Lexicon -> String -> Maybe (Array Proof)
@@ -64,7 +64,7 @@ update model = case _ of
                         }
 
   PhraseInput (_ ^ s) ->
-                  model -- { currentProofs = Just [] }
+                  model
 
   TypeInput (_ ^ t) ->
     case tyParse t of
@@ -101,10 +101,9 @@ view model =
         [ HE.text $ (if snd (model.lex) then "hide" else "show") <> " lexicon" ]
 
     , HE.span [HA.id "denInput"]
-      [ HE.text $ (if model.densOn then "hide" else "show") <> " meanings"
-      , HE.input [HA.id "den-button", HA.type' "checkbox", HA.onClick ToggleDen]
+      [ HE.text "show meanings"
+      , HE.input [HA.id "den-button", HA.type' "checkbox", HA.onClick ToggleDen, HA.checked true]
       ]
-        -- [ HE.text $ (if model.densOn then "hide" else "show") <> " meanings" ]
 
     , HE.p "current"
        [ HE.text $ "Showing "

@@ -16,6 +16,7 @@ to generate this file without the comments in this block.
   , "arrays"
   , "console"
   , "control"
+  , "debug"
   , "effect"
   , "either"
   , "enums"
@@ -32,7 +33,6 @@ to generate this file without the comments in this block.
   , "stringutils"
   , "transformers"
   , "tuples"
-  , "unsafe-coerce"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

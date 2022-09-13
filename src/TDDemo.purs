@@ -5,7 +5,7 @@ module TDDemo where
 
 import Prelude hiding ((*))
 
-import TDPretty ( showParse )
+import TDPretty -- ( showParse, showParse', pretty )
 import Text.Pretty ( render )
 import TDParseCFG
 import LambdaCalc
@@ -62,8 +62,8 @@ lexicon = map mkLex $
   : ("andE"      ^ pure ( Nothing   ^ Cor  ^ (E :-> E :-> E)                  ))
   : ("with"      {-^ pure ( Nothing   ^ TAdj ^ (E :-> E :-> T)                  )-}
                  ^ pure ( Nothing   ^ TAdv ^ (E :-> (E :-> T) :-> E :-> T)    ))
-  : ("eclo"      ^ pure ( Nothing   ^ Cmp  ^ (effS T :-> T)                   )
-                <> pure ( Nothing   ^ Dmp  ^ (effS T :-> T)                   ))
+  : ("eclo"      ^ pure ( Just eclo ^ Cmp  ^ (effS T :-> T)                   )
+                <> pure ( Just eclo ^ Dmp  ^ (effS T :-> T)                   ))
   : Nil
   where
     first  (a ^ s) f = f a ^ s
@@ -77,10 +77,11 @@ lexicon = map mkLex $
     sc = make_var "s" * (make_var "cat" % make_var "s")
     she = a ! a
     she2 = a ! (a * a)
-    so3 = make_set "person"
+    so3 = make_set (make_var "person")
     so2 = fmapTerm S % she2 % so3
     eo = make_var "everyone"
     eo2 = fmapTerm (C T T) % she2 % eo
+    eclo = make_var "∃"
 
 -- a toy Context-Free Grammar
 productions :: CFG
@@ -122,3 +123,6 @@ s5 = "every dog saw every cat"
 
 -- main :: Effect Unit
 -- main = traverse_ (maybe (logShow "unk") (traverse_ log) <<< showParse productions lexicon) $ s1: s2: s3: s4: s5: Nil
+
+
+test = maybe (log "") (traverse_ log) $ showParse' productions lexicon ((_ == effS T) <<< getProofType) prettyProof "someone3 gave some cat some dog"
