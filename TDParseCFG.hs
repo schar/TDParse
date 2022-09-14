@@ -50,6 +50,29 @@ effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
 
+-- evaluated types (for scope islands)
+-- we care about positive positions only
+evaluated :: Type -> Bool
+evaluated = all evald . pos
+  where
+    evald (Eff (C _ _) _) = False
+    evald _ = True
+
+    pos = \case
+      t@(u :-> v)       -> t : neg u ++ pos v
+      t@(Eff S a)       -> t : pos a
+      t@(Eff (R r) a)   -> t : neg r ++ pos a
+      t@(Eff (W w) a)   -> t : pos w ++ pos a
+      t@(Eff (C i j) a) -> t : pos i ++ neg j ++ pos a
+      t                 -> [t]
+    neg = \case
+      (u :-> v)         ->     pos u ++ neg v
+      (Eff S a)         ->     neg a
+      (Eff (R r) a)     ->     pos r ++ neg a
+      (Eff (W w) a)     ->     neg w ++ neg a
+      (Eff (C i j) a)   ->     neg i ++ pos j ++ neg a
+      _                 -> [ ]
+
 
 {- Syntactic parsing -}
 
@@ -62,6 +85,7 @@ type CFG = Cat -> Cat -> [Cat]
 data Syn
   = Leaf String Type
   | Branch Syn Syn
+  | Island Syn Syn
   deriving (Eq, Show, Ord)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
@@ -78,7 +102,7 @@ protoParse ::
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
 protoParse _   _ (_, _, [sign]) = return [(c, Leaf s t) | (s, c, t) <- sign]
-protoParse cfg f phrase         = concat <$> mapM help (bisect phrase)
+protoParse cfg parser phrase         = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
@@ -86,14 +110,18 @@ protoParse cfg f phrase         = concat <$> mapM help (bisect phrase)
       return ((lo, lo + i - 1, ls), (lo + i, hi, rs))
 
     help (ls, rs) = do
-      parsesL <- f ls
-      parsesR <- f rs
-      return
+      parsesL <- parser ls
+      parsesR <- parser rs
+      return $ makeIsland =<<
         [ (cat, Branch lsyn rsyn)
         | (lcat, lsyn) <- parsesL
         , (rcat, rsyn) <- parsesR
         , cat <- cfg lcat rcat
         ]
+
+    makeIsland = \case
+      (CP, Branch l r) -> [(CP, Island l r)]
+      cs@(_, _)        -> [cs]
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
@@ -188,7 +216,12 @@ synsem :: Syn -> [Proof]
 synsem = execute . go
   where
     go (Leaf s t)   = return [Proof s (Lex s) t []]
-    go (Branch l r) = do -- memo block
+
+    go binary = case binary of
+      (Branch l r) -> goEval (const True) l r
+      (Island l r) -> goEval (evaluated . snd) l r
+
+    goEval b l r = do -- memo block
       lefts  <- go l
       rights <- go r
       fmap concat $ sequence do -- list block
@@ -197,8 +230,9 @@ synsem = execute . go
         return do -- memo block
           combos <- combine lty rty
           return do -- list block
-            (op, ty) <- combos
+            (op, ty) <- filter b combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
+
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Type -> Type -> [(Mode, Type)]
