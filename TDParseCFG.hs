@@ -53,25 +53,13 @@ effC r o = Eff (C r o)
 -- evaluated types (for scope islands)
 -- we care about positive positions only
 evaluated :: Type -> Bool
-evaluated = all evald . pos
-  where
-    evald (Eff (C _ _) _) = False
-    evald _ = True
-
-    pos = \case
-      t@(u :-> v)       -> t : neg u ++ pos v
-      t@(Eff S a)       -> t : pos a
-      t@(Eff (R r) a)   -> t : neg r ++ pos a
-      t@(Eff (W w) a)   -> t : pos w ++ pos a
-      t@(Eff (C i j) a) -> t : pos i ++ neg j ++ pos a
-      t                 -> [t]
-    neg = \case
-      (u :-> v)         ->     pos u ++ neg v
-      (Eff S a)         ->     neg a
-      (Eff (R r) a)     ->     pos r ++ neg a
-      (Eff (W w) a)     ->     neg w ++ neg a
-      (Eff (C i j) a)   ->     neg i ++ pos j ++ neg a
-      _                 -> [ ]
+evaluated = \case
+  E             -> True
+  T             -> True
+  Eff S a       -> evaluated a
+  Eff (R _) a   -> evaluated a
+  Eff (W _) a   -> evaluated a
+  Eff (C _ _) _ -> False
 
 
 {- Syntactic parsing -}
@@ -102,7 +90,7 @@ protoParse ::
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
 protoParse _   _ (_, _, [sign]) = return [(c, Leaf s t) | (s, c, t) <- sign]
-protoParse cfg parser phrase         = concat <$> mapM help (bisect phrase)
+protoParse cfg parser phrase    = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
@@ -112,16 +100,15 @@ protoParse cfg parser phrase         = concat <$> mapM help (bisect phrase)
     help (ls, rs) = do
       parsesL <- parser ls
       parsesR <- parser rs
-      return $ makeIsland =<<
-        [ (cat, Branch lsyn rsyn)
+      return $
+        [ (cat, makeIsland cat lsyn rsyn)
         | (lcat, lsyn) <- parsesL
         , (rcat, rsyn) <- parsesR
         , cat <- cfg lcat rcat
         ]
 
-    makeIsland = \case
-      (CP, Branch l r) -> [(CP, Island l r)]
-      cs@(_, _)        -> [cs]
+    makeIsland CP = Island
+    makeIsland _  = Branch
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
@@ -218,8 +205,8 @@ synsem = execute . go
     go (Leaf s t)   = return [Proof s (Lex s) t []]
 
     go binary = case binary of
-      (Branch l r) -> goEval (const True) l r
-      (Island l r) -> goEval (evaluated . snd) l r
+      Branch l r -> goEval (const True) l r
+      Island l r -> goEval (evaluated . snd) l r
 
     goEval b l r = do -- memo block
       lefts  <- go l
