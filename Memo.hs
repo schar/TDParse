@@ -28,4 +28,9 @@ memoize' f p = gets (lookup p) >>= maybe addkey return
     addkey = mapState (extend $ uncurry (insert p)) $ f p
     extend g w = (fst w, g w) -- sadly comonad not in base
 
+memoizeTag i f p = gets (lookup (i, p)) >>= maybe addkey return
+  where
+    addkey = mapState (extend $ uncurry (insert (i, p))) $ f p
+    extend g w = (fst w, g w) -- sadly comonad not in base
+
 memo' f x = execute (fix (memoize' . f) x)

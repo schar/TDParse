@@ -206,17 +206,18 @@ synsem = execute . go
   where
     go = \case
       Leaf   s   ty -> return [Proof s (Lex s) ty []]
-      Branch l r    -> goWith id l r
-      Island l r    -> goWith (filter $ evaluated . snd) l r
+      Branch l r    -> goWith False id l r
+      Island l r    -> goWith True (filter $ evaluated . snd) l r
+      -- boolean tags for islandhood, to avoid over-memoizing
 
-    goWith f l r = do -- memo block
+    goWith tag handler l r = do -- memo block
       lefts  <- go l
       rights <- go r
       fmap concat $ sequence do -- list block
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
-          combos <- combineWith f lty rty
+          combos <- combineWith tag handler lty rty
           return do -- list block
             (op, ty) <- combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
@@ -240,8 +241,9 @@ combineFs = curry \case
   (C i j, C j' k) | j == j' -> [C i k]
   _                         -> []
 
--- combine = combineWith id
-combineWith f = curry $ fix $ memoize' . ((f <$>) .) . openCombine
+-- combine = combineWith ((), id)
+combineWith tag handler =
+  curry $ fix $ memoizeTag tag . ((handler <$>) .) . openCombine
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
