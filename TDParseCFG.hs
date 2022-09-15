@@ -216,7 +216,7 @@ synsem = execute . go
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
-          combos <- combineWith id lty rty
+          combos <- combineWith f lty rty
           return do -- list block
             (op, ty) <- combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
