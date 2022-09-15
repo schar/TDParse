@@ -54,18 +54,19 @@ prettyProof (Proof phrase val ty daughters) =
 
 prettyOp :: Op -> Doc
 prettyOp = \case
-  BA  -> "\\comb{<}"
-  FA  -> "\\comb{>}"
-  PM  -> "\\comb{\\&}"
-  FC  -> "\\comb{\\circ}"
-  ML  -> "\\comb{L},"
-  MR  -> "\\comb{R},"
-  UL  -> "\\comb{UL},"
-  UR  -> "\\comb{UR},"
-  A   -> "\\comb{A},"
-  J   -> "\\comb{J},"
-  Eps -> "\\comb{Eps},"
-  D   -> "\\comb{D},"
+  BA   -> "\\comb{<}"
+  FA   -> "\\comb{>}"
+  PM   -> "\\comb{\\&}"
+  FC   -> "\\comb{\\circ}"
+  ML   -> "\\comb{L},"
+  MR   -> "\\comb{R},"
+  UL   -> "\\comb{UL},"
+  UR   -> "\\comb{UR},"
+  A    -> "\\comb{A},"
+  J    -> "\\comb{J},"
+  Eps  -> "\\comb{Eps},"
+  D    -> "\\comb{D},"
+  XL o -> "\\comb{XL}" <+> prettyOp o
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty
