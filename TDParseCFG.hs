@@ -5,10 +5,10 @@
 module TDParseCFG where
 
 import Prelude hiding ( (<>), (^) )
-import Control.Monad ( join, liftM2 )
+import Control.Monad ( liftM2 )
 import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo
-import Data.Function ( (&), fix )
+import Data.Function ( fix )
 import Data.Functor ( (<&>) )
 import Data.List ( isPrefixOf )
 
@@ -56,6 +56,7 @@ evaluated :: Type -> Bool
 evaluated = \case
   E             -> True
   T             -> True
+  _ :-> a       -> evaluated a
   Eff S a       -> evaluated a
   Eff (R _) a   -> evaluated a
   Eff (W _) a   -> evaluated a
@@ -202,11 +203,10 @@ getProofType (Proof _ _ ty _) = ty
 synsem :: Syn -> [Proof]
 synsem = execute . go
   where
-    go (Leaf s t)   = return [Proof s (Lex s) t []]
-
-    go binary = case binary of
-      Branch l r -> goEval (const True) l r
-      Island l r -> goEval (evaluated . snd) l r
+    go = \case
+      Leaf   s   ty -> return [Proof s (Lex s) ty []]
+      Branch l r    -> goEval (const True) l r
+      Island l r    -> goEval (evaluated . snd) l r
 
     goEval b l r = do -- memo block
       lefts  <- go l
@@ -315,6 +315,7 @@ openCombine combine (l, r) = concat <$>
     normU = \case
       UR -> \op -> not $ any (`isPrefixOf` op) [[MR], [D,MR]]
       UL -> \op -> not $ any (`isPrefixOf` op) [[ML], [D,ML]]
+      _  -> const True
 
 addJ :: (Mode, Type) -> [(Mode, Type)]
 addJ =
@@ -367,6 +368,7 @@ semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x # modeTerm xs
+modeTerm _ = make_var "impossible"
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
