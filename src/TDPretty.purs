@@ -194,6 +194,7 @@ prettyOp = case _ of
   J  _ -> text "$\\comb{J}$,"
   Eps  -> text "$\\comb{Eps}$,"
   D    -> text "$\\comb{D}$,"
+  XL _ o -> text "$\\comb{XL}($" <> prettyOp o <> text "$)$,"
 
 prettyMode :: Mode -> Doc
 prettyMode Nil = mempty

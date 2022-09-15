@@ -1,4 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
 
 -- | The following is adapted from Oleg Kiselyov's normal order
 -- lambda calculator:
@@ -20,6 +19,7 @@ module LambdaCalc
   , enough_vars, unwind, occurs, bump_color
   , showVar, unrollDom, rerollDom, var_stock, tuple
   , Term(..), VarName(..), VColor
+  -- , all_tests
   ) where
 
 import Control.Monad.Writer
@@ -64,7 +64,7 @@ openEval eval' s e = case e,s of
   (App t1 t2)  , _      -> eval' (t2:s) t1
   (Pair t1 t2) , Nil    -> Pair (ev t1) (ev t2)
   (Pair _ _)   , (a:_)  -> unsafeThrow ("trying to apply a pair: "
-                                        <> show e <> " to " <> show a)
+                                        <> show_term e <> " to " <> show_term a)
   (Fst t0)     , _      -> case ev t0 of
     (Pair t1 _)         -> eval' s t1 -- might not need eval' here
     t                   -> unwind (Fst t) s
@@ -394,6 +394,8 @@ free_vars term = free_vars' term [] []
       free_vars' t1 bound $ free_vars' t2 bound free
     free_vars' (Dom p) bound free = free_vars' p bound free
     free_vars' (Rng p) bound free = free_vars' p bound free
+    free_vars' (Cct p) bound free = free_vars' p bound free
+    free_vars' (Spl _ p) bound free = free_vars' p bound free
 
 term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   where
@@ -425,6 +427,9 @@ term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
   term_equal_p' (Dom p1) (Dom p2) env = term_equal_p' p1 p2 env
   term_equal_p' (Rng p1) (Rng p2) env = term_equal_p' p1 p2 env
 
+  term_equal_p' (Cct p1) (Cct p2) env = term_equal_p' p1 p2 env
+  term_equal_p' (Spl n p1) (Spl m p2) env = n == m && term_equal_p' p1 p2 env
+
   term_equal_p' _ _ _ = false
 
 expectg f exp expected_result = case f exp expected_result of
@@ -435,6 +440,7 @@ expect :: forall a. Eq a => Show a => a -> a -> Boolean
 expect = expectg (==)
 expectd = expectg term_equal_p -- test using comparison modulo alpha-renaming
 notexpectd = expectg (\x y -> not $ term_equal_p x y)
+{-
 free_var_tests = and [
    expect (map Var (free_vars $ x))  [x],
    expect (map Var (free_vars $ x!x)) [],
@@ -524,7 +530,8 @@ mweval_tests = and [
    --        "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
    ]
 
-all_tests = and [ {-free_var_tests, -}alpha_comparison_tests,
+all_tests = and [ free_var_tests, alpha_comparison_tests,
                   subst_tests, eval_tests, mweval_tests ]
 
 -- (Pair (Fst (Lam b (Pair (Var s) (App (App (Var saw) (Var b)) (Var s))))) (App (Var eclo) (Set (Snd (Lam b (Pair (Var s) (App (App (Var saw) (Var b)) (Var s))))) (Lam a1 (Var a1))))) to (Var t)
+-}

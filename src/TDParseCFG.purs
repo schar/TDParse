@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BlockArguments #-}
 
 module TDParseCFG where
 
@@ -166,7 +163,8 @@ data Op
   | A F               -- Applicative <*>
   | J F               -- Monad       join
   | Eps               -- Adjoint     counit
-  | D                 -- Cont        lowerderive instance Eq Mode
+  | D                 -- Cont        lower
+  | XL F Op           -- Comonad     extend
 derive instance Eq Op
 derive instance Generic Op _
 instance Show Op where
@@ -183,6 +181,7 @@ instance Show Op where
     J f  -> "J"  -- <> " " <> show f
     Eps  -> "Eps"
     D    -> "D"
+    XL f o -> "XL" <> " " <> show o
 
 
 {- Type classes -}
@@ -326,7 +325,7 @@ openCombine combine (l ^ r) = {-map (\(m^d^t) -> (m ^ eval d ^ t)) <<< -}concat 
     (Eff f a ^ Eff g b) | appl f ->
       combine (a ^ b) <#>
       lift2 (\h (op^d^c) -> let m = A h
-                              in (m:op ^ opTerm m % d ^ Eff h c)) (combineFs f g)
+                             in (m:op ^ opTerm m % d ^ Eff h c)) (combineFs f g)
     _ -> pure Nil
 
   -- if the left daughter is left adjoint to the right daughter, cancel them out
@@ -337,8 +336,8 @@ openCombine combine (l ^ r) = {-map (\(m^d^t) -> (m ^ eval d ^ t)) <<< -}concat 
   <+> case (l ^r) of
     (Eff f a ^ Eff g b) | adjoint f g ->
       combine (a ^ b) <#>
-      map \(op^d^c) -> let m = Eps
-                        in (m:op ^ opTerm m % d ^ c)
+      concatMap \(op^d^c) -> do (m^eff) <- (Eps ^ identity) : (XL f Eps ^ Eff f) : Nil
+                                pure (m:op ^ opTerm m % d ^ eff c)
     _ -> pure Nil
 
   -- finally see if the resulting types can additionally be lowered (D),
@@ -374,7 +373,7 @@ norm op = case _ of
     <> map (\k -> [ML f] <> k <> [MR f])  [[J f], []]
     <> map (\k -> [A  f] <> k <> [MR f])  [[J f], []]
     <> map (\k -> [ML f] <> k <> [A  f])  [[J f], []]
-    <> map (\k ->           k <> [Eps] )  [[A f], []] -- safe if no lexical FRFs
+    <> map (\k ->           k <> [Eps] )  [{-[A f],-} []] -- safe if no lexical FRFs
     -- and all (non-split) inverse scope for commutative effects
     <> if commutative f
           then    [ [MR f, A  f] ]
@@ -462,7 +461,10 @@ opTerm = case _ of
           -- \l r -> op l r id
   D    -> op ! l ! r ! op % l % r % (a ! a)
 
+  XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
+
 l = make_var "l"
+l' = make_var "l'"
 r = make_var "r"
 a = make_var "a"
 b = make_var "b"
@@ -494,6 +496,9 @@ joinTerm = case _ of
   W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
   _     -> mm ! make_var "join" % mm
+extendTerm = case _ of
+  W t   -> k ! m ! _1 m * k % m
+  _     -> make_var "co-tastrophe"
 mzeroTerm = case _ of
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"
@@ -501,6 +506,7 @@ mplusTerm = case _ of
   T     -> \p q -> make_var "and" % p % q
   _     -> \_ _ -> make_var "this really shouldn't happen"
 
+{-- some test terms -}
 left = (Lex (Set (App (Var (VC 0 "some")) (Var (VC 0 "person"))) (Lam (VC 0 "x") (Var (VC 0 "x")))))
 right = (Comb (A S : BA : Nil) (Set (Pair (Dom (App (Var (VC 0 "some")) (Var (VC 0 "cat")))) (Lam (VC 0 "s") (Dom (App (Var (VC 0 "some")) (Var (VC 0 "dog")))))) (Lam (VC 0 "p") (App (App (Var (VC 0 "gave")) (App (Rng (App (Var (VC 0 "some")) (Var (VC 0 "cat")))) (Fst (Spl 1 (Var (VC 0 "p")))))) (App (Rng (App (Var (VC 0 "some")) (Var (VC 0 "dog")))) (Snd (Spl 1 (Var (VC 0 "p")))))))))
 res = eval $ opTerm (A S) % opTerm BA % semTerm left % semTerm right
