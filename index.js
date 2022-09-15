@@ -7511,7 +7511,7 @@
         }
         ;
         if (e instanceof Pair && s instanceof Cons) {
-          return unsafeThrow("trying to apply a pair: " + (show1(e) + (" to " + show1(s.value0))));
+          return unsafeThrow("trying to apply a pair: " + (show_term(e) + (" to " + show_term(s.value0))));
         }
         ;
         if (e instanceof Fst) {
@@ -9458,7 +9458,7 @@
   };
   var mm = /* @__PURE__ */ make_var("mm");
   var m = /* @__PURE__ */ make_var("m");
-  var l$prime = /* @__PURE__ */ make_var("l");
+  var l$prime = /* @__PURE__ */ make_var("l'");
   var l = /* @__PURE__ */ make_var("l");
   var k = /* @__PURE__ */ make_var("k");
   var getProofType = function(v) {
@@ -9470,10 +9470,10 @@
   };
   var extendTerm = function(v) {
     if (v instanceof W) {
-      return lam(m)(new Pair(_1(m), new Pair(_1(m), _2(m))));
+      return lam(k)(lam(m)(new Pair(_1(m), new App2(k, m))));
     }
     ;
-    return make_var("not a comonad!");
+    return make_var("co-tastrophe");
   };
   var effW = function(w) {
     return Eff.create(new W(w));
