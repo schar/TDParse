@@ -74,7 +74,7 @@ type CFG = Cat -> Cat -> [Cat]
 data Syn
   = Leaf String Type
   | Branch Syn Syn
-  | Island Syn Syn
+  | Island Syn Syn -- Scope islands
   deriving (Eq, Show, Ord)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
@@ -91,25 +91,26 @@ protoParse ::
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
 protoParse _   _ (_, _, [sign]) = return [(c, Leaf s t) | (s, c, t) <- sign]
-protoParse cfg parser phrase    = concat <$> mapM help (bisect phrase)
+protoParse cfg parser phrase = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
       let (ls, rs) = splitAt i u
-      return ((lo, lo + i - 1, ls), (lo + i, hi, rs))
+      let break = lo + i
+      return ((lo, break - 1, ls), (break, hi, rs))
 
     help (ls, rs) = do
       parsesL <- parser ls
       parsesR <- parser rs
       return $
-        [ (cat, makeIsland cat lsyn rsyn)
+        [ (cat, mkIsland cat lsyn rsyn)
         | (lcat, lsyn) <- parsesL
         , (rcat, rsyn) <- parsesR
         , cat <- cfg lcat rcat
         ]
 
-    makeIsland CP = Island
-    makeIsland _  = Branch
+    mkIsland CP = Island
+    mkIsland _  = Branch
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
@@ -205,19 +206,19 @@ synsem = execute . go
   where
     go = \case
       Leaf   s   ty -> return [Proof s (Lex s) ty []]
-      Branch l r    -> goEval (const True) l r
-      Island l r    -> goEval (evaluated . snd) l r
+      Branch l r    -> goWith id l r
+      Island l r    -> goWith (filter $ evaluated . snd) l r
 
-    goEval b l r = do -- memo block
+    goWith f l r = do -- memo block
       lefts  <- go l
       rights <- go r
       fmap concat $ sequence do -- list block
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
-          combos <- combine lty rty
+          combos <- combineWith id lty rty
           return do -- list block
-            (op, ty) <- filter b combos
+            (op, ty) <- combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
 
 
@@ -239,7 +240,8 @@ combineFs = curry \case
   (C i j, C j' k) | j == j' -> [C i k]
   _                         -> []
 
-combine = curry $ fix (memoize' . openCombine)
+-- combine = combineWith id
+combineWith f = curry $ fix $ memoize' . ((f <$>) .) . openCombine
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
@@ -368,7 +370,7 @@ semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x # modeTerm xs
-modeTerm _ = make_var "impossible"
+modeTerm _ = error "impossible"
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
