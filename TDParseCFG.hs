@@ -135,6 +135,7 @@ data Op
   | J                 -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
+  | XL Op             -- Comonad     extend
   deriving (Eq)
 
 instance Show Op where
@@ -151,6 +152,7 @@ instance Show Op where
     J   -> "J"
     Eps -> "Eps"
     D   -> "D"
+    XL o -> "XL " ++ show o
 
 
 {- Type classes -}
@@ -299,14 +301,15 @@ openCombine combine (l, r) = concat <$>
   -- rules out xover, forces Eps to apply low
   -- there remains some derivational ambiguity:
   -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+  -- also the left arg of Eps is guaranteed to be comonadic, so extend it
   <+> case (l,r) of
     (Eff f a, Eff g b)
       | adjoint f g ->
-        combine (a, b) <&> map \(op,c) -> (Eps:op, c)
+        combine (a, b) <&>
+        concatMap \(op,c) -> [(Eps:op, c), (XL Eps:op, Eff f c)]
     _ -> return []
 
-  -- finally see if the resulting types can additionally be lowered (D),
-  -- joined (J), or canceled out (Eps)
+  -- finally see if the resulting types can additionally be lowered/joined
   <**> return [addD, addJ, return]
 
   where
@@ -415,8 +418,11 @@ opTerm = \case
       -- \l r -> op l r id
   D   -> op ^ l ^ r ^ op # l # r # (a ^ a)
 
+  XL m -> op ^ l ^ r ^ make_var "extend" # (l' ^ opTerm m # op # l' # r) # l
+
   where
     l  = make_var "l"
+    l' = make_var "l'"
     r  = make_var "r"
     a  = make_var "a"
     op = make_var "op"
