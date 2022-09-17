@@ -61,18 +61,18 @@ lexicon = map mkLex $
   where
     first  (a,s,t) f = (f a, s, t)
     second (s , a) f = (s , f s a)
-    mkLex w = second w $ \s -> map (`first` (fromMaybe (make_var s)))
+    mkLex w = second w $ \s -> map (`first` (fromMaybe (make_con s)))
     a = make_var "a"
-    ann = make_var "a"
-    mary = make_var "m"
+    ann = make_con "a"
+    mary = make_con "m"
     mref = mary * mary
-    ml = mary * (make_var "ling" % mary)
-    sc = make_var "s" * (make_var "cat" % make_var "s")
+    ml = (make_con "ling" % mary) * mary
+    sc = (make_con "cat" % make_con "s") * make_con "s"
     she = a ! a
     she2 = a ! (a * a)
-    so3 = make_set "person"
+    so3 = make_set (make_con "person")
     so2 = fmapTerm S % she2 % so3
-    eo = make_var "everyone"
+    eo = make_con "everyone"
     eo2 = fmapTerm (C T T) % she2 % eo
 
 

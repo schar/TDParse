@@ -7,7 +7,8 @@ module TDParseCFG where
 
 import Prelude hiding ( (<>), (^), Word, (*) )
 import Control.Monad ( join, liftM2 )
-import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
+import LambdaCalc hiding (a,b,c,x,y,z,f,g,h,p,q)
+-- import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
 import Memo
 import Data.Function ( (&), fix )
 import Data.Functor ( (<&>) )
@@ -135,6 +136,7 @@ data Op
   | J F               -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
+  | XL F Op           -- Comonad     extend
   deriving (Eq)
 
 instance Show Op where
@@ -151,6 +153,7 @@ instance Show Op where
     J _  -> "J"
     Eps  -> "Eps"
     D    -> "D"
+    XL f o -> "XL" ++ " " ++ show o
 
 
 {- Type classes -}
@@ -302,8 +305,8 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
   <+> case (l,r) of
     (Eff f a, Eff g b) | adjoint f g ->
       combine (a, b) <&>
-      map \(op,d,c) -> let m = Eps
-                        in (m:op, opTerm m % d, c)
+      concatMap \(op,d,c) -> do (m,eff) <- [(Eps, id), (XL f Eps, Eff f)]
+                                return (m:op, opTerm m % d, eff c)
     _ -> return []
 
   -- finally see if the resulting types can additionally be lowered (D),
@@ -417,8 +420,11 @@ opTerm = \case
           -- \l r -> op l r id
   D    -> op ! l ! r ! op % l % r % (a ! a)
 
+  XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
+
 
 l = make_var "l"
+l' = make_var "l'"
 r = make_var "r"
 a = make_var "a"
 b = make_var "b"
@@ -436,18 +442,22 @@ fmapTerm = \case
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
   _     -> k ! m ! make_var "fmap" % k % m
 pureTerm = \case
-  S     -> a ! set ( (a ! a) |? a )
+  S     -> a ! make_set a
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
   _     -> a ! make_var "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = \case
-  S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  -- S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
+  S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
   W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
   _     -> mm ! make_var "join" % mm
+extendTerm = \case
+  W t   -> k ! m ! _1 m * k % m
+  _     -> make_var "co-tastrophe"
 mzeroTerm = \case
   T     -> make_var "true"
   _     -> make_var "this really shouldn't happen"
