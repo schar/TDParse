@@ -13,8 +13,8 @@ import Data.Maybe
 
 {- A toy lexicon -}
 
-lexicon :: Lexicon
-lexicon = map mkLex $
+demoLex :: Lexicon
+demoLex = map mkLex $
     ("ann"       , [( Just ann  , DP   , (E)                              )])
   : ("ann's"     , [( Just ann  , Gen  , (E)                              )])
   : ("mary"      , [( Just mref , DP   , (effW E E)                       )])
@@ -78,8 +78,8 @@ lexicon = map mkLex $
 
 
 -- a toy Context-Free Grammar
-productions :: CFG
-productions = curry \case
+demoCFG :: CFG
+demoCFG = curry \case
   (DP   , VP   ) -> [CP]
   (Cmp  , CP   ) -> [CP]
   (Cor  , CP   ) -> [CBar]
@@ -112,9 +112,9 @@ s3 = "ann's mom saw her"
 
 s4 = "someone left and she2 whistled"
 
-s5 = "every dog saw every cat"
+s5 = "the cat near someone2 saw her"
 
 {- Testing helper function -}
 
 main :: IO ()
-main = mapM_ (print . fromMaybe ["No parse"] . showParse productions lexicon) [s1, s2, s3, s4, s5]
+main = mapM_ (print . fromMaybe ["No parse"] . showParse demoCFG demoLex) [s1, s2, s3, s4, s5]

@@ -189,3 +189,6 @@ outTreesBatch' cfg lex p ws = do
     go n trees =
       let path = "test/out" ++ (show n) ++ ".tex"
        in writeFile path . show . standaloneTrees $ trees
+
+withDens = True
+withoutDens = False

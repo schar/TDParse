@@ -45,7 +45,7 @@ with types, rules, and (optionally) semantic values. Here's an example of
 latex tree output with types and rules:
 
 ```
-*TDDemo> outTrees' productions (hasType (S T)) [the, cat, near, someone2, saw, her]
+ghci> outTrees' withDens demoCFG demoLex (hasType (effS T)) "the cat near someone2 saw her"
 ```
 
 <p align="center">
