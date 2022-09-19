@@ -109,7 +109,7 @@ prettyProofTree norm proof =
       _ -> "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = ("$\\texttt{" <> prettyVal norm showTex v <> "}$\\\\" $+$)
+      | norm = ("{$" <> prettyVal norm showTex v <> "$}\\\\" $+$)
       | otherwise = id
 
 -- Proofs displayed as proofs with some normalization

@@ -63,7 +63,7 @@ openEval eval e s = case (e, s) of
   (,) (Rng (ev -> t))           _      -> unwind ev (Rng t) s
   (,) (Cct t0)                  []     -> case ev t0 of
     o@(Set t1 i@(Lam v (Set t2 t3)))
-      | null $ [t1,t2] >>= freeVars   ->
+      | null $ [t1,t2] >>= freeVars    ->
       let (t, vars ) = unrollDom ev o varStock
           (t',vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) varStock)
           dom = rerollDom t t' (vars ++ vars')
@@ -312,7 +312,7 @@ _1 = Fst
 _2 = Snd
 infixr 7 *
 (*) = Pair
-make_set p = Set (make_var "some" % p) (x ! x)
+make_set p = Set (make_con "some" % p) (x ! x)
 get_dom = Dom
 get_rng = Rng
 infix 5 |?
@@ -335,7 +335,8 @@ showLeft disp = \case
 parens s = "(" ++ s ++ ")"
 
 data Formatter = Form
-  { lam' :: String, arr' :: String
+  { lam' :: String, arr' :: String, app' :: String
+  , con' :: String -> String, var' :: VarName -> String
   , lb' :: String, rb' :: String, mid' :: String, la' :: String, ra' :: String
   , fst' :: String, snd' :: String, dom' :: String, rng' :: String, elem' :: String
   }
@@ -345,17 +346,17 @@ formatTerm form term depth
   | otherwise  = showt term
   where
     showt = \case
-      Con s -> s
-      Var v -> showVar v
-      Lam v body -> lam' form ++ (showVar v) ++ arr' form ++ (showt' body)
-      App t1 t2 -> showLeft showt' t1 ++ " " ++ showRight showt' t2
+      Con s -> con' form s
+      Var v -> var' form v
+      Lam v body -> lam' form ++ var' form v ++ arr' form ++ showt' body
+      App t1 t2 -> showLeft showt' t1 ++ app' form ++ showRight showt' t2
       Pair t1 t2 -> la' form ++ showt' t1 ++ ", " ++ showt' t2 ++ ra' form
       Fst p -> fst' form ++ showRight showt p
       Snd p -> snd' form ++ showRight showt p
       e@(Set _ cond) ->
         let (t,vars) = unrollDom eval e varStock
             getvar (v:vs) = (Var v,vs)
-            getvar [] = {- (make_var "s", []) -} error "getvar error in showTerm"
+            getvar [] = error "getvar error in showTerm"
             showDom t vs = let (v,rest) = getvar vs in
               case t of
                 Pair a b ->
@@ -370,7 +371,7 @@ formatTerm form term depth
     showt' term = formatTerm form term (depth - 1)
 
 defTermForm = Form
-  { lam' = "\\", arr' = ". "
+  { lam' = "\\", arr' = ". ", app' = " ", con' = id, var' = showVar
   , lb' = "[", rb' = "]", mid' = " | ", la' = "<", ra' = ">"
   , fst' = "fst ", snd' = "snd ", elem' = " <- ", dom' = "sdom ", rng' = "srng "
   }
@@ -379,17 +380,22 @@ showTerm term = formatTerm defTermForm term 100
 showHask term = formatTerm hsForm term 100
   where
     hsForm = defTermForm { lam' = "\\textbackslash ", arr' = " -> ", la' = "(", ra' = ")" }
-showTex term = formatTerm tex_form term 100
+showTex term = formatTerm texForm term 100
   where
-    tex_form = Form
-      { lam' = "\\ensuremath{\\lambda}", arr' = ".\\;"
+    texForm = Form
+      { lam' = "\\ensuremath{\\lambda}", arr' = ".\\;", app' = "\\,"
+      , con' = \s -> "\\textsf{" ++ s ++ "}", var' = showv
       , lb' = "\\ensuremath{\\{}", rb' = "\\ensuremath{\\}}"
       , mid' = "\\ensuremath{\\mid}", la' = "\\ensuremath{\\langle}", ra' = "\\ensuremath{\\rangle}"
       , fst' = "\\textsf{fst} ", snd' = "\\textsf{snd} "
       , elem' = "\\ensuremath{\\in}" , dom' = "\\textsf{dom} ", rng' = "\\textsf{rng} "
       }
+    showv (VC n s) = "\\ensuremath{" ++ s ++ (if n == 0 then "" else "_{" ++ show n ++ "}") ++ "}"
 
 deriving instance Show Term
+
+
+{- tests for evaluation -}
 
 freeVars term = go term [] []
    where

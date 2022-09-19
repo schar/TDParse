@@ -408,7 +408,7 @@ opTerm = \case
   BA      -> l ! r ! r % l
 
           -- \l r a -> l a `and` r a
-  PM      -> l ! r ! a ! make_var "and" % (l % a) % (r % a)
+  PM      -> l ! r ! a ! make_con "and" % (l % a) % (r % a)
 
           -- \l r a -> l (r a)
   FC      -> l ! r ! a ! l % (r % a)
@@ -461,26 +461,26 @@ fmapTerm = \case
   R _   -> k ! m ! g ! k % (m % g)
   W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
-  _     -> k ! m ! make_var "fmap" % k % m
+  _     -> k ! m ! make_con "fmap" % k % m
 pureTerm = \case
   S     -> a ! make_set a
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
-  _     -> a ! make_var "pure" % a
+  _     -> a ! make_con "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = \case
   S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
   W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
-  _     -> mm ! make_var "join" % mm
+  _     -> mm ! make_con "join" % mm
 extendTerm = \case
   W t   -> k ! m ! _1 m * k % m
-  _     -> make_var "co-tastrophe"
+  _     -> make_con "co-tastrophe"
 mzeroTerm = \case
-  T     -> make_var "true"
-  _     -> make_var "this really shouldn't happen"
+  T     -> make_con "true"
+  _     -> make_con "this really shouldn't happen"
 mplusTerm = \case
-  T     -> \p q -> make_var "and" % p % q
-  _     -> \_ _ -> make_var "this really shouldn't happen"
+  T     -> \p q -> make_con "and" % p % q
+  _     -> \_ _ -> make_con "this really shouldn't happen"
