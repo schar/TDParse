@@ -67,7 +67,7 @@ openEval eval e s = case (e, s) of
       let (t, vars ) = unrollDom ev o varStock
           (t',vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) varStock)
           dom = rerollDom t t' (vars ++ vars')
-       in ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+       in check_sigma $ ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
     t                                  -> Cct t
   (,) (Cct _)                   (a:_)  -> error ("trying to apply a set: "
                                                  ++ showTerm e ++ " to " ++ showTerm a)
@@ -96,7 +96,7 @@ openFinal eval e s = case (e, s) of
       let (t, vars ) = unrollDom ev o varStock
           (t',vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) varStock)
           dom = rerollDom t t' (vars ++ vars')
-       in ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+       in check_sigma $ ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
     t                                  -> Cct t
   (,) _                       _  -> eval e s
   where
@@ -205,6 +205,15 @@ occurs (Lam x body) v
 check_eta (Lam v (App t (Var v')))
   | v == v' && (let (flag,_) = occurs t v in not flag) = t
 check_eta term = term
+
+check_sigma (Set (Pair d1 (Lam v (Set d2 r2))) r0) =
+  let dom = Pair d1 $ abs v d2
+      rng = p ! r0 % (_1 p * ((Lam v r2) % _1 p % _2 (Spl 1 p)))
+   in Set dom rng
+  where
+    abs v (Pair x y) = Pair (Lam v x) (abs v y)
+    abs v t          = Lam v t
+check_sigma term = term
 
 
 {- for tracing evaluations and debugging... -}
