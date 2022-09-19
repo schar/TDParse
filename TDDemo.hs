@@ -35,6 +35,7 @@ lexicon = map mkLex $
                 ++ [( Just she2 , Gen  , (effR E (effW E E))              )])
   : ("mom"       , [( Nothing   , TN   , (E :-> E)                        )])
   : ("the"       , [( Nothing   , Det  , ((E :-> T) :-> E)                )])
+  : ("theC"      , [( Nothing   , Det  , (effC E T E)                     )])
   : ("very"      , [( Nothing   , Deg  , ((E :-> T) :-> E :-> T)          )])
   : ("every"     , [( Nothing   , Det  , ((E :-> T) :-> effC T T E)       )])
   : ("everyP"    , [( Nothing   , Det  , ((E :-> T) :-> (E :-> T) :-> T)  )])

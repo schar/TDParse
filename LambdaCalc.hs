@@ -26,7 +26,7 @@ import Data.Maybe
 import Data.Monoid
 
 type VColor = Int
-data VarName = VC VColor String deriving (Eq,Show)
+data VarName = VC VColor String deriving (Eq,Show,Ord)
 showVar (VC color name) | color == 0 = name
                         | otherwise  = name <> show color
 
@@ -34,7 +34,7 @@ data Term
   = Con String | Var VarName | App Term Term | Lam VarName Term
   | Pair Term Term | Fst Term | Snd Term
   | Set Term Term | Dom Term | Rng Term | Cct Term | Spl Int Term
-  deriving Eq
+  deriving (Eq, Ord)
 
 eval term = fix openEval term []
 openEval eval e s = case (e, s) of
@@ -67,7 +67,7 @@ openEval eval e s = case (e, s) of
       let (t, vars ) = unrollDom ev o varStock
           (t',vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) varStock)
           dom = rerollDom t t' (vars ++ vars')
-       in ev $ Set dom (p ! get_rng (g % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+       in ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
     t                                  -> Cct t
   (,) (Cct _)                   (a:_)  -> error ("trying to apply a set: "
                                                  ++ showTerm e ++ " to " ++ showTerm a)
@@ -92,11 +92,11 @@ openFinal eval e s = case (e, s) of
   (,) (Rng (ev -> Set _ t2))  _  -> eval t2 s
   (,) (Rng _)                 _  -> eval (a ! a) s
   (,) (Cct t0)                [] -> case ev t0 of
-    f@(Set t1 g@(Lam v (Set t2 t3))) ->
-      let (t, vars ) = unrollDom ev f varStock
-          (t',vars') = unrollDom ev (ev $ g % tuple (map Var vars)) (drop (length vars) varStock)
+    o@(Set t1 i@(Lam v (Set t2 t3))) ->
+      let (t, vars ) = unrollDom ev o varStock
+          (t',vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) varStock)
           dom = rerollDom t t' (vars ++ vars')
-       in ev $ Set dom (p ! get_rng (g % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+       in ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
     t                                  -> Cct t
   (,) _                       _  -> eval e s
   where

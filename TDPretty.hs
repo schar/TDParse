@@ -62,15 +62,15 @@ prettyOp = \case
   FA   -> "\\comb{>}"
   PM   -> "\\comb{\\&}"
   FC   -> "\\comb{\\circ}"
-  ML f -> "\\comb{L},"
-  MR f -> "\\comb{R},"
-  UL f -> "\\comb{UL},"
-  UR f -> "\\comb{UR},"
-  A f  -> "\\comb{A},"
-  J f  -> "\\comb{J},"
-  Eps  -> "\\comb{Eps},"
-  D    -> "\\comb{D},"
-  XL f op -> "\\comb{XL} " <> prettyOp op
+  ML f   -> "\\comb{L},"
+  MR f   -> "\\comb{R},"
+  UL f   -> "\\comb{UL},"
+  UR f   -> "\\comb{UR},"
+  A  f   -> "\\comb{A},"
+  J  f   -> "\\comb{J},"
+  Eps    -> "\\comb{Eps},"
+  D      -> "\\comb{D},"
+  XL f o -> "\\comb{XL}" <+> prettyOp o
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty

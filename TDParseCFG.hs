@@ -7,10 +7,9 @@ module TDParseCFG where
 
 import Prelude hiding ( (<>), (^), Word, (*) )
 import Control.Monad ( join, liftM2 )
-import LambdaCalc hiding (a,b,c,x,y,z,f,g,h,p,q)
--- import LambdaCalc (Term, eval, make_var, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set)
+import LambdaCalc (Term, eval, make_var, make_con, (!), (%), _1, _2, (*), (|?), set, get_dom, get_rng, make_set, conc)
 import Memo
-import Data.Function ( (&), fix )
+import Data.Function ( fix )
 import Data.Functor ( (<&>) )
 import Data.List ( isPrefixOf )
 
@@ -62,6 +61,18 @@ effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
 
+-- evaluated types (for scope islands)
+-- we care about positive positions only
+evaluated :: Ty -> Bool
+evaluated = \case
+  E             -> True
+  T             -> True
+  _ :-> a       -> evaluated a
+  Eff S a       -> evaluated a
+  Eff (R _) a   -> evaluated a
+  Eff (W _) a   -> evaluated a
+  Eff (C _ _) _ -> False
+
 
 {- Syntactic parsing -}
 
@@ -74,7 +85,8 @@ type CFG = Cat -> Cat -> [Cat]
 data Syn
   = Leaf String Term Ty
   | Branch Syn Syn
-  deriving (Eq, Show)
+  | Island Syn Syn -- Scope islands
+  deriving (Eq, Show, Ord)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
 -- spellouts, syntactic categories, and types are known
@@ -90,22 +102,26 @@ protoParse ::
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
 protoParse _   _ (_, _, [(s,sign)]) = return [(c, Leaf s d t) | (d, c, t) <- sign]
-protoParse cfg f phrase             = concat <$> mapM help (bisect phrase)
+protoParse cfg parse phrase             = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
       let (ls, rs) = splitAt i u
-      return ((lo, lo + i - 1, ls), (lo + i, hi, rs))
+      let break = lo + i
+      return ((lo, break - 1, ls), (break, hi, rs))
 
     help (ls, rs) = do
-      parsesL <- f ls
-      parsesR <- f rs
-      return
-        [ (cat, Branch lsyn rsyn)
+      parsesL <- parse ls
+      parsesR <- parse rs
+      return $
+        [ (cat, mkIsland cat lsyn rsyn)
         | (lcat, lsyn) <- parsesL
         , (rcat, rsyn) <- parsesR
         , cat <- cfg lcat rcat
         ]
+
+    mkIsland CP = Island
+    mkIsland _  = Branch
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
@@ -137,19 +153,19 @@ data Op
 
 instance Show Op where
   show = \case
-    FA   -> ">"
-    BA   -> "<"
-    PM   -> "&"
-    FC   -> "."
-    MR _ -> "R"
-    ML _ -> "L"
-    UL _ -> "UL"
-    UR _ -> "UR"
-    A _  -> "A"
-    J _  -> "J"
-    Eps  -> "Eps"
-    D    -> "D"
-    XL f o -> "XL" ++ " " ++ show o
+    FA     -> ">"
+    BA     -> "<"
+    PM     -> "&"
+    FC     -> "."
+    MR _   -> "R"
+    ML _   -> "L"
+    UL _   -> "UL"
+    UR _   -> "UR"
+    A  _   -> "A"
+    J  _   -> "J"
+    Eps    -> "Eps"
+    D      -> "D"
+    XL f o -> "XL " ++ show o
 
 
 {- Type classes -}
@@ -204,15 +220,20 @@ hasType t (Proof _ _ t' _) = t == t'
 synsem :: Syn -> [Proof]
 synsem = execute . go
   where
-    go (Leaf s d t) = return [Proof s (Lex d) t []]
-    go (Branch l r) = do -- memo block
+    go = \case
+      Leaf   s d t -> return [Proof s (Lex d) t []]
+      Branch l r   -> goWith False id l r
+      Island l r   -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
+      -- boolean tags for islandhood, to avoid over-memoizing
+
+    goWith tag handler l r = do -- memo block
       lefts  <- go l
       rights <- go r
       concat <$> sequence do -- list block
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
-          combos <- combine lty rty
+          combos <- combineWith tag handler lty rty
           return do -- list block
             (op, d, ty) <- combos
             let cval = Comb op (eval $ d % semTerm lval % semTerm rval)
@@ -220,6 +241,7 @@ synsem = execute . go
 
 prove :: CFG -> Lexicon -> String -> Maybe [Proof]
 prove cfg lex input = concatMap synsem <$> parse cfg lex input
+
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Ty -> Ty -> [(Mode, Term, Ty)]
@@ -239,7 +261,9 @@ combineFs = curry \case
   (,) (C i j) (C j' k) | j == j' -> [C i k]
   (,) _        _                 -> []
 
-combine = curry $ fix (memoize' . openCombine)
+-- combine = combineWith ((), id)
+combineWith tag handler =
+  curry $ fix $ memoizeTag tag . ((handler <$>) .) . openCombine
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
@@ -298,6 +322,7 @@ openCombine combine (l, r) = {- map (\(m,d,t) -> (m, eval d, t)) .  -}concat <$>
   -- note that the asymmetry of adjunction rules out xover
   -- there remains some derivational ambiguity:
   -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+  -- also the left arg of Eps is guaranteed to be comonadic, so extend it
   <+> case (l,r) of
     (Eff f a, Eff g b) | adjoint f g ->
       combine (a, b) <&>
@@ -305,8 +330,7 @@ openCombine combine (l, r) = {- map (\(m,d,t) -> (m, eval d, t)) .  -}concat <$>
                                 return (m:op, opTerm m % d, eff c)
     _ -> return []
 
-  -- finally see if the resulting types can additionally be lowered (D),
-  -- joined (J)
+  -- finally see if the resulting types can additionally be lowered/joined
   <**> return [addD, addJ, return]
 
   where
@@ -368,9 +392,9 @@ semTerm (Lex w)    = w
 semTerm (Comb m d) = d
 
 modeTerm :: Mode -> Term
-modeTerm [] = make_var "disaster"
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x % modeTerm xs
+modeTerm _ = error "impossible"
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the LambdaCalc library to write (untyped) lambda expressions
