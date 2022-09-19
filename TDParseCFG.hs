@@ -5,10 +5,10 @@
 module TDParseCFG where
 
 import Prelude hiding ( (<>), (^) )
-import Control.Monad ( join, liftM2 )
+import Control.Monad ( liftM2 )
 import Lambda_calc ( Term, make_var, (#), (^) )
 import Memo
-import Data.Function ( (&), fix )
+import Data.Function ( fix )
 import Data.Functor ( (<&>) )
 import Data.List ( isPrefixOf )
 
@@ -50,6 +50,18 @@ effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
 
+-- evaluated types (for scope islands)
+-- we care about positive positions only
+evaluated :: Type -> Bool
+evaluated = \case
+  E             -> True
+  T             -> True
+  _ :-> a       -> evaluated a
+  Eff S a       -> evaluated a
+  Eff (R _) a   -> evaluated a
+  Eff (W _) a   -> evaluated a
+  Eff (C _ _) _ -> False
+
 
 {- Syntactic parsing -}
 
@@ -62,6 +74,7 @@ type CFG = Cat -> Cat -> [Cat]
 data Syn
   = Leaf String Type
   | Branch Syn Syn
+  | Island Syn Syn -- Scope islands
   deriving (Eq, Show, Ord)
 
 -- Phrases to be parsed are lists of "signs" whose various morphological
@@ -78,22 +91,26 @@ protoParse ::
   -> ((Int, Int, Phrase) -> m [(Cat, Syn)])
   ->  (Int, Int, Phrase) -> m [(Cat, Syn)]
 protoParse _   _ (_, _, [sign]) = return [(c, Leaf s t) | (s, c, t) <- sign]
-protoParse cfg f phrase         = concat <$> mapM help (bisect phrase)
+protoParse cfg parser phrase = concat <$> mapM help (bisect phrase)
   where
     bisect (lo, hi, u) = do
       i <- [1 .. length u - 1]
       let (ls, rs) = splitAt i u
-      return ((lo, lo + i - 1, ls), (lo + i, hi, rs))
+      let break = lo + i
+      return ((lo, break - 1, ls), (break, hi, rs))
 
     help (ls, rs) = do
-      parsesL <- f ls
-      parsesR <- f rs
-      return
-        [ (cat, Branch lsyn rsyn)
+      parsesL <- parser ls
+      parsesR <- parser rs
+      return $
+        [ (cat, mkIsland cat lsyn rsyn)
         | (lcat, lsyn) <- parsesL
         , (rcat, rsyn) <- parsesR
         , cat <- cfg lcat rcat
         ]
+
+    mkIsland CP = Island
+    mkIsland _  = Branch
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
@@ -118,6 +135,7 @@ data Op
   | J                 -- Monad       join
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
+  | XL Op             -- Comonad     extend
   deriving (Eq)
 
 instance Show Op where
@@ -134,6 +152,7 @@ instance Show Op where
     J   -> "J"
     Eps -> "Eps"
     D   -> "D"
+    XL o -> "XL " ++ show o
 
 
 {- Type classes -}
@@ -187,18 +206,24 @@ getProofType (Proof _ _ ty _) = ty
 synsem :: Syn -> [Proof]
 synsem = execute . go
   where
-    go (Leaf s t)   = return [Proof s (Lex s) t []]
-    go (Branch l r) = do -- memo block
+    go = \case
+      Leaf   s   ty -> return [Proof s (Lex s) ty []]
+      Branch l r    -> goWith False id l r
+      Island l r    -> goWith True (filter $ evaluated . snd) l r
+      -- boolean tags for islandhood, to avoid over-memoizing
+
+    goWith tag handler l r = do -- memo block
       lefts  <- go l
       rights <- go r
       fmap concat $ sequence do -- list block
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         return do -- memo block
-          combos <- combine lty rty
+          combos <- combineWith tag handler lty rty
           return do -- list block
             (op, ty) <- combos
             return $ Proof (lstr ++ " " ++ rstr) (Comb op lval rval) ty [lp, rp]
+
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Type -> Type -> [(Mode, Type)]
@@ -218,7 +243,9 @@ combineFs = curry \case
   (C i j, C j' k) | j == j' -> [C i k]
   _                         -> []
 
-combine = curry $ fix (memoize' . openCombine)
+-- combine = combineWith ((), id)
+combineWith tag handler =
+  curry $ fix $ memoizeTag tag . ((handler <$>) .) . openCombine
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
@@ -274,14 +301,15 @@ openCombine combine (l, r) = concat <$>
   -- rules out xover, forces Eps to apply low
   -- there remains some derivational ambiguity:
   -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+  -- also the left arg of Eps is guaranteed to be comonadic, so extend it
   <+> case (l,r) of
     (Eff f a, Eff g b)
       | adjoint f g ->
-        combine (a, b) <&> map \(op,c) -> (Eps:op, c)
+        combine (a, b) <&>
+        concatMap \(op,c) -> [(Eps:op, c), (XL Eps:op, Eff f c)]
     _ -> return []
 
-  -- finally see if the resulting types can additionally be lowered (D),
-  -- joined (J), or canceled out (Eps)
+  -- finally see if the resulting types can additionally be lowered/joined
   <**> return [addD, addJ, return]
 
   where
@@ -294,6 +322,7 @@ openCombine combine (l, r) = concat <$>
     normU = \case
       UR -> \op -> not $ any (`isPrefixOf` op) [[MR], [D,MR]]
       UL -> \op -> not $ any (`isPrefixOf` op) [[ML], [D,ML]]
+      _  -> const True
 
 addJ :: (Mode, Type) -> [(Mode, Type)]
 addJ =
@@ -346,6 +375,7 @@ semTerm (Comb m l r) = modeTerm m # semTerm l # semTerm r
 modeTerm :: Mode -> Term
 modeTerm [op] = opTerm op
 modeTerm (x:xs) = opTerm x # modeTerm xs
+modeTerm _ = error "impossible"
 
 -- The definitions of the combinators that build our modes of combination
 -- Here we are using the Lambda_calc library to write (untyped) lambda expressions
@@ -388,8 +418,11 @@ opTerm = \case
       -- \l r -> op l r id
   D   -> op ^ l ^ r ^ op # l # r # (a ^ a)
 
+  XL m -> op ^ l ^ r ^ make_var "extend" # (l' ^ opTerm m # op # l' # r) # l
+
   where
     l  = make_var "l"
+    l' = make_var "l'"
     r  = make_var "r"
     a  = make_var "a"
     op = make_var "op"
