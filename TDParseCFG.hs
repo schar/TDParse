@@ -271,7 +271,7 @@ openCombine ::
   Monad m
   => ((Ty, Ty) -> m [(Mode, Term, Ty)])
   ->  (Ty, Ty) -> m [(Mode, Term, Ty)]
-openCombine combine (l, r) = {- map (\(m,d,t) -> (m, eval d, t)) .  -}concat <$>
+openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
 
   -- for starters, try the basic modes of combination
   return (modes l r)
@@ -370,7 +370,7 @@ norm op = \case
     ++ [ [ML f] ++ k ++ [MR f] | k <- [[J f], []] ]
     ++ [ [A f]  ++ k ++ [MR f] | k <- [[J f], []] ]
     ++ [ [ML f] ++ k ++ [A f]  | k <- [[J f], []] ]
-    ++ [ [Eps] ]
+    ++ [           k ++ [Eps]  | k <- [[A f], []] ] -- safe if no lexical FRFs
     -- and all (non-split) inverse scope for commutative effects
     ++ [ [MR f   ,     A  f]   | commutative f ]
     ++ [ [A f    ,     ML f]   | commutative f ]
