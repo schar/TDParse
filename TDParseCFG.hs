@@ -56,10 +56,6 @@ showNoIndices = \case
   C _ _ -> "C"
   U     -> "_"
 
-atomicTypes = [E,T]
-atomicEffects =
-  pure S ++ (R <$> atomicTypes) ++ (W <$> atomicTypes) ++ liftM2 C atomicTypes atomicTypes
-
 -- convenience constructors
 effS     = Eff S
 effR r   = Eff (R r)
@@ -199,8 +195,8 @@ instance Commute F where
 data Proof = Proof String Sem Ty [Proof]
   deriving (Show)
 
-getProofType :: Proof -> Ty
-getProofType (Proof _ _ ty _) = ty
+hasType :: Ty -> Proof -> Bool
+hasType t (Proof _ _ t' _) = t == t'
 
 -- Evaluate a constituency tree by finding all the derivations of its
 -- daughters and then all the ways of combining those derivations in accordance
@@ -251,7 +247,7 @@ openCombine ::
   Monad m
   => ((Ty, Ty) -> m [(Mode, Term, Ty)])
   ->  (Ty, Ty) -> m [(Mode, Term, Ty)]
-openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
+openCombine combine (l, r) = {- map (\(m,d,t) -> (m, eval d, t)) .  -}concat <$>
 
   -- for starters, try the basic modes of combination
   return (modes l r)
@@ -420,6 +416,7 @@ opTerm = \case
           -- \l r -> op l r id
   D    -> op ! l ! r ! op % l % r % (a ! a)
 
+          -- \l r -> l =>> \l' -> o op l' r
   XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
 
 
@@ -449,7 +446,6 @@ pureTerm = \case
   _     -> a ! make_var "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = \case
-  -- S     -> mm ! set ( (a ! b ! get_rng (get_rng mm % a) % b) |? (get_dom mm * (a ! get_dom (get_rng mm % a))) )
   S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
   W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)

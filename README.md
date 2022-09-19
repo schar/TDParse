@@ -15,7 +15,7 @@ types, rules, and (optionally) semantic values. Here is an example of a latex
 tree output with types and rules:
 
 ```
-*TDDemo> outTrees' productions ((== effS T) . getProofType) [the, cat, near, someone2, saw, her]
+*TDDemo> outTrees' productions (hasType (S T)) [the, cat, near, someone2, saw, her]
 ```
 
 <p align="center">
