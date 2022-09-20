@@ -1,2 +1,2 @@
-:l TDParseCFG.hs TDPretty.hs Lambda_calc.lhs TDDemo.hs
-:m + TDParseCFG TDPretty Lambda_calc TDDemo
+:l TDParseCFG.hs TDPretty.hs LambdaCalc.hs TDDemo.hs
+:m + TDParseCFG TDPretty LambdaCalc TDDemo

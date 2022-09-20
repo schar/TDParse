@@ -45,11 +45,11 @@ with types, rules, and (optionally) semantic values. Here's an example of
 latex tree output with types and rules:
 
 ```
-*TDDemo> outTrees' productions ((== effS T) . getProofType) [the, cat, near, someone2, saw, her]
+ghci> outTrees' withDens demoCFG demoLex (hasType (effS T)) "the cat near someone2 saw her"
 ```
 
 <p align="center">
-<img width="566" alt="image" src="https://user-images.githubusercontent.com/1521291/188498076-b1dfe76a-be6a-4975-9cba-0b4d5539dd58.png">
+<img width="566" alt="image" src="https://user-images.githubusercontent.com/1175004/191125629-012ebf1b-299d-4338-852d-a8a8e62e63e5.png">
 </p>
 
 There are a number of routines for viewing output defined in

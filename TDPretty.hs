@@ -5,15 +5,18 @@ module TDPretty where
 
 import qualified Data.Sequence as DS
 import Data.List (intercalate)
+import Data.Maybe (Maybe, fromMaybe)
 import TDParseCFG
-import Lambda_calc
-import Prelude hiding ((<>), (^), and)
+import LambdaCalc (Term, eval, evalFinal, showTerm, showHask, showTex)
+import Prelude hiding ((<>))
 import Text.PrettyPrint hiding (Mode, cat)
 
 
 {- Various pretty printers -}
 
-prettyTy :: Doc -> Type -> Doc
+arrow = " -> "
+
+prettyTy :: Doc -> Ty -> Doc
 prettyTy a = \case
   E           -> "e"
   T           -> "t"
@@ -22,28 +25,29 @@ prettyTy a = \case
     case t1 of
       t3 :-> t4 -> parens (prettyTy a t1) <> a <> prettyTy a t2
       _         -> prettyTy a t1 <> a <> prettyTy a t2
+  where
+    prettyParam a r@(_ :-> _) = parens (prettyTy a r)
+    prettyParam a r@(Eff _ _) = parens (prettyTy a r)
+    prettyParam a r           =         prettyTy a r
 
 prettyF :: Doc -> F -> Doc
 prettyF a = \case
   S     -> "S"
   R r   -> "R" -- <+> prettyParam a r
   W w   -> "W" -- <+> prettyParam a w
-  C r o -> "K" <+> prettyParam a r <+> prettyParam a o
+  C r o -> "C" -- <+> prettyParam a r <+> prettyParam a o
+  U     -> "_"
 
-prettyParam a r@(t1 :-> t2) = parens (prettyTy a r)
-prettyParam a r@(Eff f t)   = parens (prettyTy a r)
-prettyParam a r             = prettyTy a r
-
-showType :: Doc -> Type -> String
-showType a = show . prettyTy a
-
-arrow = " -> "
+prettyVal :: Bool -> (Term -> String) -> Sem -> Doc
+prettyVal norm disp v
+  | norm      = text $ disp (evalFinal $ semTerm v)
+  | otherwise = text $ show v
 
 prettyProof :: Proof -> Doc
 prettyProof (Proof phrase val ty daughters) =
   let details =
         text phrase <> " :: " <>
-        prettyTy arrow ty <> " = " <> text (show (eval (semTerm val)))
+        prettyTy arrow ty <> " = " <> prettyVal True showTerm val
    in case daughters of -- no unary inferences
         []     -> "  " <> details
         [a, b] -> "  " <> (details $+$ prettyProof a $+$ prettyProof b)
@@ -58,28 +62,23 @@ prettyOp = \case
   FA   -> "\\comb{>}"
   PM   -> "\\comb{\\&}"
   FC   -> "\\comb{\\circ}"
-  ML   -> "\\comb{L},"
-  MR   -> "\\comb{R},"
-  UL   -> "\\comb{UL},"
-  UR   -> "\\comb{UR},"
-  A    -> "\\comb{A},"
-  J    -> "\\comb{J},"
-  Eps  -> "\\comb{Eps},"
-  D    -> "\\comb{D},"
-  XL o -> "\\comb{XL}" <+> prettyOp o
+  ML f   -> "\\comb{L},"
+  MR f   -> "\\comb{R},"
+  UL f   -> "\\comb{UL},"
+  UR f   -> "\\comb{UR},"
+  A  f   -> "\\comb{A},"
+  J  f   -> "\\comb{J},"
+  Eps    -> "\\comb{Eps},"
+  D      -> "\\comb{D},"
+  XL f o -> "\\comb{XL}" <+> prettyOp o
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty
 prettyMode (x:xs) = prettyOp x <+> prettyMode xs
 
-prettyVal :: Bool -> Sem -> Doc
-prettyVal norm v
-  | norm      = text $ show_hs (eval (semTerm v)) 100
-  | otherwise = text $ show v
-
-
 -- Proofs displayed as trees with normalization controlled by `norm`
 -- Requires package forest with a command \comb{} defined to format modes
+-- as provided by `standaloneTrees` below
 prettyProofTree :: Bool -> Proof -> Doc
 prettyProofTree norm proof =
   "\\begin{forest}" $+$
@@ -91,26 +90,26 @@ prettyProofTree norm proof =
     forest = \case
       Proof word v@(Lex w) ty _ ->
         "[" <>
-        "$" <> label v "\\texttt{" <>
+        "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
-        "\\comb{Lex}" $+$
-        brackets ("\\texttt{" <> text (show w) <> "}") <>
+        label v ("\\comb{Lex}") $+$
+        brackets ("\\texttt{" <> text (show word) <> "}") <>
         "]"
 
-      Proof phrase v@(Comb op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _) ty [l, r] ->
         "[" <>
-        "$" <> label v "\\texttt{" <>
+        "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
-        braces (prettyMode op) $+$
+        label v (braces (prettyMode op)) $+$
         forest l $+$ forest r $+$
         "]"
 
       _ -> "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = ("\\texttt{" <> prettyVal norm v <> "}:" <+>)
+      | norm = ("{$" <> prettyVal norm showTex v <> "$}\\\\" $+$)
       | otherwise = id
 
 -- Proofs displayed as proofs with some normalization
@@ -120,35 +119,41 @@ prettyProofBuss proof = "\\begin{prooftree}" $+$ bp proof $+$ "\\end{prooftree}"
   where
     bp = \case
       Proof word v@(Lex w) ty _ ->
-        "\\AXC{$\\mathstrut\\text{" <> text w <> "}" <>
+        "\\AXC{$\\mathstrut\\text{" <> text word <> "}" <>
         "\\vdash " <>
-        "\\texttt{" <> prettyVal True v <> "}" <> ":" <+>
+        "\\texttt{" <> prettyVal True showTerm v <> "}" <> ":" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
-      Proof phrase v@(Comb op _ _) ty [l, r] ->
+      Proof phrase v@(Comb op _) ty [l, r] ->
         bp l $+$
         bp r $+$
         "\\RightLabel{\\tiny " <> prettyMode op <> "}" $+$
         "\\BIC{$\\mathstrut\\text{" <> text phrase <> "}" <+>
         "\\vdash" <+>
-        "\\texttt{" <> prettyVal True v <> "}:" <+>
+        "\\texttt{" <> prettyVal True showTerm v <> "}:" <+>
         "\\texttt{" <> prettyTy arrow ty <> "}$}"
 
       _ -> "\\AXC{wrong number of daughters}"
 
+showMode :: Mode -> String
+showMode mode = intercalate ", " (map show mode)
+
+showTy :: Doc -> Ty -> String
+showTy a = show . prettyTy a
+
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = show . (<> "\n\n") . disp
 
-showParse' :: CFG -> (Proof -> Bool) -> (Proof -> Doc) -> Phrase -> [String]
-showParse' cfg p disp input = go $ parse cfg input
+showParse' :: CFG -> Lexicon -> (Proof -> Bool) -> (Proof -> Doc) -> String -> Maybe [String]
+showParse' cfg lex p disp input = go <$> parse cfg lex input
   where
     go = map (showProof disp) . filter p . concatMap synsem
 
-showParse cfg = showParse' cfg (const True) prettyProof
-showParseTree' norm cfg p = showParse' cfg p (prettyProofTree norm)
-showParseTree cfg = showParse' cfg (const True) (prettyProofTree False)
-showParseBuss' cfg p = showParse' cfg p prettyProofBuss
-showParseBuss cfg = showParse' cfg (const True) prettyProofBuss
+showParse cfg lex = showParse' cfg lex (const True) prettyProof
+showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
+showParseTree cfg lex = showParse' cfg lex (const True) (prettyProofTree False)
+showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
+showParseBuss cfg lex = showParse' cfg lex (const True) prettyProofBuss
 
 standaloneTrees trees =
   "\\documentclass{article}" $+$
@@ -157,30 +162,33 @@ standaloneTrees trees =
   "\\newcommand{\\comb}[1]{\\textbf{\\textsf{#1}}}" $+$
   "\\usepackage[T1]{fontenc}" $+$
   "\\begin{document}\\scriptsize\n" $+$
-  text (if null trees then "Nothing doing" else (intercalate "\n\n" trees)) $+$
+  text (if null trees then "Nothing doing" else (intercalate "\n\\bigskip\n" trees)) $+$
   "\n\\end{document}"
 
-typeTrees', denTrees', outTrees' :: CFG -> (Proof -> Bool) -> Phrase -> IO ()
-typeTrees' cfg p ws = mapM_ print $ showParseTree' False cfg p ws
-denTrees'  cfg p ws = mapM_ print $ showParseTree' True  cfg p ws
-outTrees' cfg p ws =
+typeTrees', denTrees' :: CFG -> Lexicon -> (Proof -> Bool) -> String -> IO ()
+typeTrees' cfg lex p ws = mapM_ print . fromMaybe ["Nothin"] $ showParseTree' False cfg lex p ws
+denTrees'  cfg lex p ws = mapM_ print . fromMaybe ["Nothin"] $ showParseTree' True  cfg lex p ws
+outTrees' norm cfg lex p ws =
   let path = "test/out.tex"
-   in writeFile path . show . standaloneTrees $ showParseTree' False cfg p ws
+   in writeFile path . show . standaloneTrees . fromMaybe ["Nothin"] $ showParseTree' norm cfg lex p ws
 
-typeTrees cfg = typeTrees' cfg (const True)
-denTrees  cfg = denTrees'  cfg (const True)
-outTrees  cfg = outTrees'  cfg (const True)
+typeTrees cfg lex = typeTrees' cfg lex (const True)
+denTrees  cfg lex = denTrees'  cfg lex (const True)
+outTrees  cfg lex = outTrees' False cfg lex (const True)
 
-showParses' :: CFG -> (Proof -> Bool) -> (Proof -> Doc) -> Phrase -> [[String]]
-showParses' cfg p disp input = go <$> parse cfg input
+showParses' :: CFG -> Lexicon -> (Proof -> Bool) -> (Proof -> Doc) -> String -> Maybe [[String]]
+showParses' cfg lex p disp input = fmap go <$> parse cfg lex input
   where
     go = map (showProof disp) . filter p . synsem
 
-outTreesBatch' :: CFG -> (Proof -> Bool) -> Phrase -> IO ()
-outTreesBatch' cfg p ws = do
-  DS.traverseWithIndex go . DS.fromList $ showParses' cfg p (prettyProofTree False) ws
+outTreesBatch' :: CFG -> Lexicon -> (Proof -> Bool) -> String -> IO ()
+outTreesBatch' cfg lex p ws = do
+  DS.traverseWithIndex go . DS.fromList . fromMaybe [["Double Nothing"]] $ showParses' cfg lex p (prettyProofTree False) ws
   return ()
   where
     go n trees =
       let path = "test/out" ++ (show n) ++ ".tex"
        in writeFile path . show . standaloneTrees $ trees
+
+withDens = True
+withoutDens = False
