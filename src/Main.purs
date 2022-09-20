@@ -119,7 +119,7 @@ view model =
             model.currentProofs <#>
               (filter model.typeOfInterest >>> mapWithIndex (displayProof model.densOn))
 
-      , HE.div [HA.id "lexicon", HA.style {visibility: if snd (model.lex) then "visible" else "collapse"}] $
+      , HE.div [HA.id "lexicon", HA.style {display: if snd (model.lex) then "block" else "none"}] $
         addLexText (fromMaybe "" model.lexFeedback) : addLexInput : map displayLexItem (fst model.lex)
       ]
     ]

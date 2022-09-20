@@ -33917,13 +33917,13 @@
         return $82($83($84));
       };
     }()))), div5([id("lexicon"), style2({
-      visibility: function() {
+      display: function() {
         var $78 = snd(model.lex);
         if ($78) {
-          return "visible";
+          return "block";
         }
         ;
-        return "collapse";
+        return "none";
       }()
     })])(cons2(addLexText(fromMaybe("")(model.lexFeedback)))(cons2(addLexInput)(map24(displayLexItem)(fst(model.lex)))))])]);
   };
