@@ -8,14 +8,11 @@
 
 module LambdaCalc
   ( eval, evalFinal
-  , lam, (!), (%)
-  , make_var
+  , lam, (!), (%), make_var, make_con
   , (|?), set, make_set, get_dom, get_rng, set', conc
   , (*), _1, _2
   -- , a,b,c,x,y,z,f,g,h,p,q
-  , show_term
-  , show_tex
-  , show_hs
+  , show_term, show_tex, show_hs
   , enough_vars, unwind, occurs, bump_color
   , showVar, unrollDom, rerollDom, var_stock, tuple
   , Term(..), VarName(..), VColor
@@ -23,7 +20,7 @@ module LambdaCalc
   ) where
 
 import Control.Monad.Writer
-import Data.List
+import Data.List hiding (null)
 import Data.Maybe
 import Data.Tuple
 import Data.Tuple.Nested
@@ -32,7 +29,7 @@ import Control.Lazy
 
 
 import Data.Array (cons)
-import Data.Foldable (lookup, and)
+import Data.Foldable (lookup, and, null)
 import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
 import Data.String (replaceAll, Pattern(..), Replacement(..))
@@ -48,107 +45,112 @@ showVar (VC color name) | color == 0 = name
                         | otherwise  = name <> show color
 
 data Term
-  = Var VarName | App Term Term | Lam VarName Term
+  = Con String | Var VarName | App Term Term | Lam VarName Term
   | Pair Term Term | Fst Term | Snd Term
   | Set Term Term | Dom Term | Rng Term | Cct Term | Spl Int Term
 derive instance Eq Term
 derive instance Generic Term _
 
-
-eval term = fix openEval Nil term
-openEval eval' s e = case e,s of
+eval term = fix openEval term Nil
+openEval eval' e s = case e,s of
+  (Con c)      , Nil    -> e
+  (Con c)      , _      -> unwind ev e s
   (Var v)      , Nil    -> e
-  (Var v)      , _      -> unwind e s
+  (Var v)      , _      -> unwind ev e s
   (Lam v body) , Nil    -> check_eta $ Lam v (ev body)
-  (Lam v body) , (t:ts) -> eval' ts (subst body v t)
-  (App t1 t2)  , _      -> eval' (t2:s) t1
+  (Lam v body) , (t:ts) -> eval' (subst body v t) ts
+  (App t1 t2)  , _      -> eval' t1 (t2:s)
   (Pair t1 t2) , Nil    -> Pair (ev t1) (ev t2)
   (Pair _ _)   , (a:_)  -> unsafeThrow ("trying to apply a pair: "
                                         <> show_term e <> " to " <> show_term a)
   (Fst t0)     , _      -> case ev t0 of
-    (Pair t1 _)         -> eval' s t1 -- might not need eval' here
-    t                   -> unwind (Fst t) s
+    (Pair t1 _)         -> eval' t1 s -- might not need eval' here
+    t                   -> unwind ev (Fst t) s
   (Snd t0)     , _      -> case ev t0 of
-    (Pair _ t2)         -> eval' s t2 -- or here
-    t                   -> unwind (Snd t) s
+    (Pair _ t2)         -> eval' t2 s -- or here
+    t                   -> unwind ev (Snd t) s
   (Set t1 t2)  , Nil    -> Set (ev t1) (ev t2)
   (Set _ _)    , (a:_)  -> unsafeThrow ("trying to apply a set: "
-                                        <> show e <> " to " <> show a)
+                                        <> show_term e <> " to " <> show_term a)
   (Dom t0)  , Nil       -> case ev t0 of
     (Set t1 _)             -> ev t1 -- or here
     t                      -> Dom t
   (Dom _)   , (a:_)     -> unsafeThrow ("trying to apply a dom: "
-                                        <> show e <> " to " <> show a)
+                                        <> show_term e <> " to " <> show_term a)
   (Rng t0)   , _      -> case ev t0 of
-    (Set _ t2)          -> eval' s t2
-    t                   -> unwind (Rng t) s
-  (Cct _)      , (a:_)  -> unsafeThrow ("trying to apply a set: "
-                                        <> show e <> " to " <> show a)
+    (Set _ t2)          -> eval' t2 s
+    t                   -> unwind ev (Rng t) s
   (Cct t0)     , Nil    -> case ev t0 of
-    f@(Set t1 g@(Lam v (Set t2 t3))) ->
-                           let (Tuple t vars) = unrollDom f var_stock
-                               (Tuple t' vars') = unrollDom (ev $ g % tuple (map Var vars)) (drop (length vars) var_stock)
-                               dom = rerollDom t t' (vars <> vars')
-                            in ev $ Set dom (p ! get_rng (g % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+    o@(Set t1 i@(Lam v (Set t2 t3)))
+      | null $ [t1,t2] >>= free_vars ->
+      let (Tuple t vars) = unrollDom ev o var_stock
+          (Tuple t' vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) var_stock)
+          dom = rerollDom t t' (vars <> vars')
+       in check_sigma $ ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
     t                   -> Cct t
-  (Spl _ _)    , (a:_)  -> unsafeThrow ("trying to apply a split: "
-                                        <> show e <> " to " <> show a)
+  (Cct _)      , (a:_)  -> unsafeThrow ("trying to apply a set: "
+                                        <> show_term e <> " to " <> show_term a)
   (Spl n t0)   , Nil    -> case ev t0 of
     f@(Pair t1 t2)      -> Pair (leftSplit n f) (rightSplit n f)
     t                   -> Spl n t
   (Spl _ _)    , _      -> unsafeThrow ("trying to split something weird: "
-                                        <> show e <> " to " <> show a)
+                                        <> show_term e <> " to " <> show_term a)
   where
-    unwind t Nil = t
-    unwind t (t1:rest) = unwind (App t $ ev t1) rest
-    ev = eval' Nil
-    leftSplit 1 (Pair x _) = x
-    leftSplit n (Pair x p) = Pair x (leftSplit (n-1) p)
-    leftSplit n p = unsafeThrow ("bad leftSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
-    rightSplit 1 (Pair _ y) = y
-    rightSplit n (Pair _ p) = (rightSplit (n-1) p)
-    rightSplit n p = unsafeThrow ("bad rightSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
+    ev t = eval' t Nil
+    leftSplit n = case _ of
+      Pair x p -> if n == 1 then x else Pair x (leftSplit (n-1) p)
+      _        -> unsafeThrow ("bad leftSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
+    rightSplit n = case _ of
+      Pair x p -> if n == 1 then p else rightSplit (n-1) p
+      _        -> unsafeThrow ("bad rightSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
 
 
-evalFinal term = fix (openFinal <<< openEval) Nil term
-openFinal eval' s e = case e,s of
+evalFinal term = fix (openFinal <<< openEval) term Nil
+openFinal eval' e s = case e,s of
   (Dom t0) , Nil     -> case ev t0 of
-    (Set t1 _)          -> ev t1
-    t                   -> t
-  (Rng t0)  , _       -> case ev t0 of
-    (Set _ t2)          -> eval' s t2
-    _                   -> eval' s (a ! a)
-  _           , _       -> eval' s e
+    (Set t1 _)       -> ev t1
+    t                -> t
+  (Rng t0)  , _      -> case ev t0 of
+    (Set _ t2)       -> eval' t2 s
+    _                -> eval' (a ! a) s
+  (Cct t0)  , Nil    -> case ev t0 of
+    o@(Set t1 i@(Lam v (Set t2 t3))) ->
+      let (Tuple t vars  ) = unrollDom ev o var_stock
+          (Tuple t' vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) var_stock)
+          dom = rerollDom t t' (vars <> vars')
+       in check_sigma $ ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
+    t                                  -> Cct t
+  _           , _       -> eval' e s
   where
-    ev = eval' Nil
+    ev t = eval' t Nil
 
-unwind t Nil = t
-unwind t (t1:rest) = unwind (App t $ eval t1) rest
+unwind _ t Nil = t
+unwind f t (t1:rest) = unwind f (t `App` f t1) rest
 
 rewind t Nil = t
 rewind t (v1:rest) = (Lam v1 (rewind t rest))
 
-unrollDom :: Term -> List VarName -> Tuple Term (List VarName)
-unrollDom e@(Set dom rng) vs =
+-- unrollDom :: Term -> List VarName -> Tuple Term (List VarName)
+unrollDom eval e@(Set dom rng) vs =
   let vars' = enough_vars dom vs
       occs = map (\s -> Tuple (occurs e s) s) vars'
       vars = map (\(Tuple (Tuple f v') s) -> if f then bump_color v' s else s) occs
-      getvar vs = Tuple (maybe (make_var "s") Var (head vs)) (fromMaybe Nil (tail vs))
+      getvar (v:vs) = Tuple (Var v) vs
+      getvar Nil = unsafeThrow "could not getvar while unrolling dom"
       go t vs apps = let (Tuple v rest) = getvar vs in
         case t of
-          Pair t1 t2 -> Pair (eval $ unwind t1 apps) (go t2 rest (v:apps))
-          _          -> (eval $ unwind t apps)
+          Pair t1 t2 -> Pair (eval $ unwind eval t1 apps) (go t2 rest (v:apps))
+          _          -> (eval $ unwind eval t apps)
    in Tuple (go dom vars Nil) vars
-unrollDom e _ = unsafeThrow ("trying to unroll dom: " <> show e)
+unrollDom _ e _ = unsafeThrow ("trying to unroll dom: " <> show e)
 
-rerollDom d d' vs = makeItRain (linearize d d') Nil vs
+rerollDom d d' vs = go (linearize d d') Nil vs
   where
     linearize (Pair d0 d1) d = Pair d0 (linearize d1 d)
     linearize t d = Pair t d
-
-makeItRain (Pair d0 d1) use (s:stock) = Pair (rewind d0 use) (makeItRain d1 (use <> pure s) stock)
-makeItRain e@(Pair d0 d1) _ Nil = unsafeThrow ("not enough vars for: " <> show_term e)
-makeItRain t use _ = rewind t use
+    go (Pair d0 d1) use (s:stock) = Pair (rewind d0 use) (go d1 (use <> pure s) stock)
+    go e@(Pair d0 d1) _ Nil        = unsafeThrow ("not enough vars for: " <> show_term e)
+    go t use _                     = rewind t use
 
 tuple Nil = unsafeThrow "not enough vars"
 tuple (v:Nil) = v
@@ -159,11 +161,12 @@ var_stock = map (VC 0) $ "s":"t":"u":"v":"w":"a":"b":"c":Nil
 enough_vars :: Term -> List VarName -> List VarName
 enough_vars t vs = go t $ vs
   where
-    go t Nil = Nil
+    go t Nil = unsafeThrow "exceeded variable stock"
     go (Pair t1 t2) (v:vars) = v : go t2 vars
     go _ (v:vars) = v:Nil
 
 
+subst t@(Con s) _ _ = t
 subst term v (Var v') | v == v' = term
 subst t@(Var x) v st | x == v    = st
                      | otherwise = t
@@ -195,6 +198,7 @@ bump_color (VC color name) (VC color' _) =
 bump_color' v1@(VC _ name) v2@(VC _ name') =
   if name==name' then bump_color v1 v2 else v1
 
+occurs (Con s) v = Tuple false v
 occurs (Var v'@(VC c' name')) v@(VC c name)
   | not (name == name')  = (Tuple false v)
   | c == c'              = (Tuple true  v)
@@ -225,10 +229,23 @@ check_eta (Lam v (App t (Var v')))
   | v == v' && (let (Tuple flag _) = occurs t v in not flag) = t
 check_eta term = term
 
+check_sigma (Set (Pair d1 (Lam v (Set d2 r2))) r0) =
+  let dom = Pair d1 $ abs v d2
+      rng = p ! r0 % (_1 p * ((Lam v r2) % _1 p % _2 (Spl 1 p)))
+   in Set dom rng
+  where
+    abs v (Pair x y) = Pair (Lam v x) (abs v y)
+    abs v t          = Lam v t
+check_sigma term = term
+
+
+{- for tracing evaluations and debugging... -}
+
 note_reduction label redex = tell $ singleton (Tuple label redex)
 
 mweval term = runWriter (meval' term Nil)
 
+meval' t@(Con s) _ = pure t
 meval' t@(Var v) Nil = pure t
 meval' (Lam v body) Nil = do
   body' <- meval' body Nil
@@ -270,10 +287,40 @@ meval' e@(Dom s) stack = case stack of
 meval' (Rng s) stack = do
   s' <- meval' s Nil
   case s' of
-    (Set t1 t2)  -> note_reduction "map" (Rng s') *> meval' t2 stack
-    t            -> meval' (a ! a) stack
-meval' (Cct s) stack = unsafeThrow ("need to implement meval' CCt")
-meval' (Spl n s) stack = unsafeThrow ("need to implement meval' CCt")
+    (Set t1 t2)  -> note_reduction "range" (Rng s') *> meval' t2 stack
+    t            -> munwind (Rng t) stack
+meval' e@(Cct t0) stack = case stack of
+  Nil -> do
+    f <- meval' t0 Nil
+    case f of
+      Set t1 g@(Lam v (Set t2 t3)) -> do
+        note_reduction "concat" f
+        let (Tuple t vars ) = unrollDom eval f var_stock
+        note_reduction "unrolled outer dom" (Pair t (tuple $ map Var vars))
+        g' <-  meval' (g % tuple (map Var vars)) Nil
+        let (Tuple t' vars') = unrollDom eval g' (drop (length vars) var_stock)
+            dom = rerollDom t t' (vars <> vars')
+        note_reduction "unrolled inner dom" (Pair t' (tuple $ map Var vars))
+        note_reduction "rerolled dom" dom
+        meval' (Set dom (p ! get_rng (g % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))) Nil
+      t -> pure (Cct t)
+  (a:_) -> unsafeThrow ("trying to apply a set: "
+                  <> show_term e <> " to " <> show_term a)
+meval' e@(Spl n t0) stack = case stack of
+  Nil -> do
+    f <- meval' t0 Nil
+    case f of
+      Pair t1 t2 -> pure $ Pair (leftSplit n f) (rightSplit n f)
+      t          -> pure (Spl n t)
+  (a:_) -> unsafeThrow ("trying to apply a split: "
+                  <> show_term e <> " to " <> show_term a)
+  where
+    leftSplit n = case _ of
+      Pair x p -> if n == 1 then x else Pair x (leftSplit (n-1) p)
+      _        -> unsafeThrow ("bad leftSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
+    rightSplit n = case _ of
+      Pair x p -> if n == 1 then p else rightSplit (n-1) p
+      _        -> unsafeThrow ("bad rightSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
 
 munwind ::  Term -> List Term -> Writer (List (Tuple String Term)) Term
 munwind t Nil = pure t
@@ -287,6 +334,9 @@ mcheck_eta red@(Lam v (App t (Var v')))
          pure t
 mcheck_eta term = pure term
 
+
+-- a little DSL for building lambda terms
+
 make_var = Var <<< VC 0
 x = make_var "x"
 y = make_var "y"
@@ -298,9 +348,6 @@ b = make_var "b"
 c = make_var "c"
 p = make_var "p"
 q = make_var "q"
-
--- a little DSL for building lambda terms
-
 infixl 8 App as %
 lam (Var v) body = Lam v body
 lam _ _ = unsafeThrow "ill-formed abstraction"
@@ -308,28 +355,33 @@ infixr 6 lam as !
 _1 = Fst
 _2 = Snd
 infixr 7 Pair as *
-make_set p = Set (make_var "some" % p) (x ! x)
+make_set p = Set (make_con "some" % p) (x ! x)
 get_dom = Dom
 get_rng = Rng
 set' = flip Set
 infix 5 set' as |?
 set = identity
 conc = Cct
+make_con = Con
 
-showRight = case _ of
-  (Set _ _)  -> identity
-  (Pair _ _) -> identity
-  (Var _)    -> identity
-  _          -> parens
-showLeft = case _ of
-  (Lam _ _) -> parens
-  _         -> identity
+{- term pretty printing -}
+
+showRight disp = case _ of
+  t@(Set _ _)  -> disp t
+  t@(Pair _ _) -> disp t
+  t@(Var _)    -> disp t
+  t@(Con _)    -> disp t
+  t            -> parens (disp t)
+showLeft disp = case _ of
+  t@(Lam _ _) -> parens (disp t)
+  t           -> disp t
 parens s = "(" <> s <> ")"
 
 type Formatter =
-  { lam' :: String, arr' :: String
+  { lam' :: String, arr' :: String, app' :: String
+  , con' :: String -> String, var' :: VarName -> String
   , lb' :: String, rb' :: String, mid' :: String, la' :: String, ra' :: String
-  , fst' :: String, snd' :: String, elem' :: String, dom' :: String, rng' :: String
+  , fst' :: String, snd' :: String, dom' :: String, rng' :: String, elem' :: String
   }
 
 show_formatted_term form term depth
@@ -337,15 +389,17 @@ show_formatted_term form term depth
   | otherwise  = showt term
   where
     showt = case _ of
-      Var v -> showVar v
-      Lam v body -> form.lam' <> (showVar v) <> form.arr' <> (showt' body)
-      App t1 t2 -> showLeft t1 (showt' t1) <> " " <> showRight t2 (showt' t2)
+      Con s -> form.con' s
+      Var v -> form.var' v
+      Lam v body -> form.lam' <> form.var' v <> form.arr' <> showt' body
+      App t1 t2 -> showLeft showt' t1 <> form.app' <> showRight showt' t2
       Pair t1 t2 -> form.la' <> showt' t1 <> ", " <> showt' t2 <> form.ra'
-      Fst p -> form.fst' <> showRight p (showt p)
-      Snd p -> form.snd' <> showRight p (showt p)
+      Fst p -> form.fst' <> showRight showt p
+      Snd p -> form.snd' <> showRight showt p
       e@(Set _ cond) ->
-        let Tuple t vars = unrollDom e var_stock
-            getvar vs = Tuple (maybe (make_var "s") Var (head vs)) (fromMaybe Nil (tail vs))
+        let Tuple t vars = unrollDom eval e var_stock
+            getvar (v:vs) = Tuple (Var v) vs
+            getvar Nil = unsafeThrow "getvar error in show_term"
             showDom t vs = let (Tuple v rest) = getvar vs in
               case t of
                 Pair a b ->
@@ -353,16 +407,16 @@ show_formatted_term form term depth
                 t' -> showt v <> form.elem' <> showt t'
          in form.lb' <> showt' (eval $ cond % (tuple $ map Var vars)) <>
             form.mid' <> showDom t vars <> form.rb'
-      Dom p -> form.dom' <> showRight p (showt p)
-      Rng p -> form.rng' <> showRight p (showt p)
-      Cct t -> "concat " <> showRight t (showt t)
-      Spl n t -> "splitAt " <> show n <> showRight t (showt t)
+      Dom p -> form.dom' <> showRight showt p
+      Rng p -> form.rng' <> showRight showt p
+      Cct t -> "concat " <> showRight showt t
+      Spl n t -> "splitAt " <> show n <> " " <> showRight showt t
     showt' term = show_formatted_term form term (depth - 1)
 
 default_term_form =
-  { lam': "\\", arr': ". "
-  ,lb': "[", rb': "]", mid': " | ", la': "<", ra': ">"
-  , fst': "fst ", snd': "snd ", elem': " <- " , dom': "sdom ", rng': "srng "
+  { lam' : "\\", arr' : ". ", app' : " ", con' : identity, var' : showVar
+  , lb' : "[", rb' : "]", mid' : " | ", la' : "<", ra' : ">"
+  , fst' : "fst ", snd' : "snd ", elem' : " <- ", dom' : "sdom ", rng' : "srng "
   }
 
 show_term term = show_formatted_term default_term_form term 100
@@ -372,65 +426,66 @@ show_hs term = show_formatted_term hs_form term 100
 show_tex term = show_formatted_term tex_form term 100
   where
     tex_form =
-      { lam': "\\lambda ", arr': ". "
-      , lb': "\\{ ", rb': "\\} ", mid': " \\mid ", la': "\\langle ", ra': "\\rangle "
-      , fst': "\\textsf{fst} ", snd': "\\textsf{snd} ", elem': " \\in " , dom': "\\textsf{dom} ", rng': "\\textsf{rng} "
+      { lam' : "\\ensuremath{\\lambda}", arr' : ".\\;", app' : "\\,"
+      , con' : \s -> "\\textsf{" <> s <> "}", var' : showv
+      , lb' : "\\ensuremath{\\{}", rb' : "\\ensuremath{\\}}"
+      , mid' : "\\ensuremath{\\mid}", la' : "\\ensuremath{\\langle}", ra' : "\\ensuremath{\\rangle}"
+      , fst' : "\\textsf{fst} ", snd' : "\\textsf{snd} "
+      , elem' : "\\ensuremath{\\in}" , dom' : "\\textsf{dom} ", rng' : "\\textsf{rng} "
       }
+    showv (VC n s) = "\\ensuremath{" <> s <> (if n == 0 then "" else "_{" <> show n <> "}") <> "}"
 
 instance Show Term where
    show term = genericShow term
 
-free_vars term = free_vars' term [] []
-  where
-    free_vars' (Var v) bound free = if v `elem` bound then free else v `cons` free
-    free_vars' (App t1 t2) bound free =
-      free_vars' t1 bound $ free_vars' t2 bound free
-    free_vars' (Lam v body) bound free = free_vars' body (v `cons` bound) free
-    free_vars' (Pair t1 t2) bound free =
-      free_vars' t1 bound $ free_vars' t2 bound free
-    free_vars' (Fst p) bound free = free_vars' p bound free
-    free_vars' (Snd p) bound free = free_vars' p bound free
-    free_vars' (Set t1 t2) bound free =
-      free_vars' t1 bound $ free_vars' t2 bound free
-    free_vars' (Dom p) bound free = free_vars' p bound free
-    free_vars' (Rng p) bound free = free_vars' p bound free
-    free_vars' (Cct p) bound free = free_vars' p bound free
-    free_vars' (Spl _ p) bound free = free_vars' p bound free
 
-term_equal_p term1 term2 = term_equal_p' term1 term2 (Nil /\ Nil /\ 0)
+{- tests for evaluation -}
+
+free_vars term = go term [] []
   where
-  term_equal_p' (Var v1) (Var v2) (bdic1 /\ bdic2 /\ _) =
+    go (Con s) bound free = free
+    go (Var v) bound free = if v `elem` bound then free else v `cons` free
+    go (App t1 t2) bound free =
+      go t1 bound $ go t2 bound free
+    go (Lam v body) bound free = go body (v `cons` bound) free
+    go (Pair t1 t2) bound free =
+      go t1 bound $ go t2 bound free
+    go (Fst p) bound free = go p bound free
+    go (Snd p) bound free = go p bound free
+    go (Set t1 t2) bound free =
+      go t1 bound $ go t2 bound free
+    go (Dom p) bound free = go p bound free
+    go (Rng p) bound free = go p bound free
+    go (Cct p) bound free = go p bound free
+    go (Spl _ p) bound free = go p bound free
+
+term_equal_p term1 term2 = go term1 term2 (Nil /\ Nil /\ 0)
+  where
+  go (Con s1) (Con s2) _ = s1 == s2
+  go (Var v1) (Var v2) (bdic1 /\ bdic2 /\ _) =
     case (Tuple (lookup v1 bdic1) (lookup v2 bdic2)) of
     (Tuple (Just bv1) (Just bv2)) -> bv1 == bv2 -- both v1 v2 are bound to the same val
     (Tuple Nothing Nothing)       -> v1 == v2   -- both v1 and v2 are free
     _                             -> false
-
-  term_equal_p' (Lam v1 b1) (Lam v2 b2) (bdic1 /\ bdic2 /\ counter) =
-    term_equal_p' b1 b2
+  go (Lam v1 b1) (Lam v2 b2) (bdic1 /\ bdic2 /\ counter) =
+    go b1 b2
       (Tuple ((Tuple v1 counter):bdic1) (Tuple ((Tuple v2 counter):bdic2) (counter+1)))
-
-  term_equal_p' (App t1 t1') (App t2 t2') env =
-    term_equal_p' t1  t2  env &&
-    term_equal_p' t1' t2' env
-
-  term_equal_p' (Pair t1 t1') (Pair t2 t2') env =
-    term_equal_p' t1  t2  env &&
-    term_equal_p' t1' t2' env
-
-  term_equal_p' (Fst p1) (Fst p2) env = term_equal_p' p1 p2 env
-  term_equal_p' (Snd p1) (Snd p2) env = term_equal_p' p1 p2 env
-
-  term_equal_p' (Set t1 t1') (Set t2 t2') env =
-    term_equal_p' t1  t2  env &&
-    term_equal_p' t1' t2' env
-
-  term_equal_p' (Dom p1) (Dom p2) env = term_equal_p' p1 p2 env
-  term_equal_p' (Rng p1) (Rng p2) env = term_equal_p' p1 p2 env
-
-  term_equal_p' (Cct p1) (Cct p2) env = term_equal_p' p1 p2 env
-  term_equal_p' (Spl n p1) (Spl m p2) env = n == m && term_equal_p' p1 p2 env
-
-  term_equal_p' _ _ _ = false
+  go (App t1 t1') (App t2 t2') env =
+    go t1  t2  env &&
+    go t1' t2' env
+  go (Pair t1 t1') (Pair t2 t2') env =
+    go t1  t2  env &&
+    go t1' t2' env
+  go (Fst p1) (Fst p2) env = go p1 p2 env
+  go (Snd p1) (Snd p2) env = go p1 p2 env
+  go (Set t1 t1') (Set t2 t2') env =
+    go t1  t2  env &&
+    go t1' t2' env
+  go (Dom p1) (Dom p2) env = go p1 p2 env
+  go (Rng p1) (Rng p2) env = go p1 p2 env
+  go (Cct p1) (Cct p2) env = go p1 p2 env
+  go (Spl n p1) (Spl m p2) env = n == m && go p1 p2 env
+  go _ _ _ = false
 
 expectg f exp expected_result = case f exp expected_result of
   true -> true
@@ -440,7 +495,6 @@ expect :: forall a. Eq a => Show a => a -> a -> Boolean
 expect = expectg (==)
 expectd = expectg term_equal_p -- test using comparison modulo alpha-renaming
 notexpectd = expectg (\x y -> not $ term_equal_p x y)
-{-
 free_var_tests = and [
    expect (map Var (free_vars $ x))  [x],
    expect (map Var (free_vars $ x!x)) [],
@@ -525,13 +579,24 @@ mweval_tests = and [
    expectd (fst $ mweval $ a ! (x ! a ! x % a) % a)
          (z!z),
    expectd (fst $ mweval $ a ! (x ! b ! x % a) % a)
-         (a!b!a%a)
-   -- , expect (show $ mweval $ a ! (x ! a ! x % a) % a)
-   --        "((\\a. a),[(\"beta\",(\\x. (\\a. x a)) a),(\"eta\",(\\a~1. a a~1))])"
-   ]
+         (a!b!a%a),
+  expect (show_term $ evalFinal ea)
+       "[saw t s | s <- person, t <- some (\\a1. and (cat a1) (near s a1))]"
+  ]
+  where
+    ea =
+      let person = make_con "person"
+          some = make_con "some"
+          a1 = make_var "a1"
+          and' = make_con "and"
+          cat = make_con "cat"
+          near = make_con "near"
+          saw = make_con "saw"
+       in set (
+            (a ! b ! (saw % ((get_rng (some % (a1 ! (and' % (cat % a1) % (near % a % a1))))) % b) % a))
+          |? person * (a ! (get_dom (some % (a1 ! and' % (cat % a1) % (near % a % (a1))))))
+          )
 
 all_tests = and [ free_var_tests, alpha_comparison_tests,
                   subst_tests, eval_tests, mweval_tests ]
 
--- (Pair (Fst (Lam b (Pair (Var s) (App (App (Var saw) (Var b)) (Var s))))) (App (Var eclo) (Set (Snd (Lam b (Pair (Var s) (App (App (Var saw) (Var b)) (Var s))))) (Lam a1 (Var a1))))) to (Var t)
--}

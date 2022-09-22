@@ -53,7 +53,7 @@ prettyF a = case _ of
 prettyVal :: Boolean -> (Term -> String) -> Sem -> Doc
 prettyVal norm disp v
   | norm      = text $ disp (evalFinal (semTerm v))
-  | otherwise = text $ show (evalFinal (semTerm v))
+  | otherwise = text $ show v
 
 -- this is painfully duplicative
 displayTy :: forall m. Ty -> Html m
@@ -94,6 +94,8 @@ displayTerm _    depth | depth <= 0 = [ HE.text "..." ]
 displayTerm term depth              = go term
   where
     go = case _ of
+      (Con c) ->
+        [ HE.text c ]
       (Var v) ->
         [ HE.text (showVar v) ]
       (Lam v body) ->
@@ -102,9 +104,9 @@ displayTerm term depth              = go term
         <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
         <> go' body
       (App t1 t2) ->
-        displayLeft t1 (go' t1)
+        displayLeft go' t1
         <> [ HE.text " " ]
-        <> displayRight t2 (go' t2)
+        <> displayRight go' t2
       (Pair t1 t2) ->
         [ HE.span [HA.class' "den-punct"] [HE.text "⟨"] ]
         <> go' t1
@@ -113,13 +115,14 @@ displayTerm term depth              = go term
         <> [ HE.span [HA.class' "den-punct"] [HE.text "⟩"] ]
       (Fst p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "fst "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
       (Snd p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "snd "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
       e@(Set _ cond) ->
-        let (dom ^ vars) = unrollDom e var_stock
-            getvar vs = (maybe (make_var "s") Var (head vs)) ^ (fromMaybe Nil (tail vs))
+        let (dom ^ vars) = unrollDom eval e var_stock
+            getvar (v:vs) = (Var v ^ vs)
+            getvar Nil = unsafeThrow "getvar error in displayTerm"
             showDom t vs = let (v^rest) = getvar vs in
               case t of
                 Pair a b ->
@@ -139,28 +142,29 @@ displayTerm term depth              = go term
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
       (Dom p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
       (Rng p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "rng "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
       (Cct p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "concat "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
       (Spl n p) ->
         [ HE.span [HA.class' "den-op"] [HE.text $ "splitAt " <> show n <> " "] ]
-        <> displayRight p (go p)
+        <> displayRight go p
 
     go' term = displayTerm term (depth - 1)
 
-    displayRight = case _ of
-      (Set _ _)  -> identity
-      (Pair _ _) -> identity
-      (Var _)    -> identity
-      _          -> parens
+    displayRight disp = case _ of
+      t@(Set _ _)  -> disp t
+      t@(Pair _ _) -> disp t
+      t@(Var _)    -> disp t
+      t@(Con _)    -> disp t
+      t            -> parens (disp t)
 
-    displayLeft = case _ of
-      (Lam _ _) -> parens
-      _         -> identity
+    displayLeft disp = case _ of
+      t@(Lam _ _) -> parens (disp t)
+      t           -> disp t
 
     parens s =
       [HE.span [HA.class' "den-punct"] [HE.text "("]]
@@ -229,7 +233,7 @@ prettyProofTree norm proof =
       _ -> text "[[wrong] [[number] [[of] [daughters]]]]"
 
     label v
-      | norm = \x -> text "$\\texttt{" <> prettyVal norm show_tex v <> text "}$\\\\" <+> x
+      | norm = \x -> text "{$" <> prettyVal norm show_tex v <> text "$}\\\\" <+> x
       | otherwise = identity
 
 prettyProofBuss :: Proof -> Doc

@@ -2,6 +2,7 @@
 module Main where
 
 import Data.Array
+import Data.Foldable (or)
 import Data.Either
 import Data.Maybe
 import Data.Tuple
@@ -21,7 +22,7 @@ import Flame (QuerySelector(..), Html, Key)
 import Flame.Application.NoEffects as FAN
 import Flame.Html.Attribute as HA
 import Flame.Html.Element as HE
-import TDDemo (productions, lexicon) as Demo
+import TDDemo (demoCFG, demoLex) as Demo
 
 -- | The model represents the state of the app
 type Model =
@@ -47,13 +48,13 @@ init =
   { currentPhrase: ""
   , typeOfInterest: const true
   , currentProofs: Just []
-  , lex: fromFoldable Demo.lexicon ^ false
+  , lex: fromFoldable Demo.demoLex ^ false
   , lexFeedback: Nothing
   , densOn: true
   }
 
 proofs :: Lexicon -> String -> Maybe (Array Proof)
-proofs l s = fromFoldable <$> prove Demo.productions l s
+proofs l s = fromFoldable <$> prove Demo.demoCFG l s
 
 -- | `update` is called to handle events
 update :: Model -> Message -> Model
@@ -69,7 +70,7 @@ update model = case _ of
   TypeInput (_ ^ t) ->
     case tyParse t of
       Left _   -> model { typeOfInterest = const true }
-      Right ty -> model { typeOfInterest = (_ `elem` ty) <<< getProofType }
+      Right ty -> model { typeOfInterest = \p -> or $ map hasType ty <@> p }
 
   ToggleLex ->    model { lex = not <$> model.lex }
 
@@ -108,7 +109,12 @@ view model =
     , HE.p "current"
        [ HE.text $ "Showing "
        , HE.span [HA.style {color: "var(--accent)"}]
-         [ HE.text $ (show $ maybe 0 (length <<< filter model.typeOfInterest) model.currentProofs) ]
+         [ HE.text $ show $
+           min 200 $ maybe 0 (length <<< filter model.typeOfInterest) model.currentProofs ]
+       , HE.text " of "
+       , HE.span [HA.style {color: "var(--accent)"}]
+         [ HE.text $ show $
+           maybe 0 length model.currentProofs ]
        , HE.text $ " parses for: " <> model.currentPhrase
        ]
 
@@ -117,7 +123,7 @@ view model =
       [ HE.div "parses" $
           fromMaybe [HE.text "No parse"] $
             model.currentProofs <#>
-              (filter model.typeOfInterest >>> mapWithIndex (displayProof model.densOn))
+              (filter model.typeOfInterest >>> take 100 >>> mapWithIndex (displayProof model.densOn))
 
       , HE.div [HA.id "lexicon", HA.style {display: if snd (model.lex) then "block" else "none"}] $
         addLexText (fromMaybe "" model.lexFeedback) : addLexInput : map displayLexItem (fst model.lex)
