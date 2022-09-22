@@ -11,7 +11,7 @@ import LambdaCalc (Term, eval, make_var, make_con, (!), (%), _1, _2, (*), (|?), 
 import Memo
 import Data.Function ( fix )
 import Data.Functor ( (<&>) )
-import Data.List ( isPrefixOf )
+import Data.List ( isPrefixOf, stripPrefix )
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -20,7 +20,7 @@ import Data.List ( isPrefixOf )
 data Cat
   = CP | Cmp -- Clauses and Complementizers
   | CBar | DBar | Cor -- Coordinators and Coordination Phrases
-  | DP | Det | Gen | Dmp -- (Genitive) Determiners and full Determiner Phrases
+  | DP | Det | Gen | GenD | Dmp -- (Genitive) Determiners and full Determiner Phrases
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
@@ -68,10 +68,8 @@ evaluated = \case
   E             -> True
   T             -> True
   _ :-> a       -> evaluated a
-  Eff S a       -> evaluated a
-  Eff (R _) a   -> evaluated a
-  Eff (W _) a   -> evaluated a
   Eff (C _ _) _ -> False
+  Eff _ a       -> evaluated a
 
 
 {- Syntactic parsing -}
@@ -126,9 +124,13 @@ protoParse cfg parse phrase             = concat <$> mapM help (bisect phrase)
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
 parse :: CFG -> Lexicon -> String -> Maybe [Syn]
-parse cfg lex input = do
-  ws <- mapM (\s -> (s,) <$> lookup s lex) $ words input
+parse cfg dict input = do
+  let lexes = filter (/= "") $ words input >>= stripClitics
+  ws <- mapM (\s -> (s,) <$> lookup s dict) lexes
   return $ snd <$> memo (protoParse cfg) (0, length ws - 1, ws)
+  where
+    stripClitics s = clitics >>= \c -> maybe [s] ((:[c]) . reverse) $ stripPrefix (reverse c) (reverse s)
+    clitics = ["'s"]
 
 -- A semantic object is either a lexical entry or a mode of combination applied to
 -- two other semantic objects
