@@ -71,6 +71,7 @@ prettyOp = \case
   Eps    -> "\\comb{Eps},"
   D      -> "\\comb{D},"
   XL f o -> "\\comb{XL}" <+> prettyOp o
+  Bind   -> "\\comb{Bind},"
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty
@@ -88,7 +89,7 @@ prettyProofTree norm proof =
 
   where
     forest = \case
-      Proof word v@(Lex w) ty _ ->
+      Proof word v@(Lex _) ty _ ->
         "[" <>
         "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
@@ -97,16 +98,13 @@ prettyProofTree norm proof =
         brackets ("\\texttt{" <> text (show word) <> "}") <>
         "]"
 
-      Proof phrase v@(Comb op _) ty [l, r] ->
+      Proof phrase v@(Comb op _) ty subProofs ->
         "[" <>
         "$" <> "\\texttt{" <>
         prettyTy arrow ty <> "}$" <>
         "\\\\" $+$
         label v (braces (prettyMode op)) $+$
-        forest l $+$ forest r $+$
-        "]"
-
-      _ -> "[[wrong] [[number] [[of] [daughters]]]]"
+        foldr (\p -> (forest p $+$)) "]" subProofs
 
     label v
       | norm = ("{$" <> prettyVal norm showTex v <> "$}\\\\" $+$)
