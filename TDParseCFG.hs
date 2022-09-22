@@ -295,7 +295,7 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
     Eff f a | functor f ->
       combine (l,a) <&>
       concatMap \(op,d,c) -> let m = MR f
-                              in [(m:op, opTerm m % d, Eff f c) | invertible op m]
+                              in [(m:op, opTerm m % d, Eff f c) | invertOk op m]
     _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
