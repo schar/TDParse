@@ -231,7 +231,7 @@ synsem :: Syn -> [Proof]
 synsem s = join . executeTAt (countPros s) . go $ s
   where
     countPros = \case
-      Leaf s d (Eff (R _) _) -> 1
+      Leaf s d (Eff (R _) a) -> 1 + countPros (Leaf s d a)
       Leaf s d _ -> 0
       Branch l r -> countPros l + countPros r
       Island l r -> countPros l + countPros r
@@ -372,7 +372,7 @@ unaryRules (op, d, ty) =
 
   <+> case ty of
     E -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
-    t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
+    t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
     -- t@(Eff (R E) E) -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
     -- t@(Eff (R E) (Eff (W E) E)) -> optionally [(P:op, extractPush d, effW (effR E E) t)] [(op,d,ty)]
     _ -> return [(op,d,ty)]
