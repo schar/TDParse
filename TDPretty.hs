@@ -71,6 +71,7 @@ prettyOp = \case
   Eps    -> "\\comb{Eps},"
   D      -> "\\comb{D},"
   XL f o -> "\\comb{XL}" <+> prettyOp o
+  P      -> "\\comb{P},"
 
 prettyMode :: Mode -> Doc
 prettyMode [] = empty

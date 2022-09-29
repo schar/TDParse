@@ -12,6 +12,8 @@ import Memo
 import Data.Function ( fix )
 import Data.Functor ( (<&>) )
 import Data.List ( isPrefixOf, stripPrefix )
+import Debug.Trace
+import Utils
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -151,6 +153,7 @@ data Op
   | Eps               -- Adjoint     counit
   | D                 -- Cont        lower
   | XL F Op           -- Comonad     extend
+  | P                 -- Writer      push
   deriving (Eq)
 
 instance Show Op where
@@ -168,6 +171,7 @@ instance Show Op where
     Eps    -> "Eps"
     D      -> "D"
     XL f o -> "XL " ++ show o
+    P      -> "P"
 
 
 {- Type classes -}
@@ -220,10 +224,18 @@ hasType t (Proof _ _ t' _) = t == t'
 -- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> [Proof]
-synsem = execute . go
+synsem s = join . executeTAt (countPros s) . go $ s
   where
+    countPros = \case
+      Leaf s d (Eff (R _) _) -> 1
+      Leaf s d _ -> 0
+      Branch l r -> countPros l + countPros r
+      Island l r -> countPros l + countPros r
     go = \case
-      Leaf   s d t -> return [Proof s (Lex d) t []]
+      Leaf   s d t -> do
+        pushes <- curry (fix binaryRules) (E :-> effW E E) t
+        let proofPushes = [Proof s (Lex $ c % pushTerm % d) t' [] | (_, c, t') <- pushes]
+        optionally proofPushes [Proof s (Lex d) t []]
       Branch l r   -> goWith False id l r
       Island l r   -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
       -- boolean tags for islandhood, to avoid over-memoizing
@@ -265,15 +277,23 @@ combineFs = curry \case
 
 -- combine = combineWith ((), id)
 combineWith tag handler =
-  curry $ fix $ memoizeTag tag . ((handler <$>) .) . openCombine
+  curry $ fix $ memoizeTagT tag . (fmap handler .) . openCombine
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
-openCombine ::
-  Monad m
-  => ((Ty, Ty) -> m [(Mode, Term, Ty)])
-  ->  (Ty, Ty) -> m [(Mode, Term, Ty)]
-openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
+-- openCombine ::
+--   Monad m
+--   => ((Ty, Ty) -> m [(Mode, Term, Ty)])
+--   ->  (Ty, Ty) -> m [(Mode, Term, Ty)]
+openCombine combine (l, r) = do
+  bins <- binaryRules combine (l, r)
+  cs <- traverse unaryRules bins
+  return $ map (\(m,d,t) -> (m, eval d, t)) $ concat cs
+  -- where
+  --   infixl 5 <**>
+  --   (<**>) = liftM2 (flip (<*>))
+
+binaryRules combine (l, r) =
 
   -- for starters, try the basic modes of combination
   return (modes l r)
@@ -328,30 +348,58 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
   <+> case (l,r) of
     (Eff f a, Eff g b) | adjoint f g ->
       combine (a, b) <&>
-      concatMap \(op,d,c) -> do (m,eff) <- [(Eps, id), (XL f Eps, Eff f)]
+      concatMap \(op,d,c) -> do (m,eff) <- [(Eps, id){-, (XL f Eps, Eff f)-}]
                                 return (m:op, opTerm m % d, eff c)
     _ -> return []
 
   -- finally see if the resulting types can additionally be lowered/joined
-  <**> return [addD, addJ, return]
+unaryRules (op, d, ty) =
 
+  case ty of
+    Eff f (Eff g a) | monad f, norm op (J f) ->
+      return [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
+    _ -> return []
+
+  <+> case ty of
+    Eff (C i a) a' | a == a', norm op D ->
+      return [(D:op, opTerm D % d, i)]
+    _ -> return []
+
+  <+> case ty of
+    E -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
+    t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
+    -- t@(Eff (R E) E) -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
+    -- t@(Eff (R E) (Eff (W E) E)) -> optionally [(P:op, extractPush d, effW (effR E E) t)] [(op,d,ty)]
+    _ -> return [(op,d,ty)]
   where
-    infixr 6 <+>
-    (<+>) = liftM2 (++)
-    infixl 5 <**>
-    (<**>) = liftM2 (flip (<*>))
+    -- extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
+    etype = \case
+      E             -> True
+      (Eff (W _) a) -> etype a
+      (Eff (R _) a) -> etype a
+      _             -> False
 
-addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
-addJ = \case
-  (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
-    [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
-  _ -> []
+-- addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
+-- addJ = \case
+--   (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
+--     [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
+--   _ -> []
 
-addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
-addD = \case
-  (op, d, Eff (C i a) a') | a == a', norm op D ->
-    [(D:op, opTerm D % d, i)]
-  _ -> []
+-- addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
+-- addD = \case
+--   (op, d, Eff (C i a) a') | a == a', norm op D ->
+--     [(D:op, opTerm D % d, i)]
+--   _ -> []
+
+-- addW :: Bool -> (Mode, Term, Ty) -> [(Mode, Term, Ty)]
+-- addW paychecks (op, d, t) = -- trace (show $ "addW: " ++ "(" ++ show op ++ ", " ++ showTerm (eval d) ++ ", " ++ show t ++ ")") $
+--   case (op,d,t) of
+--     (op, d, E) -> [(P:op, opTerm P % d, effW E E)]
+--     (op, d, t@(Eff (R E) E)) | paychecks -> [(P:op, opTerm P % d, effW t t)]
+--     (op, d, t@(Eff (R E) (Eff (W E) E))) | paychecks -> [(P:op, extractPush d, effW (effR E E) t)]
+--     _ -> []
+--   where
+--     extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
 
 -- these filters prevent generating "spurious" derivations, which are
 -- guaranteed to be equivalent to other derivations we're already generating
@@ -440,10 +488,12 @@ opTerm = \case
   Eps  -> op ! l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (op % a) % r) % l)
 
           -- \l r -> op l r id
-  D    -> op ! l ! r ! op % l % r % (a ! a)
+  D    -> op ! l ! r ! op % l % r % idTerm
 
           -- \l r -> l =>> \l' -> o op l' r
   XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
+
+  P    -> op ! l ! r ! pushTerm % (op % l % r)
 
 
 l = make_var "l"
@@ -486,3 +536,5 @@ mzeroTerm = \case
 mplusTerm = \case
   T     -> \p q -> make_con "and" % p % q
   _     -> \_ _ -> make_con "this really shouldn't happen"
+pushTerm = a ! a * a
+idTerm = a ! a
