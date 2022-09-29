@@ -182,6 +182,7 @@ instance Show Op where
 functor, appl, monad :: F -> Bool
 functor _    = True
 appl f@(W w) = functor f && monoid w
+-- appl (R E)   = False
 appl f       = functor f && True
 monad f      = appl f && True
 
@@ -207,6 +208,9 @@ instance Commute F where
     C _ _ -> False
     U     -> False
 
+invertible :: F -> Bool
+invertible (W _) = False
+invertible _     = True
 
 {- Type-driven combination -}
 
@@ -310,7 +314,8 @@ binaryRules combine (l, r) =
   <+> case r of
     Eff f a | functor f ->
       combine (l,a) <&>
-      map \(op,d,c) -> (MR f:op, opTerm (MR f) % d, Eff f c)
+      concatMap \(op,d,c) -> let m = MR f
+                              in [(m:op, opTerm m % d, Eff f c) | invertOk op m]
     _ -> return []
 
   -- if the left daughter requests something Functorial, try to find an
@@ -434,6 +439,11 @@ norm op = \case
     anyOf = any
     startsWith = flip isPrefixOf
 
+-- control inversions
+invertOk op =
+  \case
+    MR f -> not ([ML f] `isPrefixOf` op) || invertible f
+    _ -> True
 
 {- Mapping semantic values to (un-normalized) lambda terms -}
 
