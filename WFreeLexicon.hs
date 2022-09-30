@@ -1,29 +1,19 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE BlockArguments #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# HLINT ignore "Use :" #-}
+-- |
 
-module TDDemo where
+module WFreeLexicon where
 
 import Prelude hiding ((*), (!))
 import LambdaCalc
 import TDPretty ( showParse, showParse', prettyProof )
 import TDParseCFG
 import Data.Maybe ( fromMaybe )
-import WFreeLexicon
 
-
-{- A toy lexicon -}
-
-demoLex :: Lexicon
-demoLex = map mkLex
+wFreeLex :: Lexicon
+wFreeLex = map mkLex
   [ ("ann"       , [( Just ann  , DP   , E                              )])
-  , ("mary"      , [( Just mref , DP   , effW E E                       )])
-  , ("marianne"  , [( Just ma   , DP   , E                              )]
-                ++ [( Just maref, DP   , effW E E                       )])
-  , ("'s"        , [( Just poss , GenD , E :-> (E :-> E) :-> E          )]
-                ++ [( Just poss', GenD , E :-> (E :-> E) :-> effW E E   )])
+  , ("mary"      , [( Just mary , DP   , E                              )])
+  , ("marianne"  , [( Just ma   , DP   , E                              )])
+  , ("'s"        , [( Just poss , GenD , E :-> (E :-> E) :-> E          )])
   , ("left"      , [( Nothing   , VP   , E :-> T                        )])
   , ("whistled"  , [( Nothing   , VP   , E :-> T                        )])
   , ("saw"       , [( Nothing   , TV   , E :-> E :-> T                  )])
@@ -37,13 +27,6 @@ demoLex = map mkLex
                 ++ [( Just pro  , DP   , effR (effR E E) (effR E E)     )])
   , ("her"       , [( Just pro  , DP   , effR E E                       )]
                 ++ [( Just pro  , Gen  , effR E E                       )])
-  , ("she2"      , [( Just pro2 , DP   , effR E (effW E E)              )])
-  , ("her2"      , [( Just pro2 , DP   , effR E (effW E E)              )]
-                ++ [( Just pro2 , Gen  , effR E (effW E E)              )]
-                ++ [( Just pc'  , Gen  , (E :-> E) :->
-                                         effR E (effW E E)              )]
-                ++ [( Just pc   , Gen  , (E :-> E) :->
-                                         effR E (effW (effR E E) E)     )])
   , ("mom"       , [( Nothing   , TN   , E :-> E                        )])
   , ("paycheck"  , [( Nothing   , TN   , E :-> E                        )])
   , ("the"       , [( Nothing   , Det  , (E :-> T) :-> E                )])
@@ -59,10 +42,8 @@ demoLex = map mkLex
   , ("near"      , [( Nothing   , TAdj , E :-> E :-> T                  )])
   , ("some"      , [( Nothing   , Det  , (E :-> T) :-> effS E           )])
   , ("someone"   , [( Nothing   , DP   , effC T T E                     )])
-  , ("someone2"  , [( Just so2  , DP   , effS (effW E E)                )])
   , ("someone3"  , [( Just so3  , DP   , effS E                         )])
   , ("everyone"  , [( Just eo   , DP   , effC T T E                     )])
-  , ("everyone2" , [( Just eo2  , DP   , effC T T (effW E E)            )])
   , ("tr"        , [( Just pro  , DP   , effR E E                       )])
   , ("and"       , [( Nothing   , Cor  , T :-> T :-> T                  )])
   , ("but"       , [( Nothing   , Cor  , T :-> T :-> T                  )])
@@ -97,55 +78,3 @@ demoLex = map mkLex
     so2 = fmapTerm S % pushTerm % so3
     eo = make_con "everyone"
     eo2 = fmapTerm (C T T) % pushTerm % eo
-
-
--- a toy Context-Free Grammar
-demoCFG :: CFG
-demoCFG = curry \case
-  (DP   , VP   ) -> [CP]
-  (Cmp  , CP   ) -> [CP]
-  (Cor  , CP   ) -> [CBar]
-  (Cor  , DP   ) -> [DBar]
-  (DP   , DBar ) -> [DP]
-  (Dmp  , DP   ) -> [DP]
-  (CP   , CBar ) -> [CP]
-  (Det  , NP   ) -> [DP]
-  (Gen  , TN   ) -> [DP]
-  (DP   , GenD ) -> [Gen]
-  (AdjP , NP   ) -> [NP]
-  (NP   , AdjP ) -> [NP]
-  (TAdj , DP   ) -> [AdjP]
-  (Deg  , AdjP ) -> [AdjP]
-  (TV   , DP   ) -> [VP]
-  (AV   , CP   ) -> [VP]
-  (DV   , DP   ) -> [TV]
-  (VP   , AdvP ) -> [VP]
-  (TAdv , DP   ) -> [AdvP]
-  (_    , _    ) -> []
-
-
-
-{- Test cases -}
-
-s1 = "the very big cat left"
-
-s2 = "she saw her mom"
-
-s3 = "ann's mom saw her"
-
--- s4 = "someone left and she2 whistled"
-s4 = "someone left and she whistled"
-
--- s5 = "the cat near someone2 saw her"
-s5 = "the cat near someone saw her"
-
--- s6 = "marianne saved her2 paycheck but marianne's mom spent it"
-s6 = "marianne saved her paycheck but marianne's mom spent it"
-
-{- Testing helper function -}
-
-main :: IO ()
-main = mapM_ putStrLn $ ps ++ qs
-  where
-    ps = [s1,s2,s3,s4,s5] >>= fromMaybe ["No parse"] . showParse demoCFG wFreeLex
-    qs = fromMaybe ["No parse"] $ showParse' demoCFG wFreeLex (hasType T) prettyProof s6
