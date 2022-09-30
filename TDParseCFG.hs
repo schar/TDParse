@@ -224,25 +224,27 @@ data Proof = Proof String Sem Ty [Proof]
 hasType :: Ty -> Proof -> Bool
 hasType t (Proof _ _ t' _) = t == t'
 
+-- how many pronouns are in the input (paychecks can count for more than one)
+countPros = \case
+  Leaf s d (Eff (R _) a) -> 1 + countPros (Leaf s d a)
+  Leaf s d _ -> 0
+  Branch l r -> countPros l + countPros r
+  Island l r -> countPros l + countPros r
+
 -- Evaluate a constituency tree by finding all the derivations of its
 -- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> [Proof]
 synsem s = join . executeTAt (countPros s) . go $ s
   where
-    countPros = \case
-      Leaf s d (Eff (R _) a) -> 1 + countPros (Leaf s d a)
-      Leaf s d _ -> 0
-      Branch l r -> countPros l + countPros r
-      Island l r -> countPros l + countPros r
     go = \case
-      Leaf   s d t -> do
+      Leaf s d t -> do
+        -- optionally push Es, if there are pronouns around
         pushes <- curry (fix binaryRules) (E :-> effW E E) t
         let proofPushes = [Proof s (Lex $ c % pushTerm % d) t' [] | (_, c, t') <- pushes]
         optionally proofPushes [Proof s (Lex d) t []]
-      Branch l r   -> goWith False id l r
-      Island l r   -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
-      -- boolean tags for islandhood, to avoid over-memoizing
+      Branch l r  -> goWith False id l r
+      Island l r  -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
 
     goWith tag handler l r = do -- memo block
       lefts  <- go l
@@ -357,54 +359,32 @@ binaryRules combine (l, r) =
                                 return (m:op, opTerm m % d, eff c)
     _ -> return []
 
-  -- finally see if the resulting types can additionally be lowered/joined
 unaryRules (op, d, ty) =
 
+  -- if we've just built FFa and F is a monad, try joining it
   case ty of
     Eff f (Eff g a) | monad f, norm op (J f) ->
       return [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
     _ -> return []
 
+  -- if we've just built a lowerable tower, try lowering it
   <+> case ty of
     Eff (C i a) a' | a == a', norm op D ->
       return [(D:op, opTerm D % d, i)]
     _ -> return []
 
+  -- also keep anything we've just built
+  -- and in addition, optionally push Es and paychecks until the number of pronouns is exceeded
   <+> case ty of
     E -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
     t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
-    -- t@(Eff (R E) E) -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
-    -- t@(Eff (R E) (Eff (W E) E)) -> optionally [(P:op, extractPush d, effW (effR E E) t)] [(op,d,ty)]
     _ -> return [(op,d,ty)]
   where
-    -- extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
     etype = \case
       E             -> True
       (Eff (W _) a) -> etype a
       (Eff (R _) a) -> etype a
       _             -> False
-
--- addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addJ = \case
---   (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
---     [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
---   _ -> []
-
--- addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addD = \case
---   (op, d, Eff (C i a) a') | a == a', norm op D ->
---     [(D:op, opTerm D % d, i)]
---   _ -> []
-
--- addW :: Bool -> (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addW paychecks (op, d, t) = -- trace (show $ "addW: " ++ "(" ++ show op ++ ", " ++ showTerm (eval d) ++ ", " ++ show t ++ ")") $
---   case (op,d,t) of
---     (op, d, E) -> [(P:op, opTerm P % d, effW E E)]
---     (op, d, t@(Eff (R E) E)) | paychecks -> [(P:op, opTerm P % d, effW t t)]
---     (op, d, t@(Eff (R E) (Eff (W E) E))) | paychecks -> [(P:op, extractPush d, effW (effR E E) t)]
---     _ -> []
---   where
---     extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
 
 -- these filters prevent generating "spurious" derivations, which are
 -- guaranteed to be equivalent to other derivations we're already generating
@@ -442,7 +422,7 @@ norm op = \case
 -- control inversions
 invertOk op =
   \case
-    MR f -> not ([ML f] `isPrefixOf` op) || invertible f
+    MR f | (ML (W _):_) <- op -> False -- refs float up whenever possible
     _ -> True
 
 {- Mapping semantic values to (un-normalized) lambda terms -}
