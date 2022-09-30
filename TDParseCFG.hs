@@ -247,12 +247,13 @@ synsem s = join . executeTAt (countPros s) . go $ s
     go = \case
       Leaf s d t -> do
         -- optionally push Es, if there are pronouns around
+        -- the new refs are pushed in an I wrapper, signalling that they're brand new
         pushes <- curry (fix binaryRules) (E :-> effW (effI E) E) t
         let proofPushes = [Proof s (Lex $ c % pushTerm % d) t' [] | (_, c, t') <- pushes]
         optionally proofPushes [Proof s (Lex d) t []]
       Branch l r@(Island{}) -> goWith False condb l r
         where condb cs = cs >>= \(op,d,t) -> case t of
-                -- pronouns can take locked or unlocked refs when separated by an island
+                -- pronouns can take refs wrapped or unwrapped when separated by an island
                 (Eff (R a) b) -> [(op,d,t), (op,d,effR (effI a) b)]
                 _             -> [(op,d,t)]
       Branch l r -> goWith False id l r
@@ -308,9 +309,6 @@ openCombine combine (l, r) = do
   bins <- binaryRules combine (l, r)
   cs <- traverse unaryRules bins
   return $ map (\(m,d,t) -> (m, eval d, t)) $ concat cs
-  -- where
-  --   infixl 5 <**>
-  --   (<**>) = liftM2 (flip (<*>))
 
 binaryRules combine (l, r) =
 
@@ -322,12 +320,11 @@ binaryRules combine (l, r) =
   <+> case l of
     Eff f a | functor f ->
       combine (a,r) <&>
-      map \(op,d,c) -> (ML f:op, opTerm (ML f) % d, Eff (unlock f) c)
-      where
-        -- after a combination, refs become stale
-        -- (taken out of their I box)
-        unlock (W (Eff I a)) = W a
-        unlock t = t
+      map \(op,d,c) -> (ML f:op, opTerm (ML f) % d, Eff (unwrap f) c)
+      where  --                                         ^^^^^^^^^^
+        -- after a combination, refs become stale (I wrapper removed)
+        unwrap (W (Eff I a)) = W a
+        unwrap t = t
     _ -> return []
 
   -- vice versa if the right daughter is Functorial
@@ -377,7 +374,6 @@ binaryRules combine (l, r) =
                                 return (m:op, opTerm m % d, eff c)
     _ -> return []
 
-  -- finally see if the resulting types can additionally be lowered/joined
 unaryRules (op, d, ty) =
 
   -- if we've just built FFa and F is a monad, try joining it
@@ -394,7 +390,7 @@ unaryRules (op, d, ty) =
 
   -- also keep anything we've just built
   -- and in addition, optionally push Es and paychecks until the number of pronouns is exceeded
-  -- the new Es are pushed in an I box, signalling that they're fresh
+  -- the new Es are pushed in an I wrapper, signalling that they're brand new
   <+> case ty of
     E -> optionally [(P:op, opTerm P % d, effW (effI E) E)] [(op,d,ty)]
     t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
