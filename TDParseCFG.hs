@@ -14,6 +14,7 @@ import Data.Functor ( (<&>) )
 import Data.List ( isPrefixOf, stripPrefix )
 import Debug.Trace
 import Utils
+import Distribution.Simple.Program (builtinPrograms)
 
 
 {- Datatypes for syntactic and semantic composition-}
@@ -37,7 +38,7 @@ data Ty
   deriving (Eq, Show, Ord {-, Read-})
 
 -- Effects
-data F = S | R Ty | W Ty | C Ty Ty | U
+data F = S | R Ty | W Ty | C Ty Ty | I | U
   deriving (Show, Ord {-, Read-})
 
 instance Eq F where
@@ -47,6 +48,7 @@ instance Eq F where
   R t == R u = t == u
   W t == W u = t == u
   C t u == C v w = t == v && u == w
+  I == I = True
   _ == _ = False
 
 showNoIndices :: F -> String
@@ -55,6 +57,7 @@ showNoIndices = \case
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
+  I     -> "I"
   U     -> "_"
 
 -- convenience constructors
@@ -62,15 +65,18 @@ effS     = Eff S
 effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
+effI     = Eff I
 
--- evaluated types (for scope islands)
+-- evaluated types
 -- we care about positive positions only
 evaluated :: Ty -> Bool
 evaluated = \case
   E             -> True
   T             -> True
   _ :-> a       -> evaluated a
-  Eff (C _ _) _ -> False
+  Eff (C _ _) _ -> False -- scope islands
+  Eff (R (Eff I _)) _  -> False -- Principle A
+  --    ^^^^^^^^^   unresolved anaphors at an island boundary are fatal
   Eff _ a       -> evaluated a
 
 
@@ -206,6 +212,7 @@ instance Commute F where
     R _   -> True
     W w   -> commutative w
     C _ _ -> False
+    I     -> True
     U     -> False
 
 invertible :: F -> Bool
@@ -224,25 +231,32 @@ data Proof = Proof String Sem Ty [Proof]
 hasType :: Ty -> Proof -> Bool
 hasType t (Proof _ _ t' _) = t == t'
 
+
+countPros = \case
+  Leaf s d (Eff (R _) a) -> 1 + countPros (Leaf s d a)
+  Leaf{}                 -> 0
+  Branch l r -> countPros l + countPros r
+  Island l r -> countPros l + countPros r
+
 -- Evaluate a constituency tree by finding all the derivations of its
 -- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
 synsem :: Syn -> [Proof]
 synsem s = join . executeTAt (countPros s) . go $ s
   where
-    countPros = \case
-      Leaf s d (Eff (R _) a) -> 1 + countPros (Leaf s d a)
-      Leaf s d _ -> 0
-      Branch l r -> countPros l + countPros r
-      Island l r -> countPros l + countPros r
     go = \case
-      Leaf   s d t -> do
-        pushes <- curry (fix binaryRules) (E :-> effW E E) t
+      Leaf s d t -> do
+        -- optionally push Es, if there are pronouns around
+        pushes <- curry (fix binaryRules) (E :-> effW (effI E) E) t
         let proofPushes = [Proof s (Lex $ c % pushTerm % d) t' [] | (_, c, t') <- pushes]
         optionally proofPushes [Proof s (Lex d) t []]
-      Branch l r   -> goWith False id l r
-      Island l r   -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
-      -- boolean tags for islandhood, to avoid over-memoizing
+      Branch l r@(Island{}) -> goWith False condb l r
+        where condb cs = cs >>= \(op,d,t) -> case t of
+                -- pronouns can take locked or unlocked refs when separated by an island
+                (Eff (R a) b) -> [(op,d,t), (op,d,effR (effI a) b)]
+                _             -> [(op,d,t)]
+      Branch l r -> goWith False id l r
+      Island l r -> goWith True (filter $ \(_,_,t) -> evaluated t) l r
 
     goWith tag handler l r = do -- memo block
       lefts  <- go l
@@ -277,6 +291,7 @@ combineFs = curry \case
   (,) (R i)   (R j)    | i == j  -> [R i]
   (,) (W i)   (W j)    | i == j  -> [W i]
   (,) (C i j) (C j' k) | j == j' -> [C i k]
+  (,) I       I                  -> [I]
   (,) _        _                 -> []
 
 -- combine = combineWith ((), id)
@@ -307,7 +322,12 @@ binaryRules combine (l, r) =
   <+> case l of
     Eff f a | functor f ->
       combine (a,r) <&>
-      map \(op,d,c) -> (ML f:op, opTerm (ML f) % d, Eff f c)
+      map \(op,d,c) -> (ML f:op, opTerm (ML f) % d, Eff (unlock f) c)
+      where
+        -- after a combination, refs become stale
+        -- (taken out of their I box)
+        unlock (W (Eff I a)) = W a
+        unlock t = t
     _ -> return []
 
   -- vice versa if the right daughter is Functorial
@@ -360,51 +380,32 @@ binaryRules combine (l, r) =
   -- finally see if the resulting types can additionally be lowered/joined
 unaryRules (op, d, ty) =
 
-  case ty of
+  -- if we've just built FFa and F is a monad, try joining it
+      case ty of
     Eff f (Eff g a) | monad f, norm op (J f) ->
       return [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
     _ -> return []
 
+  -- if we've just built a lowerable tower, try lowering it
   <+> case ty of
     Eff (C i a) a' | a == a', norm op D ->
       return [(D:op, opTerm D % d, i)]
     _ -> return []
 
+  -- also keep anything we've just built
+  -- and in addition, optionally push Es and paychecks until the number of pronouns is exceeded
+  -- the new Es are pushed in an I box, signalling that they're fresh
   <+> case ty of
-    E -> optionally [(P:op, opTerm P % d, effW E E)] [(op,d,ty)]
+    E -> optionally [(P:op, opTerm P % d, effW (effI E) E)] [(op,d,ty)]
     t@(Eff (R E) a) | etype a -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
-    -- t@(Eff (R E) E) -> optionally [(P:op, opTerm P % d, effW t t)] [(op,d,ty)]
-    -- t@(Eff (R E) (Eff (W E) E)) -> optionally [(P:op, extractPush d, effW (effR E E) t)] [(op,d,ty)]
     _ -> return [(op,d,ty)]
   where
-    -- extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
     etype = \case
       E             -> True
       (Eff (W _) a) -> etype a
       (Eff (R _) a) -> etype a
       _             -> False
 
--- addJ :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addJ = \case
---   (op, d, Eff f (Eff g a)) | monad f, norm op (J f) ->
---     [(J h:op, opTerm (J h) % d, Eff h a) | h <- combineFs f g]
---   _ -> []
-
--- addD :: (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addD = \case
---   (op, d, Eff (C i a) a') | a == a', norm op D ->
---     [(D:op, opTerm D % d, i)]
---   _ -> []
-
--- addW :: Bool -> (Mode, Term, Ty) -> [(Mode, Term, Ty)]
--- addW paychecks (op, d, t) = -- trace (show $ "addW: " ++ "(" ++ show op ++ ", " ++ showTerm (eval d) ++ ", " ++ show t ++ ")") $
---   case (op,d,t) of
---     (op, d, E) -> [(P:op, opTerm P % d, effW E E)]
---     (op, d, t@(Eff (R E) E)) | paychecks -> [(P:op, opTerm P % d, effW t t)]
---     (op, d, t@(Eff (R E) (Eff (W E) E))) | paychecks -> [(P:op, extractPush d, effW (effR E E) t)]
---     _ -> []
---   where
---     extractPush d = l ! r ! (fmapTerm (R E) % (a ! _2 a) % (d % l % r)) * (d % l % r)
 
 -- these filters prevent generating "spurious" derivations, which are
 -- guaranteed to be equivalent to other derivations we're already generating
@@ -442,7 +443,7 @@ norm op = \case
 -- control inversions
 invertOk op =
   \case
-    MR f -> not ([ML f] `isPrefixOf` op) || invertible f
+    MR f | (ML (W _):_) <- op -> False -- refs float up whenever possible
     _ -> True
 
 {- Mapping semantic values to (un-normalized) lambda terms -}

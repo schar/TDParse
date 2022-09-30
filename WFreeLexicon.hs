@@ -26,7 +26,11 @@ wFreeLex = map mkLex
   , ("it"        , [( Just pro  , DP   , effR E E                       )]
                 ++ [( Just pro  , DP   , effR (effR E E) (effR E E)     )])
   , ("her"       , [( Just pro  , DP   , effR E E                       )]
+                ++ [( Just pro  , Gen  , effR (effI E) E                )]
                 ++ [( Just pro  , Gen  , effR E E                       )])
+    -- anaphors demand fresh (not yet combined) refs
+    --                                         ^^^^^
+  , ("herself"   , [( Just pro  , DP   , effR (effI E) E                )])
   , ("mom"       , [( Nothing   , TN   , E :-> E                        )])
   , ("paycheck"  , [( Nothing   , TN   , E :-> E                        )])
   , ("the"       , [( Nothing   , Det  , (E :-> T) :-> E                )])
