@@ -14,6 +14,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&family=Ubuntu:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
 <style>
   body {font-family: 'Ubuntu'; font-size: 14px;}
+  /* section h1 {font-size: 16pt;} */
+  #opts-button
+    {font-size: 36px;  bottom: 2px; position: relative; line-height: 14px;
+     background-color: transparent; border: none; cursor: pointer;}
   ul, p {max-width: 100%;}
   #content {width: 100%; display: flex;}
   #current {margin: 1em 0;}
@@ -23,12 +27,15 @@
   input[type=checkbox]
     {-webkit-appearance: checkbox; -moz-appearance: checkbox;
      appearance: checkbox; font-size: 14px; outline-width: thin;}
-  #lexicon {width: auto; flex:none; order:1; margin-right: 12px}
+  #lexicon {width: auto; max-width: 250px; flex:none; order:1; margin-right: 12px;}
+  #options {width: auto; flex:none; order:2; margin-left: 12px;}
   #phraseInput {width: 500px;}
   #typeInput {width: 150px;}
   #lex-button {width: 100px;}
-  #denInput {float: right;}
-  #den-button {margin-left: 1em;}
+  #opts-button {float: right;}
+  .opt-switch {margin-right: 1em; vertical-align: middle;}
+  .opt-group {margin-bottom: 2em; border-top: 1px solid;}
+  /* .opt-group span {vertical-align: middle;} */
   #lexname {margin-bottom: 2em;}
   @media only screen and (max-width: 820px)
     {#phraseInput {width: 100%;} #typeInput {width: 115px;}}
@@ -48,6 +55,9 @@
   .tf-tree li li:before {border-top-width: 0.1em; border-color: var(--textcolor);}
   .tf-tree li ul, .tf-tree.tf-gap-sm li ul {margin-bottom: 0;}
   .type, .leaf, .lexitem, .den {font-family: 'Courier Prime', monospace;}
+  .lexitem > span {display: inline-block; min-width: 75px; margin-right: 6px;}
+  .lexitem > div {display: inline-grid; min-width: 100px;}
+  .lexitem ul li::marker {content: "| ";}
   .atom {color: var(--highlight);}
   .constructor {color: var(--accent);}
   .mode {font-family: 'Ubuntu', sans-serif; font-weight: bold;}
