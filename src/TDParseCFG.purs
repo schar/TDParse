@@ -254,8 +254,8 @@ hasType t (Proof _ _ t' _) = t == t'
 -- Evaluate a constituency tree by finding all the derivations of its
 -- daughters and then all the ways of combining those derivations in accordance
 -- with their types and the available modes of combination
-synsem :: Syn -> List Proof
-synsem = execute <<< go
+-- synsem :: Syn -> List Proof
+synsem bins uns = execute <<< go
   where
     go (Leaf s d t) = pure $ singleton $ Proof s (Lex d) t Nil
     go (Branch l r) = goWith false identity l r
@@ -269,14 +269,14 @@ synsem = execute <<< go
         lp@(Proof lstr lval lty _) <- lefts
         rp@(Proof rstr rval rty _) <- rights
         pure do -- memo block
-          combos <- combineWith tag handler lty rty
+          combos <- combineWith tag handler bins uns lty rty
           pure do -- list block
             (op ^ d ^ ty) <- combos
             let cval = Comb op (eval $ d % semTerm lval % semTerm rval)
             pure $ Proof (lstr <> " " <> rstr) cval ty (lp:rp:Nil)
 
-prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
-prove cfg lex input = concatMap synsem <$> parse cfg lex input
+-- prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
+prove cfg lex bins uns input = concatMap (synsem bins uns) <$> parse cfg lex input
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Ty -> Ty -> List (Mode ^ Term ^ Ty)
@@ -296,74 +296,74 @@ combineFs = case _,_ of
   C i j , C j' k | j == j' -> pure $ C i k
   _     , _                -> Nil
 
-combineWith tag handler = curry $ fix (memoizeTag tag <<< (map handler <<< _) <<< openCombine)
+combineWith tag handler bins uns =
+  curry $ fix (memoizeTag tag <<< (map handler <<< _) <<< openCombine bins uns)
 
 -- Here is the essential type-driven combination logic; given two types,
 -- what are all the ways that they may be combined
-openCombine ::
-  forall m. Monad m
-  => ((Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty)))
-  ->  (Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty))
-openCombine combine (l ^ r) = map (\(m^d^t) -> (m ^ eval d ^ t)) <<< concat <$>
+-- openCombine ::
+--   forall m. Monad m
+--   => ((Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty)))
+--   ->  (Ty ^ Ty) -> m (List (Mode ^ Term ^ Ty))
+openCombine bins uns combine (l ^ r) = map (\(m^d^t) -> (m ^ eval d ^ t)) <<< concat <$>
+  foldl (\ls k -> ls <+> k combine (l^r)) (pure $ modes l r) bins
+  <**> pure (pure:uns)
 
-  -- for starters, try the basic modes of combination
-  pure (modes l r)
+-- then if the left daughter is Functorial, try to find a mode
+-- `op` that would combine its underlying type with the right daughter
+addML combine (l ^ r) = case l of
+  Eff f a | functor f ->
+    combine (a ^ r) <#>
+    map \(op^d^c) -> (ML f:op ^ opTerm (ML f) % d ^ Eff f c)
+  _ -> pure Nil
 
-  -- then if the left daughter is Functorial, try to find a mode
-  -- `op` that would combine its underlying type with the right daughter
-  <+> case l of
-    Eff f a | functor f ->
-      combine (a ^ r) <#>
-      map \(op^d^c) -> (ML f:op ^ opTerm (ML f) % d ^ Eff f c)
-    _ -> pure Nil
+-- vice versa if the right daughter is Functorial
+addMR combine (l ^ r) = case r of
+  Eff f a | functor f ->
+    combine (l ^ a) <#>
+    map \(op^d^c) -> (MR f:op ^ opTerm (MR f) % d ^ Eff f c)
+  _ -> pure Nil
 
-  -- vice versa if the right daughter is Functorial
-  <+> case r of
-    Eff f a | functor f ->
-      combine (l ^ a) <#>
-      map \(op^d^c) -> (MR f:op ^ opTerm (MR f) % d ^ Eff f c)
-    _ -> pure Nil
+-- if the left daughter requests something Functorial, try to find an
+-- `op` that would combine it with a `pure`ified right daughter
+addUR combine (l ^ r) = case l of
+  Eff f a :-> b | appl f ->
+    combine (a :-> b ^ r) <#>
+    concatMap \(op^d^c) -> let m = UR f
+                            in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
+  _ -> pure Nil
 
-  -- if the left daughter requests something Functorial, try to find an
-  -- `op` that would combine it with a `pure`ified right daughter
-  <+> case l of
-    Eff f a :-> b | appl f ->
-      combine (a :-> b ^ r) <#>
-      concatMap \(op^d^c) -> let m = UR f
-                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
-    _ -> pure Nil
+-- vice versa if the right daughter requests something Functorial
+addUL combine (l ^ r) = case r of
+  Eff f a :-> b | appl f ->
+    combine (l ^ a :-> b) <#>
+    concatMap \(op^d^c) -> let m = UL f
+                            in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
+  _ -> pure Nil
 
-  -- vice versa if the right daughter requests something Functorial
-  <+> case r of
-    Eff f a :-> b | appl f ->
-      combine (l ^ a :-> b) <#>
-      concatMap \(op^d^c) -> let m = UL f
-                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
-    _ -> pure Nil
+-- additionally, if both daughters are Applicative, then see if there's
+-- some mode `op` that would combine their underlying types
+addA combine (l ^ r) = case (l^r) of
+  (Eff f a ^ Eff g b) | appl f ->
+    combine (a ^ b) <#>
+    lift2 (\h (op^d^c) -> let m = A h
+                           in (m:op ^ opTerm m % d ^ Eff h c)) (combineFs f g)
+  _ -> pure Nil
 
-  -- additionally, if both daughters are Applicative, then see if there's
-  -- some mode `op` that would combine their underlying types
-  <+> case (l^r) of
-    (Eff f a ^ Eff g b) | appl f ->
-      combine (a ^ b) <#>
-      lift2 (\h (op^d^c) -> let m = A h
-                             in (m:op ^ opTerm m % d ^ Eff h c)) (combineFs f g)
-    _ -> pure Nil
+-- if the left daughter is left adjoint to the right daughter, cancel them out
+-- and fina a mode `op` that will combine their underlying types
+-- note that the asymmetry of adjunction rules out xover
+-- there remains some derivational ambiguity:
+-- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
+addEps combine (l ^ r) = case (l^r) of
+  (Eff f a ^ Eff g b) | adjoint f g ->
+    combine (a ^ b) <#>
+    concatMap \(op^d^c) -> do (m^eff) <- (Eps ^ identity) : (XL f Eps ^ Eff f) : Nil
+                              pure (m:op ^ opTerm m % d ^ eff c)
+  _ -> pure Nil
 
-  -- if the left daughter is left adjoint to the right daughter, cancel them out
-  -- and fina a mode `op` that will combine their underlying types
-  -- note that the asymmetry of adjunction rules out xover
-  -- there remains some derivational ambiguity:
-  -- W,W,R,R has 3 all-cancelling derivations not 2 due to local WR/RW ambig
-  <+> case (l^r) of
-    (Eff f a ^ Eff g b) | adjoint f g ->
-      combine (a ^ b) <#>
-      concatMap \(op^d^c) -> do (m^eff) <- (Eps ^ identity) : (XL f Eps ^ Eff f) : Nil
-                                pure (m:op ^ opTerm m % d ^ eff c)
-    _ -> pure Nil
-
-  -- finally see if the resulting types can additionally be lowered/joined
-  <**> pure (addD : addJ : pure : Nil)
+allBins = addML : addMR : addUR : addUL : addEps : Nil
+allUns  = addD : addJ : Nil
 
 addJ :: (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
 addJ = case _ of

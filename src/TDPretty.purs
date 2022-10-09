@@ -300,7 +300,7 @@ showProof disp = render 100 <<< (_ <> text "\n\n") <<< disp
 showParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
 showParse' cfg lex p disp input = go <$> parse cfg lex input
   where
-    go = toUnfoldable <<< map (showProof disp) <<< filter p <<< concatMap synsem
+    go = toUnfoldable <<< map (showProof disp) <<< filter p <<< concatMap (synsem allBins allUns)
 
 showParse cfg lex = showParse' cfg lex (const true) prettyProof
 showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)

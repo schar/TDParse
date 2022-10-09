@@ -2,6 +2,7 @@
 module Main where
 
 import Data.Array
+import Data.List (fromFoldable) as List
 import Data.Either
 import Data.Maybe
 import Data.Tuple
@@ -40,6 +41,20 @@ lexInventory =
   , (PushLex  ^ fromFoldable pushLex  )
   , (DemoLex  ^ fromFoldable demoLex  )
   ]
+data CombName = MLComb | MRComb | ULComb | URComb | AComb | EpsComb | JComb | DComb
+derive instance Eq CombName
+binsInventory =
+  [ (MLComb  ^ addML    )
+  , (MRComb  ^ addMR    )
+  , (ULComb  ^ addUL    )
+  , (URComb  ^ addUR    )
+  , (AComb   ^ addA     )
+  , (EpsComb ^ addEps   )
+  ]
+unsInventory =
+  [ (JComb   ^ addJ     )
+  , (DComb   ^ addD     )
+  ]
 
 -- | The model represents the state of the app
 type Model =
@@ -52,6 +67,7 @@ type Model =
             , showDens :: Boolean
             , showLex :: Boolean
             , lexItems :: LexName -> Boolean
+            , combs :: CombName -> Boolean
             }
   }
 
@@ -64,6 +80,7 @@ data Message
   | ToggleOpts
   | AddLex (Key ^ String)
   | LexChoice LexName
+  | CombChoice CombName
 
 -- | Initial state of the app
 init :: Model
@@ -75,22 +92,28 @@ init =
   , lexFeedback: Nothing
   , opts: { showOpts: true, showDens: true, showLex: true
           , lexItems: \l -> if l `elem` [PureLex, ProLex] then true else false
+          , combs: \c -> true
           }
   }
 
-proofs :: Lexicon -> String -> Maybe (Array Proof)
-proofs l s = fromFoldable <$> prove Demo.demoCFG l s
+-- proofs :: Lexicon -> String -> Maybe (Array Proof)
+proofs l bins uns s = fromFoldable <$> prove Demo.demoCFG l bins uns s
+  -- where bins = List.fromFoldable [addML , addMR , addUR , addUL , addEps]
+  --       uns  = List.fromFoldable [addD , addJ , pure ]
 
 buildLex :: Model -> Lex
 buildLex m = concat $
   m.customLex : map (\(l ^ lex) -> if m.opts.lexItems l then lex else []) lexInventory
+
+buildBins m = binsInventory >>= \(c ^ comb) -> if m.opts.combs c then [comb] else []
+buildUns  m = unsInventory  >>= \(c ^ comb) -> if m.opts.combs c then [comb] else []
 
 -- | `update` is called to handle events
 update :: Model -> Message -> Model
 update model = case _ of
   PhraseInput ("Enter" ^ s) ->
                   model { currentPhrase = "\"" <> s <> "\""
-                        , currentProofs = proofs (toUnfoldable $ buildLex model) s
+                        , currentProofs = proofs (List.fromFoldable $ buildLex model) (List.fromFoldable $ buildBins model) (List.fromFoldable $ buildUns model) s
                         }
 
   PhraseInput (_ ^ s) ->
@@ -117,6 +140,9 @@ update model = case _ of
 
   LexChoice n  -> model { opts = model.opts { lexItems = switch n model.opts.lexItems } }
     where switch n items = \l -> (if l == n then not else identity) (items l)
+
+  CombChoice n -> model { opts = model.opts { combs = switch n model.opts.combs } }
+    where switch n items = \c -> (if c == n then not else identity) (items c)
 
 
 -- | `view` updates the app markup whenever the model is updated
@@ -170,7 +196,7 @@ view model =
 
         , HE.div [HA.id "lexInventory", HA.class' "opt-group"] $
           [ HE.text "Select fragments:" ]
-          <> map addFragmentSwitch
+          <> map (addSwitch LexChoice)
           [ ("pure"  ^ PureLex  ^ true)
           , ("pro"   ^ ProLex   ^ true)
           , ("indef" ^ IndefLex ^ false)
@@ -178,13 +204,26 @@ view model =
           , ("push"  ^ PushLex  ^ false)
           , ("demo"  ^ DemoLex  ^ false)
           ]
+
+        , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
+          [ HE.text "Select combinators:" ]
+          <> map (addSwitch CombChoice)
+          [ ("R (map right)"   ^ MRComb  ^ true)
+          , ("L (map left)"    ^ MLComb  ^ true)
+          , ("UR (unit right)" ^ URComb  ^ true)
+          , ("UL (unit left)"  ^ ULComb  ^ true)
+          , ("A (apply)"       ^ AComb   ^ true)
+          , ("Eps (counit)"    ^ EpsComb ^ true)
+          , ("J (join)"        ^ JComb   ^ true)
+          , ("D (lower)"       ^ DComb   ^ true)
+          ]
         ]
       ]
     ]
 
-addFragmentSwitch (s ^ l ^ c) =
+addSwitch action (s ^ l ^ c) =
   HE.div_
-    [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked c, HA.onClick $ LexChoice l]
+    [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked c, HA.onClick $ action l]
     , HE.span_ [HE.text s]
     ]
 
