@@ -34968,7 +34968,7 @@
       }
       ;
       return "show";
-    }() + " lexicon")]), button2([id("opts-button"), onClick(ToggleOpts.value)])([text("\u2699")]), p1("current")([text("Showing "), span5([style2({
+    }() + " lexicon")]), button2([id("opts-button"), onClick(ToggleOpts.value)])([text("\u2261")]), p1("current")([text("Showing "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(min3(200)(maybe(0)(function() {
       var $173 = filter(model.typeOfInterest);

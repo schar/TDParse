@@ -163,7 +163,7 @@ view model =
         [ HE.text $ (if model.opts.showLex then "hide" else "show") <> " lexicon" ]
 
     , HE.button [HA.id "opts-button", HA.onClick ToggleOpts]
-        [ HE.text "⚙" ]
+        [ HE.text "≡" ]
 
     , HE.p "current"
        [ HE.text $ "Showing "
