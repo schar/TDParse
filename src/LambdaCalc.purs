@@ -11,6 +11,7 @@ module LambdaCalc
   , lam, (!), (%), make_var, make_con
   , (|?), set, make_set, get_dom, get_rng, set', conc
   , (*), _1, _2
+  , (!!), (~), ix
   -- , a,b,c,x,y,z,f,g,h,p,q
   , show_term, show_tex, show_hs
   , enough_vars, unwind, occurs, bump_color
@@ -48,6 +49,7 @@ data Term
   = Con String | Var VarName | App Term Term | Lam VarName Term
   | Pair Term Term | Fst Term | Snd Term
   | Set Term Term | Dom Term | Rng Term | Cct Term | Spl Int Term
+  | Push Term Term | Proj Int Term
 derive instance Eq Term
 derive instance Generic Term _
 
@@ -95,6 +97,14 @@ openEval eval' e s = case e,s of
     t                   -> Spl n t
   (Spl _ _)    , _      -> unsafeThrow ("trying to split something weird: "
                                         <> show_term e <> " to " <> show_term a)
+  (Push t1 t2) , Nil    -> Push (ev t1) (ev t2)
+  (Push _ _)   , (a:_)  -> unsafeThrow ("trying to apply a push: "
+                                        <> show_term e <> " to " <> show_term a)
+  (Proj n t0)  , Nil    -> case ev t0 of
+    Push x g            -> if n == 0 then eval' x s else eval' (Proj (n-1) g) s
+    t                   -> (Proj n t)
+  (Proj _ _)   , (a:_)  -> unsafeThrow ("trying to apply a proj: "
+                                        <> show_term e <> " to " <> show_term a)
   where
     ev t = eval' t Nil
     leftSplit n = case _ of
@@ -103,7 +113,6 @@ openEval eval' e s = case e,s of
     rightSplit n = case _ of
       Pair x p -> if n == 1 then p else rightSplit (n-1) p
       _        -> unsafeThrow ("bad rightSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
-
 
 evalFinal term = fix (openFinal <<< openEval) term Nil
 openFinal eval' e s = case e,s of
@@ -119,10 +128,11 @@ openFinal eval' e s = case e,s of
           (Tuple t' vars') = unrollDom ev (ev $ i % tuple (map Var vars)) (drop (length vars) var_stock)
           dom = rerollDom t t' (vars <> vars')
        in check_sigma $ ev $ Set dom (p ! get_rng (i % (_1 (Spl (length vars) p))) % (_2 (Spl (length vars) p)))
-    t                                  -> Cct t
-  _           , _       -> eval' e s
+    (Set t1 (Lam v t2)) -> check_sigma $ openFinal eval' (Cct (Set t1 (Lam v (Set t2 (a ! a))))) Nil
+    t                -> Cct t
+  _           , _    -> eval' e s
   where
-    ev t = eval' t Nil
+    ev t = openFinal eval' t Nil
 
 unwind _ t Nil = t
 unwind f t (t1:rest) = unwind f (t `App` f t1) rest
@@ -179,6 +189,8 @@ subst (Rng s) v st = Rng (subst s v st)
 subst (App t1 t2) v st = App (subst t1 v st) (subst t2 v st)
 subst (Cct s) v st = Cct (subst s v st)
 subst (Spl n s) v st = Spl n (subst s v st)
+subst (Push x g) v st = Push (subst x v st) (subst g v st)
+subst (Proj n g) v st = Proj n (subst g v st)
 subst t@(Lam x _) v _ | v == x  = t
 subst (Lam x body) v st = (Lam x' (subst body' v st))
   where
@@ -221,6 +233,11 @@ occurs (Dom s) v = occurs s v
 occurs (Rng s) v = occurs s v
 occurs (Cct s) v = occurs s v
 occurs (Spl _ s) v = occurs s v
+occurs (Push t1 t2) v
+  = let (Tuple f1 v1@(VC c1 _)) = occurs t1 v
+        (Tuple f2 v2@(VC c2 _)) = occurs t2 v
+     in (Tuple (f1 || f2)  (if c1 > c2 then v1 else v2))
+occurs (Proj _ s) v = occurs s v
 occurs (Lam x body) v
   | x == v    = (Tuple false v)
   | otherwise = occurs body v
@@ -321,6 +338,18 @@ meval' e@(Spl n t0) stack = case stack of
     rightSplit n = case _ of
       Pair x p -> if n == 1 then p else rightSplit (n-1) p
       _        -> unsafeThrow ("bad rightSplit " <> show n <> ": " <> show_term p <> " within " <> show_term e)
+meval' e@(Push t1 t2) stack = case stack of
+  Nil -> do
+    t1' <- meval' t1 Nil
+    t2' <- meval' t2 Nil
+    pure $ Push t1' t2'
+  (s:_) -> unsafeThrow ("trying to apply a push: " <> show_term e <> " to " <> show_term s)
+meval' e@(Proj n t0) stack = do
+  f <- meval' t0 Nil
+  case f of
+    Push x g -> if n == 0 then note_reduction "proj" (Push x g) *> meval' x stack else meval' (Proj (n-1) g) stack
+    Var v    -> pure $ Proj n (Var v)
+    _        -> unsafeThrow ("bad proj " <> show n <> ": " <> show_term g <> " within " <> show_term e)
 
 munwind ::  Term -> List Term -> Writer (List (Tuple String Term)) Term
 munwind t Nil = pure t
@@ -363,6 +392,9 @@ infix 5 set' as |?
 set = identity
 conc = Cct
 make_con = Con
+ix = flip Proj
+infixl 9 ix as !!
+infixl 9 Push as ~
 
 {- term pretty printing -}
 
@@ -382,6 +414,7 @@ type Formatter =
   , con' :: String -> String, var' :: VarName -> String
   , lb' :: String, rb' :: String, mid' :: String, la' :: String, ra' :: String
   , fst' :: String, snd' :: String, dom' :: String, rng' :: String, elem' :: String
+  , prep' :: String
   }
 
 show_formatted_term form term depth
@@ -411,12 +444,15 @@ show_formatted_term form term depth
       Rng p -> form.rng' <> showRight showt p
       Cct t -> "concat " <> showRight showt t
       Spl n t -> "splitAt " <> show n <> " " <> showRight showt t
+      Push x g -> showt x <> form.prep' <> showt g
+      Proj n g -> showt g <> "~{" <> show n <> "}"
     showt' term = show_formatted_term form term (depth - 1)
 
 default_term_form =
   { lam' : "\\", arr' : ". ", app' : " ", con' : identity, var' : showVar
   , lb' : "[", rb' : "]", mid' : " | ", la' : "<", ra' : ">"
   , fst' : "fst ", snd' : "snd ", elem' : " <- ", dom' : "sdom ", rng' : "srng "
+  , prep' : ":"
   }
 
 show_term term = show_formatted_term default_term_form term 100
@@ -432,6 +468,7 @@ show_tex term = show_formatted_term tex_form term 100
       , mid' : "\\ensuremath{\\mid}", la' : "\\ensuremath{\\langle}", ra' : "\\ensuremath{\\rangle}"
       , fst' : "\\textsf{fst} ", snd' : "\\textsf{snd} "
       , elem' : "\\ensuremath{\\in}" , dom' : "\\textsf{dom} ", rng' : "\\textsf{rng} "
+      , prep' : "{~}"
       }
     showv (VC n s) = "\\ensuremath{" <> s <> (if n == 0 then "" else "_{" <> show n <> "}") <> "}"
 
@@ -458,6 +495,9 @@ free_vars term = go term [] []
     go (Rng p) bound free = go p bound free
     go (Cct p) bound free = go p bound free
     go (Spl _ p) bound free = go p bound free
+    go (Push x g) bound free =
+      go x bound $ go g bound free
+    go (Proj _ g) bound free = go g bound free
 
 term_equal_p term1 term2 = go term1 term2 (Nil /\ Nil /\ 0)
   where
@@ -485,6 +525,7 @@ term_equal_p term1 term2 = go term1 term2 (Nil /\ Nil /\ 0)
   go (Rng p1) (Rng p2) env = go p1 p2 env
   go (Cct p1) (Cct p2) env = go p1 p2 env
   go (Spl n p1) (Spl m p2) env = n == m && go p1 p2 env
+  go (Push x g) (Push x' g') env = x == x' && go g g' env
   go _ _ _ = false
 
 expectg f exp expected_result = case f exp expected_result of

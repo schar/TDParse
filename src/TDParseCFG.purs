@@ -32,9 +32,9 @@ data Cat
   = CP | Cmp -- Clauses and Complementizers
   | CBar | DBar | Cor -- Coordinators and Coordination Phrases
   | DP | Det | Gen | GenD | Dmp -- (Genitive) Determiners and full Determiner Phrases
-  | NP | TN -- Transitive (relational) Nouns and Noun Phrases
+  | NP | FN | RN -- Functional/Relational Nouns and Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
-  | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
+  | AdjP | TAdj | Deg | AdvP | TAdv | AdcP | Adc -- Modifiers
 derive instance Eq Cat
 derive instance Ord Cat
 derive instance Generic Cat _
@@ -49,7 +49,7 @@ instance Bounded Cat where
 
 -- semantic types
 data Ty
-  = E | T         -- Base types
+  = E | T | G     -- Base types
   | Arr Ty Ty     -- Functions
   | Eff F Ty      -- F-ectful
 derive instance Eq Ty
@@ -61,7 +61,7 @@ instance Show Ty where
 infixr 1 Arr as :->
 
 -- Effects
-data F = S | R Ty | W Ty | C Ty Ty | U
+data F = S | R Ty | W Ty | C Ty Ty | D Ty Ty | U
 derive instance Ord F
 derive instance Generic F _
 instance Show F where
@@ -74,6 +74,7 @@ instance Eq F where
   eq (R t) (R u) = t == u
   eq (W t) (W u) = t == u
   eq (C t u) (C v w) = t == v && u == w
+  eq (D t u) (D v w) = t == v && u == w
   eq _  _ = false
 
 showNoIndices :: F -> String
@@ -82,6 +83,7 @@ showNoIndices = case _ of
   R _   -> "R"
   W _   -> "W"
   C _ _ -> "C"
+  D _ _ -> "D"
   U     -> "_"
 
 -- convenience constructors
@@ -89,10 +91,12 @@ effS     = Eff S
 effR r   = Eff (R r)
 effW w   = Eff (W w)
 effC r o = Eff (C r o)
+effD i j = Eff (D i j)
 
-atomicTypes = E : T : Nil
+atomicTypes = E : T : G : Nil
 atomicEffects =
-  pure S <> (R <$> atomicTypes) <> (W <$> atomicTypes) <> (lift2 C atomicTypes atomicTypes)
+  pure S <> (R <$> atomicTypes) <> (W <$> atomicTypes)
+    <> (lift2 C atomicTypes atomicTypes) <> (lift2 D atomicTypes atomicTypes)
 
 -- evaluated types (for scope islands)
 -- we care about positive positions only
@@ -100,6 +104,7 @@ evaluated :: Ty -> Boolean
 evaluated = case _ of
   E             -> true
   T             -> true
+  G             -> true
   _ :-> a       -> evaluated a
   Eff (C _ _) _ -> false
   Eff _ a       -> evaluated a
@@ -182,10 +187,11 @@ data Op
   = FA | BA | PM | FC -- Base        > < & .
   | MR F | ML F       -- Functor     fmap
   | UR F | UL F       -- Applicative pure
+  | Z                 -- Binding     z
   | A F               -- Applicative <*>
   | J F               -- Monad       join
   | Eps               -- Adjoint     counit
-  | D                 -- Cont        lower
+  | DN                -- Cont        lower
   | XL F Op           -- Comonad     extend
 derive instance Eq Op
 derive instance Generic Op _
@@ -199,10 +205,11 @@ instance Show Op where
     ML f -> "L"  -- <> " " <> show f
     UL f -> "UL" -- <> " " <> show f
     UR f -> "UR" -- <> " " <> show f
+    Z    -> "Z"
     A f  -> "A"  -- <> " " <> show f
     J f  -> "J"  -- <> " " <> show f
     Eps  -> "Eps"
-    D    -> "D"
+    DN   -> "D"
     XL f o -> "XL " <> show o
 
 
@@ -233,6 +240,7 @@ instance Commute F where
     R _   -> true
     W w   -> commutative w
     C _ _ -> false
+    D _ _ -> false
     U     -> false
 
 
@@ -294,6 +302,7 @@ combineFs = case _,_ of
   R i   , R j    | i == j  -> pure $ R i
   W i   , W j    | i == j  -> pure $ W i
   C i j , C j' k | j == j' -> pure $ C i k
+  D i j , D j' k | j == j' -> pure $ D i k
   _     , _                -> Nil
 
 combineWith tag handler bins uns =
@@ -341,6 +350,13 @@ addUL combine (l ^ r) = case r of
                             in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
   _ -> pure Nil
 
+-- a Jacobsonian binding rule
+addZ combine (l ^ r) = case (l^r) of
+  (a :-> r :-> b ^ Eff (R r') x) | r == r', x == a ->
+    combine (a :-> b ^ x) <#>
+    map \(op^d^c) -> (Z:op ^ opTerm Z % d ^ r :-> c)
+  _ -> pure Nil
+
 -- additionally, if both daughters are Applicative, then see if there's
 -- some mode `op` that would combine their underlying types
 addA combine (l ^ r) = case (l^r) of
@@ -373,20 +389,20 @@ addJ = case _ of
 
 addD :: (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
 addD = case _ of
-  (op ^ d ^ Eff (C i a) a') | a == a', norm op D ->
-    pure (D:op ^ opTerm D % d ^ i)
+  (op ^ d ^ Eff (C i a) a') | a == a', norm op DN ->
+    pure (DN:op ^ opTerm DN % d ^ i)
   _ -> Nil
 
 norm :: Mode -> Op -> Boolean
 norm op = case _ of
-  -- prefer M_,(D,)U_ over the equivalent U_,(D,)M_
-  UR f -> not $ (op `startsWith`_) `anyOf` [[MR f], [D, MR f]]
-  UL f -> not $ (op `startsWith`_) `anyOf` [[ML f], [D, ML f]]
-  D    -> not $ (op `startsWith`_) `anyOf`
-    (map (\m -> [m  U, D, m  U]) [MR, ML]
-           <> [ [ML U, D, MR U]
-              , [A  U, D, MR U]
-              , [ML U, D, A  U]
+  -- prefer M_,(DN,)U_ over the equivalent U_,(DN,)M_
+  UR f -> not $ (op `startsWith`_) `anyOf` [[MR f], [DN, MR f]]
+  UL f -> not $ (op `startsWith`_) `anyOf` [[ML f], [DN, ML f]]
+  DN   -> not $ (op `startsWith`_) `anyOf`
+    (map (\m -> [m  U, DN, m  U]) [MR, ML]
+           <> [ [ML U, DN, MR U]
+              , [A  U, DN, MR U]
+              , [ML U, DN, A  U]
               , [Eps]
               ])
   J f -> not $ (op `startsWith` _) `anyOf`
@@ -463,8 +479,8 @@ opTerm = case _ of
        --    \L r -> (\a -> op a r) <$> L
   ML f -> op ! l ! r ! fmapTerm f % (a ! (op % a % r)) % l
 
-       --    \l R -> op (\a -> R (pure a)) l
-  UL f -> op ! l ! r ! op % (a ! r % (pureTerm f % a)) % l
+       --    \l R -> op l (\a -> R (pure a))
+  UL f -> op ! l ! r ! op % l % (a ! r % (pureTerm f % a))
 
        --    \L r -> op (\a -> L (pure a)) r
   UR f -> op ! l ! r ! op % (a ! l % (pureTerm f % a)) % r
@@ -472,8 +488,8 @@ opTerm = case _ of
        --    \L R -> op <$> L <*> R
   A  f -> op ! l ! r ! joinTerm f % (fmapTerm f % (a ! fmapTerm f % (op % a) % r) % l)
 
-       --    \l r a -> op l (r a) a
-  -- Z    op ! -> l ! r ! a ! modeTerm op % l % (r % a) % a
+       --    \l r g -> op (\b -> l b g) (r g)
+  Z    -> op ! l ! r ! g ! op % (a ! l % a % g) % (r % g)
 
        --    \l r -> join (op l r)
   J  f -> op ! l ! r ! joinTerm f % (op % l % r)
@@ -482,7 +498,7 @@ opTerm = case _ of
   Eps  -> op ! l ! r ! counitTerm % (fmapTerm (W E) % (a ! fmapTerm (R E) % (op % a) % r) % l)
 
           -- \l r -> op l r id
-  D    -> op ! l ! r ! op % l % r % (a ! a)
+  DN   -> op ! l ! r ! op % l % r % (a ! a)
 
           -- \l r -> l =>> \l' -> o op l' r
   XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
@@ -505,12 +521,14 @@ fmapTerm = case _ of
   R _   -> k ! m ! g ! k % (m % g)
   W _   -> k ! m ! _1 m * k % _2 m
   C _ _ -> k ! m ! c ! m % (a ! c % (k % a))
+  D _ _ -> k ! m ! g ! fmapTerm S % (p ! (k % _1 p) * _2 p) % (m % g)
   _     -> k ! m ! make_con "fmap" % k % m
 pureTerm = case _ of
-  S     -> a ! make_set a
+  S     -> a ! set ( (b ! b) |? make_con "singleton" % a )
   R _   -> a ! g ! a
   W t   -> a ! (mzeroTerm t * a)
   C _ _ -> a ! k ! k % a
+  D _ _ -> a ! g ! pureTerm S % (a * g)
   _     -> a ! make_con "pure" % a
 counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
@@ -518,6 +536,7 @@ joinTerm = case _ of
   R _   -> mm ! g ! mm % g % g
   W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
+  D _ _ -> mm ! g ! conc (fmapTerm S % (p ! _1 p % _2 p) % (mm % g))
   _     -> mm ! make_con "join" % mm
 extendTerm = case _ of
   W t   -> k ! m ! _1 m * k % m

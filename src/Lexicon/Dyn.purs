@@ -1,12 +1,12 @@
 
-module Lexicon.Indef where
+module Lexicon.Dyn where
 
 import Prelude hiding ((*))
 
 import TDParseCFG
 import LambdaCalc
 import Utils ( (^), type (^) )
-import Data.List
+import Data.List hiding ((!!))
 import Data.Maybe
 import Data.Foldable ( traverse_ )
 import Effect ( Effect )
@@ -14,14 +14,15 @@ import Effect.Console ( log, logShow )
 import Data.Either
 
 
-indefLex :: Lexicon
-indefLex = map mkLex $
-    ("some"      ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effS E)           ))
-  : ("a"         ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effS E)           ))
-  : ("someone"   ^ pure ( Just so3  ^ DP   ^ (effS E)                         ))
-  : ("nobody"    ^ pure ( Just no   ^ DP   ^ (effS (E :-> T) :-> T)           ))
-  : ("eclo"      ^ pure ( Just eclo ^ Cmp  ^ (effS T :-> T)                   )
-                <> pure ( Just eclo ^ Dmp  ^ (effS T :-> T)                   ))
+dynLex :: Lexicon
+dynLex = map mkLex $
+    ("push"      ^ pure ( Just pD   ^ Dmp  ^ (E :-> effD G G E)               ))
+  : ("pro0"      ^ pure ( Just p0   ^ DP   ^ effD G G E                       ))
+  : ("pro1"      ^ pure ( Just p1   ^ DP   ^ effD G G E                       ))
+  : ("pro2"      ^ pure ( Just p2   ^ DP   ^ effD G G E                       ))
+  : ("someD"     ^ pure ( Just sD   ^ Det  ^ (E :-> T) :-> effD G G E         ))
+  : ("aD"        ^ pure ( Just sD   ^ Det  ^ (E :-> T) :-> effD G G E         ))
+  : ("someoneD"  ^ pure ( Just soD  ^ DP   ^ effD G G E                       ))
   : Nil
   where
     first  (a ^ s) f = f a ^ s
@@ -29,6 +30,12 @@ indefLex = map mkLex $
     mkLex w = second w $ \s -> map (_ `first` (fromMaybe (make_con s)))
     idTerm = let a = make_var "a" in a ! a
     pushTerm = let x = make_var "x" in x ! (x * x)
+    pD = let (g^x^p) = (make_var "g" ^ make_var "x" ^ make_var "p") in x ! g ! set ( (p ! (x * (x ~ g))) |? make_con "_" )
+    p0 = let (g^p) = (make_var "g" ^ make_var "p") in g ! set ( (p ! ((g !! 0) * g)) |? make_con "_" )
+    p1 = let (g^p) = (make_var "g" ^ make_var "p") in g ! set ( (p ! ((g !! 1) * g)) |? make_con "_" )
+    p2 = let (g^p) = (make_var "g" ^ make_var "p") in g ! set ( (p ! ((g !! 2) * g)) |? make_con "_" )
+    soD = let (g^x) = (make_var "g" ^ make_var "x") in g ! set ( (x ! (x * g)) |? make_con "someone" )
+    sD = let (g^x^p) = (make_var "g" ^ make_var "x" ^ make_var "p") in p ! g ! set ( (x ! (x * g)) |? make_con "some" % p )
 
     ann = make_con "a"
     mary = make_con "m"

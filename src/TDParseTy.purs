@@ -35,6 +35,7 @@ ats = fromFoldable atomicTypes
 {- Nondeterministic type parser for filtering against partially specified types -}
 
 effCons = choice [ mkOp "C" $ \ts -> lift2 effC ats ats <*> ts
+                 , mkOp "D" $ \ts -> pure (effD G G) <*> ts
                  , mkOp "S" $ \ts -> pure effS <*> ts
                  , mkOp "W" $ \ts -> map effW ats <*> ts
                  , mkOp "R" $ \ts -> map effR ats <*> ts
@@ -43,6 +44,8 @@ atom = choice [ mkOp "e" $ pure E
               , mkOp "E" $ pure E
               , mkOp "t" $ pure T
               , mkOp "T" $ pure T
+              , mkOp "g" $ pure G
+              , mkOp "G" $ pure G
               ]
 
 table = [ [ prefix effCons ]
@@ -58,8 +61,8 @@ tyParse t = runParser t tyParser
 {- Deterministic type parser for specifying lexical items -}
 -- TODO: allow specification of the Effect indices, rather than making these aribitrary choices
 
-effConsD = choice [ mkOp "C" (effC T T) , mkOp "S" effS , mkOp "W" (effW E) , mkOp "R" (effR E)]
-atomD = choice [ mkOp "e" E , mkOp "E" E , mkOp "t" T , mkOp "T" T]
+effConsD = choice [ mkOp "C" (effC T T) , mkOp "D" (effD G G) , mkOp "S" effS , mkOp "W" (effW E) , mkOp "R" (effR E) ]
+atomD = choice [ mkOp "e" E , mkOp "E" E , mkOp "t" T , mkOp "T" T ]
 
 tableD = [ [ prefix effConsD ]
          , [ binary "->" Arr AssocRight ]

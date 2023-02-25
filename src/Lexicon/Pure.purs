@@ -18,8 +18,9 @@ import Data.Either
 
 pureLex :: Lexicon
 pureLex = map mkLex $
-    ("ann"       ^ pure ( Just ann  ^ DP   ^ E                                ))
-  : ("mary"      ^ pure ( Just mary ^ DP   ^ E                                ))
+    ("ann"       ^ pure ( Nothing   ^ DP   ^ E                                ))
+  : ("mary"      ^ pure ( Nothing   ^ DP   ^ E                                ))
+  : ("'s"        ^ pure ( Just poss ^ GenD ^ E :-> (E :-> E) :-> E            ))
   : ("left"      ^ pure ( Nothing   ^ VP   ^ (E :-> T)                        ))
   : ("whistled"  ^ pure ( Nothing   ^ VP   ^ (E :-> T)                        ))
   : ("saw"       ^ pure ( Nothing   ^ TV   ^ (E :-> E :-> T)                  ))
@@ -28,8 +29,9 @@ pureLex = map mkLex $
   : ("chased"    ^ pure ( Nothing   ^ TV   ^ (E :-> E :-> T)                  ))
   : ("said"      ^ pure ( Nothing   ^ AV   ^ (T :-> E :-> T)                  ))
   : ("gave"      ^ pure ( Nothing   ^ DV   ^ (E :-> E :-> E :-> T)            ))
-  : ("mom"       ^ pure ( Nothing   ^ TN   ^ (E :-> E)                        ))
-  : ("paycheck"  ^ pure ( Nothing   ^ TN   ^ (E :-> E)                        ))
+  : ("mom"       ^ pure ( Nothing   ^ FN   ^ (E :-> E)                        ))
+  : ("paycheck"  ^ pure ( Nothing   ^ FN   ^ (E :-> E)                        ))
+  : ("pictureof" ^ pure ( Nothing   ^ RN   ^ (E :-> E :-> E)                  ))
   : ("the"       ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> E)                ))
   : ("very"      ^ pure ( Nothing   ^ Deg  ^ ((E :-> T) :-> E :-> T)          ))
   : ("everyP"    ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> (E :-> T) :-> T)  ))
@@ -40,6 +42,7 @@ pureLex = map mkLex $
   : ("near"      ^ pure ( Nothing   ^ TAdj ^ (E :-> E :-> T)                  ))
   : ("and"       ^ pure ( Nothing   ^ Cor  ^ (T :-> T :-> T)                  ))
   : ("but"       ^ pure ( Nothing   ^ Cor  ^ (T :-> T :-> T)                  ))
+  : ("if"        ^ pure ( Nothing   ^ Adc  ^ (T :-> T :-> T)                  ))
   : ("andE"      ^ pure ( Nothing   ^ Cor  ^ (E :-> E :-> E)                  ))
   : ("with"      {-^ pure ( Nothing   ^ TAdj ^ (E :-> E :-> T)                  )-}
                  ^ pure ( Nothing   ^ TAdv ^ (E :-> (E :-> T) :-> E :-> T)    ))

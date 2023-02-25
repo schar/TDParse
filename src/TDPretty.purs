@@ -1,7 +1,7 @@
 
 module TDPretty where
 
-import Data.List
+import Data.List hiding (null)
 import Data.Maybe
 import LambdaCalc
 import Prelude
@@ -9,7 +9,7 @@ import TDParseCFG
 import Text.Pretty
 import Effect.Exception.Unsafe (unsafeThrow)
 
-import Data.Foldable (sequence_, traverse_)
+import Data.Foldable (sequence_, traverse_, null)
 import Data.Traversable (sequence)
 import Effect (Effect)
 import Effect.Console (log, logShow)
@@ -31,6 +31,7 @@ prettyTy :: Doc -> Ty -> Doc
 prettyTy a = case _ of
   E           -> text "e"
   T           -> text "t"
+  G           -> text "g"
   (Eff f t)   -> prettyF a f <+> prettyParam a t
   (t1 :-> t2) ->
     case t1 of
@@ -48,6 +49,7 @@ prettyF a = case _ of
   R r   -> text "R" -- <+> prettyParam a r
   W w   -> text "W" -- <+> prettyParam a w
   C r o -> text "C" -- <+> prettyParam a r <+> prettyParam a o
+  D i j -> text "D" -- <+> prettyParam a i <+> prettyParam a j
   U     -> text "_"
 
 prettyVal :: Boolean -> (Term -> String) -> Sem -> Doc
@@ -56,23 +58,35 @@ prettyVal norm disp v
   | otherwise = text $ show v
 
 -- this is painfully duplicative
-displayTy :: forall m. Ty -> Html m
-displayTy ty = HE.span [HA.class' "type"] $ go ty
+displayTy :: forall m. Boolean -> Ty -> Html m
+displayTy b ty = HE.span [HA.class' "type"] $ go ty
   where
     go = case _ of
       E           -> [HE.span [HA.class' "atom"] [HE.text "e"]]
       T           -> [HE.span [HA.class' "atom"] [HE.text "t"]]
-      (Eff f t)   -> [displayF f] <> {- [HE.text " "] <> -} displayParam t
+      G           -> [HE.span [HA.class' "atom"] [HE.text "g"]]
+      (Eff f t)   -> [displayF b f] <> [HE.text $ if b then "" else ""] <>  displayParam t
       (t1 :-> t2) -> displayLeft t1 (go t1) <> ar <> go t2
 
-    displayLeft = case _ of
-      _ :-> _ -> parens
-      _       -> identity
+    displayF b f =
+      HE.span [HA.class' "constructor"] $
+        if not b then [HE.text $ showNoIndices f] else
+          case f of
+            S -> [HE.text "S"]
+            R i -> [HE.text "R"] <> displayParam i
+            W i -> [HE.text "W"] <> displayParam i
+            C i j -> [HE.text "C"] <> displayParam i <> displayParam j
+            D i j -> [HE.text "D"] <> displayParam i <> displayParam j
+            U -> [HE.text "U"]
 
     displayParam = case _ of
       r@(_ :-> _) -> parens (go r)
       r@(Eff _ _) -> parens (go r)
       r           ->         go r
+
+    displayLeft = case _ of
+      _ :-> _ -> parens
+      _       -> identity
 
     parens s =
       [HE.span [HA.class' "ty-punct"] [HE.text "("]]
@@ -82,9 +96,6 @@ displayTy ty = HE.span [HA.class' "type"] $ go ty
     ar =
       [HE.span [HA.class' "ty-punct"] [HE.text $ render 100 arrow]]
 
--- splitting this out in case we want to toggle the Effect indices at some point
-displayF :: forall m. F -> Html m
-displayF f = HE.span [HA.class' "constructor"] [HE.text $ showNoIndices f]
 
 displayVal :: forall m. Sem -> Html m
 displayVal v = HE.span [HA.class' "den"] $ displayTerm (evalFinal (semTerm v)) 100
@@ -123,22 +134,28 @@ displayTerm term depth              = go term
         let (dom ^ vars) = unrollDom eval e var_stock
             getvar (v:vs) = (Var v ^ vs)
             getvar Nil = unsafeThrow "getvar error in displayTerm"
+            showNext q c = if null q then q else c <> q
             showDom t vs = let (v^rest) = getvar vs in
               case t of
                 Pair a b ->
-                  go v
-                  <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' a
-                  <> [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
-                  <> showDom b rest
+                  if a == Con "_"
+                  then showDom b rest
+                  else
+                    go v
+                    <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
+                    <> go' a
+                    <> showNext (showDom b rest) [ HE.span [HA.class' "den-punct"] [HE.text ", "] ]
                 _ ->
-                  go v
-                  <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
-                  <> go' t
+                  if t == Con "_"
+                  then []
+                  else
+                    go v
+                    <> [ HE.span [HA.class' "den-punct"] [HE.text " <- "] ]
+                    <> go' t
+            d = showDom dom vars
          in [ HE.span [HA.class' "den-punct"] [HE.text "["] ]
             <> go' (eval $ cond % (tuple $ map Var vars))
-            <> [ HE.span [HA.class' "den-punct"] [HE.text " | "] ]
-            <> showDom dom vars
+            <> (if null d then d else [ HE.span [HA.class' "den-punct"] [HE.text " | "] ] <> d)
             <> [ HE.span [HA.class' "den-punct"] [HE.text "]"] ]
       (Dom p) ->
         [ HE.span [HA.class' "den-op"] [HE.text "dom "] ]
@@ -152,6 +169,15 @@ displayTerm term depth              = go term
       (Spl n p) ->
         [ HE.span [HA.class' "den-op"] [HE.text $ "splitAt " <> show n <> " "] ]
         <> displayRight go p
+      (Push x g) ->
+        [ HE.span [HA.class' "den-punct"] [HE.text "("] ]
+        <> go' x
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ":"] ]
+        <> go' g
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ")"] ]
+      (Proj n g) ->
+        go g <> [ HE.span [HA.class' "den-punct"] [HE.text $ "_" <> show n] ]
+
 
     go' term = displayTerm term (depth - 1)
 
@@ -194,10 +220,11 @@ prettyOp = case _ of
   MR _ -> text "$\\comb{R}$,"
   UL _ -> text "$\\eta_{\\comb{L}}$,"
   UR _ -> text "$\\eta_{\\comb{R}}$,"
+  Z    -> text "$\\comb{Z}$,"
   A  _ -> text "$\\comb{A},$"
   J  _ -> text "$\\comb{J}$,"
   Eps  -> text "$\\comb{Eps}$,"
-  D    -> text "$\\comb{D}$,"
+  DN   -> text "$\\comb{D}$,"
   XL _ o -> text "$\\comb{XL}($" <> prettyOp o <> text "$)$,"
 
 prettyMode :: Mode -> Doc
@@ -257,8 +284,8 @@ prettyProofBuss proof = text "\\begin{prooftree}" <> line' <> bp proof <> line' 
 
       _ -> text "\\AXC{wrong number of daughters}"
 
-displayProof :: forall m. Boolean -> Int -> Proof -> Html m
-displayProof dens i proof =
+displayProof :: forall m. Boolean -> Boolean -> Int -> Proof -> Html m
+displayProof dens params i proof =
   HE.div [HA.class' "tf-tree tf-gap-sm parse"]
     [ HE.span [HA.class' "parse-number"] [HE.text $ show (i + 1) <> "."]
     , HE.ul_ [ html proof ]
@@ -268,7 +295,7 @@ displayProof dens i proof =
       Proof word v@(Lex w) ty _ ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"] $
-            [ displayTy ty ]
+            [ displayTy params ty ]
             <> (if dens then [ HE.br, displayVal v ] else [])
             <> [ HE.br ]
             <> [ HE.span [HA.class' "mode"] [HE.text $ "Lex"] ]
@@ -279,7 +306,7 @@ displayProof dens i proof =
       Proof phrase v@(Comb m d) ty (l:r:Nil) ->
         HE.li_
           [ HE.div [HA.class' "tf-nc"] $
-            [ displayTy ty ]
+            [ displayTy params ty ]
             <> (if dens then [ HE.br, displayVal v ] else [])
             <> [ HE.br ]
             <> [ HE.span [HA.class' "mode"] [HE.text $ showMode m] ]

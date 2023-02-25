@@ -42,8 +42,9 @@ demoLex = map mkLex $
                                              effR E (effW E E)                )
                 <> pure ( Just pc   ^ Gen  ^ (E :-> E) :->
                                              effR E (effW (effR E E) E)       ))
-  : ("mom"       ^ pure ( Nothing   ^ TN   ^ (E :-> E)                        ))
-  : ("paycheck"  ^ pure ( Nothing   ^ TN   ^ (E :-> E)                        ))
+  : ("mom"       ^ pure ( Nothing   ^ FN   ^ (E :-> E)                        ))
+  : ("paycheck"  ^ pure ( Nothing   ^ FN   ^ (E :-> E)                        ))
+  : ("pictureof" ^ pure ( Nothing   ^ RN   ^ (E :-> E :-> E)                  ))
   : ("the"       ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> E)                ))
   : ("theC"      ^ pure ( Nothing   ^ Det  ^ effC E T E                       ))
   : ("very"      ^ pure ( Nothing   ^ Deg  ^ ((E :-> T) :-> E :-> T)          ))

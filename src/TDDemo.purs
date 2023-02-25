@@ -23,8 +23,12 @@ demoCFG = case _,_ of
   Cmp  , CP    -> pure CP
   CP   , CBar  -> pure CP
   Cor  , CP    -> pure CBar
+  CP   , AdcP  -> pure CP
+  AdcP , CP    -> pure CP
+  Adc  , CP    -> pure AdcP
   Det  , NP    -> pure DP
-  Gen  , TN    -> pure DP
+  Gen  , FN    -> pure DP
+  RN   , DP    -> pure FN
   Dmp  , DP    -> pure DP
   DP   , DBar  -> pure DP
   DP   , GenD  -> pure Gen

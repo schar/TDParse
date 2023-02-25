@@ -16,12 +16,19 @@ import Data.Either
 
 proLex :: Lexicon
 proLex = map mkLex $
-    ("she"       ^ pure ( Just pro  ^ DP   ^ (effR E E)                       ))
-  : ("it"        ^ pure ( Just pro  ^ DP   ^ effR E E                         )
-                <> pure ( Just pro  ^ DP   ^ effR (effR E E) (effR E E)       ))
-  : ("her"       ^ pure ( Just pro  ^ DP   ^ (effR E E)                       )
-                <> pure ( Just pro  ^ Gen  ^ (effR E E)                       ))
-  : ("tr"        ^ pure ( Just pro  ^ DP   ^ (effR E E)                       ))
+    ("she"       ^ pure ( Just pro  ^ DP   ^ effR E E                             ))
+  : ("it"        ^ pure ( Just pro  ^ DP   ^ effR E E                             )
+                <> pure ( Just pro  ^ DP   ^ effR (effR E E) (effR E E)           ))
+  : ("her"       ^ pure ( Just pro  ^ DP   ^ effR E E                             )
+                <> pure ( Just pro  ^ Gen  ^ effR E E                             ))
+  : ("__"        ^ pure ( Just pro  ^ DP   ^ effR E E                             )
+                <> pure ( Just pro  ^ DP   ^ effR (effR E E) (effR E E)           ))
+  : ("who"       ^ pure ( Just pro  ^ DP   ^ effR E E                             ))
+  : (","         ^ pure ( Just top  ^ AV   ^ effR (effR E E) T :-> effR E E :-> T )
+                <> pure ( Just top  ^ AV   ^ effR E T :-> E :-> T )
+                <> pure ( Just top  ^ AV   ^ effR (effR E E) (effR E T) :-> effR E E :-> effR E T ))
+  : (":"         ^ pure ( Just top  ^ AV   ^ effR E T :-> E :-> T                 )
+                <> pure ( Just top  ^ AV   ^ effR (effR E E) T :-> effR E E :-> T ))
   : Nil
   where
     first  (a ^ s) f = f a ^ s
@@ -30,6 +37,7 @@ proLex = map mkLex $
     idTerm = let a = make_var "a" in a ! a
     pushTerm = let x = make_var "x" in x ! (x * x)
 
+    top = let f = make_var "f" in f ! f
     ann = make_con "a"
     mary = make_con "m"
     ma = make_con "ma"
