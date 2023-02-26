@@ -101,7 +101,7 @@ init =
           }
   }
 
-defLexes = [PureLex, DynLex]
+defLexes = [PureLex, ProLex, IndefLex]
 defCombs = [MRComb, MLComb, AComb, JComb]
 
 -- proofs :: Lexicon -> String -> Maybe (Array Proof)
@@ -213,27 +213,27 @@ view model =
         , HE.div [HA.id "lexInventory", HA.class' "opt-group"] $
           [ HE.text "Select fragments:" ]
           <> map (addSwitch LexChoice (_ `elem` defLexes))
-          [ ("pure"  ^ PureLex )
-          , ("pro"   ^ ProLex  )
-          , ("indef" ^ IndefLex)
-          , ("dyn"   ^ DynLex  )
-          , ("quant" ^ QuantLex)
-          , ("push"  ^ PushLex )
-          , ("demo"  ^ DemoLex )
+          [ ([HE.text "pure" ] ^ PureLex )
+          , ([HE.text "pro"  ] ^ ProLex  )
+          , ([HE.text "indef"] ^ IndefLex)
+          , ([HE.text "dyn"  ] ^ DynLex  )
+          , ([HE.text "quant"] ^ QuantLex)
+          , ([HE.text "push" ] ^ PushLex )
+          , ([HE.text "demo" ] ^ DemoLex )
           ]
 
         , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
           [ HE.text "Select combinators:" ]
           <> map (addSwitch CombChoice (_ `elem` defCombs))
-          [ ("R (map right)"   ^ MRComb )
-          , ("L (map left)"    ^ MLComb )
-          , ("UR (unit right)" ^ URComb )
-          , ("UL (unit left)"  ^ ULComb )
-          -- , ("Z (binding)"     ^ ZComb  )
-          , ("A (apply)"       ^ AComb  )
-          , ("Eps (counit)"    ^ EpsComb)
-          , ("J (join)"        ^ JComb  )
-          , ("D (lower)"       ^ DComb  )
+          [ ([HE.strong_ "R", HE.text " (map right)" ]  ^ MRComb )
+          , ([HE.strong_ "L", HE.text " (map left)"  ]  ^ MLComb )
+          , ([HE.strong_ "Ú", HE.text " (unit right)"]  ^ URComb )
+          , ([HE.strong_ "Ù", HE.text " (unit left)" ]  ^ ULComb )
+          , ([HE.strong_ "Z", HE.text " (binding)"   ]  ^ ZComb  )
+          , ([HE.strong_ "A", HE.text " (apply)"     ]  ^ AComb  )
+          , ([HE.strong_ "E", HE.text " (counit)"    ]  ^ EpsComb)
+          , ([HE.strong_ "J", HE.text " (join)"      ]  ^ JComb  )
+          , ([HE.strong_ "D", HE.text " (lower)"     ]  ^ DComb  )
           ]
         ]
       ]
@@ -242,7 +242,7 @@ view model =
 addSwitch action toggle (s ^ l) =
   HE.div_
     [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked (toggle l), HA.onClick $ action l]
-    , HE.span_ [HE.text s]
+    , HE.span_ s
     ]
 
 addLexText m =
@@ -256,11 +256,11 @@ displayLexItem :: forall m. Boolean -> Word -> Html m
 displayLexItem b (s ^ w) = let item = fromFoldable w in
   HE.div [HA.class' "lexitem"] $ case length item of
     1 ->
-      [ HE.span_ [HE.text (s <> ": ")]
+      [ HE.span_ [HE.text (s <> "  ")]
       , HE.div_ $ map (\(_^_^ty) -> displayTy b ty) item
       ]
     _ ->
-      [ HE.span [HA.style {marginRight: "20px", minWidth: "61px"}] [HE.text (s <> ": ")]
+      [ HE.span [HA.style {marginRight: "20px", minWidth: "61px"}] [HE.text (s <> "  ")]
       , HE.div_ $ item <#> \(_^_^ty) ->
           HE.ul [HA.style {paddingLeft: "0px", marginBottom: "0px"}]
             [HE.li [HA.style {marginBottom: "0px"}] [displayTy b ty]]

@@ -88,8 +88,8 @@ demoLex = map mkLex $
     mref = pushTerm % mary
     poss = let (p^x) = (make_var "p" ^ make_var "x") in x ! p ! p % x
     poss' = let (p^x) = (make_var "p" ^ make_var "x") in x ! p ! pushTerm % (p % x)
-    ml = mary * (make_var "ling" % mary)
-    sc = make_var "s" * (make_var "cat" % make_var "s")
+    ml = (make_con "ling" % mary) * mary
+    sc = (make_con "cat" % make_con "s") * make_con "s"
     pro = idTerm
     pro2 = pushTerm
     pc = let (p^g) = (make_var "p" ^ make_var "g") in p ! g ! (p * p % g)

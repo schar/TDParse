@@ -203,12 +203,12 @@ instance Show Op where
     FC   -> "."
     MR f -> "R"  -- <> " " <> show f
     ML f -> "L"  -- <> " " <> show f
-    UL f -> "UL" -- <> " " <> show f
-    UR f -> "UR" -- <> " " <> show f
+    UL f -> "Ù" -- <> " " <> show f
+    UR f -> "Ú" -- <> " " <> show f
     Z    -> "Z"
     A f  -> "A"  -- <> " " <> show f
     J f  -> "J"  -- <> " " <> show f
-    Eps  -> "Eps"
+    Eps  -> "E"
     DN   -> "D"
     XL f o -> "XL " <> show o
 
@@ -534,7 +534,7 @@ counitTerm = m ! _2 m % _1 m
 joinTerm = case _ of
   S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
-  W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_1 mm)) * _2 (_2 mm)
+  W t   -> mm ! (_1 mm) `mplusTerm t` (_1 (_2 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
   D _ _ -> mm ! g ! conc (fmapTerm S % (p ! _1 p % _2 p) % (mm % g))
   _     -> mm ! make_con "join" % mm

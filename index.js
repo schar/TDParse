@@ -4892,6 +4892,11 @@
       return singleton2(id($767));
     }
   };
+  var stringToHtml = {
+    toNode: function($768) {
+      return singleton2(text($768));
+    }
+  };
   var nodeDataToNodedata = {
     toNode: singleton2
   };
@@ -4914,6 +4919,9 @@
   };
   var span_ = function(dictToNode) {
     return createElement_("span")(dictToNode);
+  };
+  var strong_ = function(dictToNode) {
+    return createElement_("strong")(dictToNode);
   };
   var ul_ = function(dictToNode) {
     return createElement_("ul")(dictToNode);
@@ -8808,11 +8816,11 @@
       }
       ;
       if (v instanceof UL) {
-        return "UL";
+        return "\xD9";
       }
       ;
       if (v instanceof UR) {
-        return "UR";
+        return "\xDA";
       }
       ;
       if (v instanceof Z) {
@@ -8828,7 +8836,7 @@
       }
       ;
       if (v instanceof Eps) {
-        return "Eps";
+        return "E";
       }
       ;
       if (v instanceof DN) {
@@ -10273,7 +10281,7 @@
     }
     ;
     if (v instanceof W) {
-      return lam(mm)(new Pair(mplusTerm(v.value0)(_1(mm))(_1(_1(mm))), _2(_2(mm))));
+      return lam(mm)(new Pair(mplusTerm(v.value0)(_1(mm))(_1(_2(mm))), _2(_2(mm))));
     }
     ;
     if (v instanceof C) {
@@ -10705,7 +10713,7 @@
         return new Tuple(v.value0, f(v.value0)(v.value1));
       };
     };
-    var sc = new Pair(make_var("s"), new App2(make_var("cat"), make_var("s")));
+    var sc = new Pair(new App2(make_con("cat"), make_con("s")), make_con("s"));
     var pushTerm = function() {
       var x2 = make_var("x");
       return lam(x2)(new Pair(x2, x2));
@@ -10728,7 +10736,7 @@
       return lam(v.value0)(lam(v.value1)(new Pair(v.value0, new App2(v.value0, v.value1))));
     }();
     var mary = make_con("m");
-    var ml = new Pair(mary, new App2(make_var("ling"), mary));
+    var ml = new Pair(new App2(make_con("ling"), mary), mary);
     var mref = new App2(pushTerm, mary);
     var ma = make_con("ma");
     var maref = new App2(pushTerm, ma);
@@ -10978,7 +10986,7 @@
     var eo2 = new App2(new App2(fmapTerm(new C(T.value, T.value)), pushTerm), eo);
     var eclo = make_con("\u2203");
     var ann = make_con("a");
-    return map14(mkLex)(new Cons(new Tuple("she", pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("it", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple("her", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(Gen.value, effR(E.value)(E.value)))))), new Cons(new Tuple("__", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple("who", pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple(",", append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(T.value), new Arr(effR(E.value)(E.value), T.value))))))(append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(E.value)(T.value), new Arr(E.value, T.value))))))(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(effR(E.value)(T.value)), new Arr(effR(E.value)(E.value), effR(E.value)(T.value))))))))), new Cons(new Tuple(":", append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(E.value)(T.value), new Arr(E.value, T.value))))))(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(T.value), new Arr(effR(E.value)(E.value), T.value))))))), Nil.value))))))));
+    return map14(mkLex)(new Cons(new Tuple("she", pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("it", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple("her", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(Gen.value, effR(E.value)(E.value)))))), new Cons(new Tuple("who", pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("__", append5(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure10(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple(",", append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(E.value)(T.value), new Arr(E.value, T.value))))))(append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(T.value), new Arr(effR(E.value)(E.value), T.value))))))(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(effR(E.value)(T.value)), new Arr(effR(E.value)(E.value), effR(E.value)(T.value))))))))), new Cons(new Tuple(":", append5(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(E.value)(T.value), new Arr(E.value, T.value))))))(pure10(new Tuple(new Just(top3), new Tuple(AV.value, new Arr(effR(effR(E.value)(E.value))(T.value), new Arr(effR(E.value)(E.value), T.value))))))), Nil.value))))))));
   }();
 
   // output/Lexicon.Pure/index.js
@@ -35052,6 +35060,7 @@
   var div1 = /* @__PURE__ */ div3(stringToNodeData)(arrayToNodeData12);
   var mapFlipped1 = /* @__PURE__ */ mapFlipped(functorMaybe);
   var append15 = /* @__PURE__ */ append(semigroupArray);
+  var strong_2 = /* @__PURE__ */ strong_(stringToHtml);
   var PureLex = /* @__PURE__ */ function() {
     function PureLex2() {
     }
@@ -35349,7 +35358,7 @@
       return div5([class$prime3("lexitem")])(function() {
         var v1 = length(item);
         if (v1 === 1) {
-          return [span_2([text(v.value0 + ": ")]), div_2(map111(function(v2) {
+          return [span_2([text(v.value0 + "  ")]), div_2(map111(function(v2) {
             return displayTy(b2)(v2.value1.value1);
           })(item))];
         }
@@ -35357,7 +35366,7 @@
         return [span5([style2({
           marginRight: "20px",
           minWidth: "61px"
-        })])([text(v.value0 + ": ")]), div_2(mapFlipped3(item)(function(v2) {
+        })])([text(v.value0 + "  ")]), div_2(mapFlipped3(item)(function(v2) {
           return ul3([style2({
             paddingLeft: "0px",
             marginBottom: "0px"
@@ -35369,7 +35378,7 @@
     };
   };
   var defLexes = /* @__PURE__ */ function() {
-    return [PureLex.value, DynLex.value];
+    return [PureLex.value, ProLex.value, IndefLex.value];
   }();
   var defCombs = /* @__PURE__ */ function() {
     return [MRComb.value, MLComb.value, AComb.value, JComb.value];
@@ -35387,16 +35396,16 @@
         showParams: false,
         showLex: true,
         lexItems: function(l2) {
-          var $133 = elem4(l2)(defLexes);
-          if ($133) {
+          var $137 = elem4(l2)(defLexes);
+          if ($137) {
             return true;
           }
           ;
           return false;
         },
         combs: function(c2) {
-          var $134 = elem12(c2)(defCombs);
-          if ($134) {
+          var $138 = elem12(c2)(defCombs);
+          if ($138) {
             return true;
           }
           ;
@@ -35407,8 +35416,8 @@
   }();
   var buildUns = function(m2) {
     return bind11(unsInventory)(function(v) {
-      var $136 = m2.opts.combs(v.value0);
-      if ($136) {
+      var $140 = m2.opts.combs(v.value0);
+      if ($140) {
         return [v.value1];
       }
       ;
@@ -35417,8 +35426,8 @@
   };
   var buildLex = function(m2) {
     return concat(cons2(m2.customLex)(map111(function(v) {
-      var $140 = m2.opts.lexItems(v.value0);
-      if ($140) {
+      var $144 = m2.opts.lexItems(v.value0);
+      if ($144) {
         return v.value1;
       }
       ;
@@ -35438,8 +35447,8 @@
       var binsInventory2 = binsInventory1(dictApplicative);
       return function(m2) {
         return bind11(binsInventory2)(function(v) {
-          var $144 = m2.opts.combs(v.value0);
-          if ($144) {
+          var $148 = m2.opts.combs(v.value0);
+          if ($148) {
             return [v.value1];
           }
           ;
@@ -35603,8 +35612,8 @@
           return function(items) {
             return function(l2) {
               return function() {
-                var $169 = eq6(l2)(n1);
-                if ($169) {
+                var $173 = eq6(l2)(n1);
+                if ($173) {
                   return not2;
                 }
                 ;
@@ -35635,8 +35644,8 @@
           return function(items) {
             return function(c2) {
               return function() {
-                var $171 = eq12(c2)(n1);
-                if ($171) {
+                var $175 = eq12(c2)(n1);
+                if ($175) {
                   return not2;
                 }
                 ;
@@ -35665,13 +35674,17 @@
       throw new Error("Failed pattern match at Main (line 121, column 16 - line 155, column 78): " + [v.constructor.name]);
     };
   };
-  var addSwitch = function(action) {
-    return function(toggle) {
-      return function(v) {
-        return div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(toggle(v.value1)), onClick(action(v.value1))]), span_2([text(v.value0)])]);
+  var addSwitch = function(dictToNode) {
+    var span_1 = span_(dictToNode);
+    return function(action) {
+      return function(toggle) {
+        return function(v) {
+          return div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(toggle(v.value1)), onClick(action(v.value1))]), span_1(v.value0)]);
+        };
       };
     };
   };
+  var addSwitch1 = /* @__PURE__ */ addSwitch(arrayToNodeData12);
   var addLexText = function(m2) {
     return p4([style2({
       marginBottom: "0px"
@@ -35690,18 +35703,18 @@
     }() + " lexicon")]), button2([id("opts-button"), onClick(ToggleOpts.value)])([text("\u2261")]), p1("current")([text("Showing "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(min3(200)(maybe(0)(function() {
-      var $181 = filter(model.typeOfInterest);
-      return function($182) {
-        return length($181($182));
+      var $185 = filter(model.typeOfInterest);
+      return function($186) {
+        return length($185($186));
       };
     }())(model.currentProofs))))]), text(" of "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(maybe(0)(length)(model.currentProofs)))]), text(" parses for: " + model.currentPhrase)]), div1("content")([div1("parses")(fromMaybe([text("No parse")])(mapFlipped1(model.currentProofs)(function() {
-      var $183 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
-      var $184 = take(100);
-      var $185 = filter(model.typeOfInterest);
-      return function($186) {
-        return $183($184($185($186)));
+      var $187 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
+      var $188 = take(100);
+      var $189 = filter(model.typeOfInterest);
+      return function($190) {
+        return $187($188($189($190)));
       };
     }()))), div5([id("lexicon"), style2({
       display: function() {
@@ -35719,11 +35732,11 @@
         ;
         return "none";
       }()
-    })])([div5([id("denInput"), class$prime3("opt-group")])([div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(true), onClick(ToggleDen.value)]), span_2([text("show meanings")])]), div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(false), onClick(ToggleParams.value)]), span_2([text("show eff params")])])]), div5([id("lexInventory"), class$prime3("opt-group")])(append15([text("Select fragments:")])(map111(addSwitch(LexChoice.create)(function(v) {
+    })])([div5([id("denInput"), class$prime3("opt-group")])([div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(true), onClick(ToggleDen.value)]), span_2([text("show meanings")])]), div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(false), onClick(ToggleParams.value)]), span_2([text("show eff params")])])]), div5([id("lexInventory"), class$prime3("opt-group")])(append15([text("Select fragments:")])(map111(addSwitch1(LexChoice.create)(function(v) {
       return elem4(v)(defLexes);
-    }))([new Tuple("pure", PureLex.value), new Tuple("pro", ProLex.value), new Tuple("indef", IndefLex.value), new Tuple("dyn", DynLex.value), new Tuple("quant", QuantLex.value), new Tuple("push", PushLex.value), new Tuple("demo", DemoLex.value)]))), div5([id("combsInventory"), class$prime3("opt-group")])(append15([text("Select combinators:")])(map111(addSwitch(CombChoice.create)(function(v) {
+    }))([new Tuple([text("pure")], PureLex.value), new Tuple([text("pro")], ProLex.value), new Tuple([text("indef")], IndefLex.value), new Tuple([text("dyn")], DynLex.value), new Tuple([text("quant")], QuantLex.value), new Tuple([text("push")], PushLex.value), new Tuple([text("demo")], DemoLex.value)]))), div5([id("combsInventory"), class$prime3("opt-group")])(append15([text("Select combinators:")])(map111(addSwitch1(CombChoice.create)(function(v) {
       return elem12(v)(defCombs);
-    }))([new Tuple("R (map right)", MRComb.value), new Tuple("L (map left)", MLComb.value), new Tuple("UR (unit right)", URComb.value), new Tuple("UL (unit left)", ULComb.value), new Tuple("A (apply)", AComb.value), new Tuple("Eps (counit)", EpsComb.value), new Tuple("J (join)", JComb.value), new Tuple("D (lower)", DComb.value)])))])])]);
+    }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("Z"), text(" (binding)")], ZComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("E"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);
   };
   var main = /* @__PURE__ */ mount_2("#home")({
     init: init3,
