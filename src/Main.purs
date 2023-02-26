@@ -229,7 +229,7 @@ view model =
           , ([HE.strong_ "L", HE.text " (map left)"  ]  ^ MLComb )
           , ([HE.strong_ "Ú", HE.text " (unit right)"]  ^ URComb )
           , ([HE.strong_ "Ù", HE.text " (unit left)" ]  ^ ULComb )
-          , ([HE.strong_ "Z", HE.text " (binding)"   ]  ^ ZComb  )
+          -- , ([HE.strong_ "Z", HE.text " (binding)"   ]  ^ ZComb  )
           , ([HE.strong_ "A", HE.text " (apply)"     ]  ^ AComb  )
           , ([HE.strong_ "E", HE.text " (counit)"    ]  ^ EpsComb)
           , ([HE.strong_ "J", HE.text " (join)"      ]  ^ JComb  )

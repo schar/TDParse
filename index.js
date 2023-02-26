@@ -35736,7 +35736,7 @@
       return elem4(v)(defLexes);
     }))([new Tuple([text("pure")], PureLex.value), new Tuple([text("pro")], ProLex.value), new Tuple([text("indef")], IndefLex.value), new Tuple([text("dyn")], DynLex.value), new Tuple([text("quant")], QuantLex.value), new Tuple([text("push")], PushLex.value), new Tuple([text("demo")], DemoLex.value)]))), div5([id("combsInventory"), class$prime3("opt-group")])(append15([text("Select combinators:")])(map111(addSwitch1(CombChoice.create)(function(v) {
       return elem12(v)(defCombs);
-    }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("Z"), text(" (binding)")], ZComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("E"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);
+    }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("E"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);
   };
   var main = /* @__PURE__ */ mount_2("#home")({
     init: init3,
