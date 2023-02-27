@@ -324,13 +324,13 @@ showTy a = render 100 <<< prettyTy a
 showProof :: (Proof -> Doc) -> Proof -> String
 showProof disp = render 100 <<< (_ <> text "\n\n") <<< disp
 
-showParse' :: CFG -> Lexicon -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
-showParse' cfg lex p disp input = go <$> parse cfg lex input
+showParse' :: CFG -> Lexicon -> List Cat -> (Proof -> Boolean) -> (Proof -> Doc) -> String -> Maybe (Array String)
+showParse' cfg lex isles p disp input = go <$> parse cfg lex isles input
   where
     go = toUnfoldable <<< map (showProof disp) <<< filter p <<< concatMap (synsem allBins allUns)
 
-showParse cfg lex = showParse' cfg lex (const true) prettyProof
-showParseTree' norm cfg lex p = showParse' cfg lex p (prettyProofTree norm)
-showParseTree cfg lex = showParse' cfg lex (const true) (prettyProofTree false)
-showParseBuss' cfg lex p = showParse' cfg lex p prettyProofBuss
-showParseBuss cfg lex = showParse' cfg lex (const true) prettyProofBuss
+showParse cfg lex = showParse' cfg lex Nil (const true) prettyProof
+showParseTree' norm cfg lex p = showParse' cfg lex Nil p (prettyProofTree norm)
+showParseTree cfg lex = showParse' cfg lex Nil (const true) (prettyProofTree false)
+showParseBuss' cfg lex p = showParse' cfg lex Nil p prettyProofBuss
+showParseBuss cfg lex = showParse' cfg lex Nil (const true) prettyProofBuss

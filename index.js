@@ -8847,7 +8847,7 @@
         return "XL " + show(showOp)(v.value1);
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 199, column 10 - line 213, column 30): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 202, column 10 - line 216, column 30): " + [v.constructor.name]);
     }
   };
   var genericCat_ = {
@@ -9553,6 +9553,7 @@
       };
     }
   };
+  var elem4 = /* @__PURE__ */ elem(foldableList)(eqCat);
   var ordCat = {
     compare: function(x2) {
       return function(y) {
@@ -9898,7 +9899,7 @@
       return v.value1;
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 454, column 1 - line 454, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 457, column 1 - line 457, column 23): " + [v.constructor.name]);
   };
   var r = /* @__PURE__ */ make_var("r");
   var protoParse = function(dictMonad) {
@@ -9911,39 +9912,45 @@
     return function(v) {
       return function(v1) {
         return function(v2) {
-          if (v2.value1.value1 instanceof Cons && v2.value1.value1.value1 instanceof Nil) {
-            return pure32(map10(function(v3) {
-              return new Tuple(v3.value1.value0, new Leaf2(v2.value1.value1.value0.value0, v3.value0, v3.value1.value1));
-            })(v2.value1.value1.value0.value1));
-          }
-          ;
-          var mkIsland = function(v3) {
-            if (v3 instanceof CP) {
-              return Island.create;
+          return function(v3) {
+            if (v3.value1.value1 instanceof Cons && v3.value1.value1.value1 instanceof Nil) {
+              return pure32(map10(function(v4) {
+                return new Tuple(v4.value1.value0, new Leaf2(v3.value1.value1.value0.value0, v4.value0, v4.value1.value1));
+              })(v3.value1.value1.value0.value1));
             }
             ;
-            return Branch.create;
-          };
-          var help = function(v3) {
-            return bind42(v1(v3.value0))(function(parsesL) {
-              return bind42(v1(v3.value1))(function(parsesR) {
-                return pure32(bind6(parsesL)(function(v4) {
-                  return bind6(parsesR)(function(v5) {
-                    return bind6(v(v4.value0)(v5.value0))(function(cat) {
-                      return pure6(new Tuple(cat, mkIsland(cat)(v4.value1)(v5.value1)));
+            var mkIsland = function(cat) {
+              if (elem4(cat)(v1)) {
+                return Island.create;
+              }
+              ;
+              if (otherwise) {
+                return Branch.create;
+              }
+              ;
+              throw new Error("Failed pattern match at TDParseCFG (line 158, column 5 - line 160, column 34): " + [cat.constructor.name]);
+            };
+            var help = function(v4) {
+              return bind42(v2(v4.value0))(function(parsesL) {
+                return bind42(v2(v4.value1))(function(parsesR) {
+                  return pure32(bind6(parsesL)(function(v5) {
+                    return bind6(parsesR)(function(v6) {
+                      return bind6(v(v5.value0)(v6.value0))(function(cat) {
+                        return pure6(new Tuple(cat, mkIsland(cat)(v5.value1)(v6.value1)));
+                      });
                     });
-                  });
-                }));
+                  }));
+                });
               });
-            });
+            };
+            var bisect = function(v4) {
+              return bind6(range3(1)(length2(v4.value1.value1) - 1 | 0))(function(i) {
+                var v5 = new Tuple(take2(i)(v4.value1.value1), drop(i)(v4.value1.value1));
+                return pure6(new Tuple(new Tuple(v4.value0, new Tuple((v4.value0 + i | 0) - 1 | 0, v5.value0)), new Tuple(v4.value0 + i | 0, new Tuple(v4.value1.value0, v5.value1))));
+              });
+            };
+            return map42(concat2)(traverse22(help)(bisect(v3)));
           };
-          var bisect = function(v3) {
-            return bind6(range3(1)(length2(v3.value1.value1) - 1 | 0))(function(i) {
-              var v4 = new Tuple(take2(i)(v3.value1.value1), drop(i)(v3.value1.value1));
-              return pure6(new Tuple(new Tuple(v3.value0, new Tuple((v3.value0 + i | 0) - 1 | 0, v4.value0)), new Tuple(v3.value0 + i | 0, new Tuple(v3.value1.value0, v4.value1))));
-            });
-          };
-          return map42(concat2)(traverse22(help)(bisect(v2)));
         };
       };
     };
@@ -9951,23 +9958,25 @@
   var protoParse1 = /* @__PURE__ */ protoParse(/* @__PURE__ */ monadStateT(monadIdentity));
   var parse = function(cfg) {
     return function(dict) {
-      return function(input3) {
-        var clitics = ["'s"];
-        var stripClitics = function(s) {
-          return bind1(clitics)(function(c1) {
-            return maybe([s])(function(w) {
-              return [w, c1];
-            })(stripSuffix(c1)(s));
+      return function(isles) {
+        return function(input3) {
+          var clitics = ["'s"];
+          var stripClitics = function(s) {
+            return bind1(clitics)(function(c1) {
+              return maybe([s])(function(w) {
+                return [w, c1];
+              })(stripSuffix(c1)(s));
+            });
+          };
+          var lexes = fromFoldable7(bind1(words(input3))(stripClitics));
+          return bind22(traverse12(function(s) {
+            return map1(function(v) {
+              return new Tuple(s, v);
+            })(lookup4(s)(dict));
+          })(lexes))(function(ws) {
+            return pure1(map10(snd)(memo2(protoParse1(cfg)(isles))(new Tuple(0, new Tuple(length2(ws) - 1 | 0, ws)))));
           });
         };
-        var lexes = fromFoldable7(bind1(words(input3))(stripClitics));
-        return bind22(traverse12(function(s) {
-          return map1(function(v) {
-            return new Tuple(s, v);
-          })(lookup4(s)(dict));
-        })(lexes))(function(ws) {
-          return pure1(map10(snd)(memo2(protoParse1(cfg))(new Tuple(0, new Tuple(length2(ws) - 1 | 0, ws)))));
-        });
       };
     };
   };
@@ -10118,7 +10127,7 @@
         return false;
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 238, column 17 - line 244, column 19): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 241, column 17 - line 247, column 19): " + [v.constructor.name]);
     }
   };
   var commutative2 = /* @__PURE__ */ commutative(commuteF);
@@ -10137,7 +10146,7 @@
           return eq5(v.value0)(v1.value0) && startsWith(v.value1)(v1.value1);
         }
         ;
-        throw new Error("Failed pattern match at TDParseCFG (line 425, column 5 - line 425, column 37): " + [v.constructor.name, v1.constructor.name]);
+        throw new Error("Failed pattern match at TDParseCFG (line 428, column 5 - line 428, column 37): " + [v.constructor.name, v1.constructor.name]);
       };
     };
     var anyOf = function(p12) {
@@ -10182,8 +10191,8 @@
         })([[new J(v.value0)], []]))(append13(map22(function(k1) {
           return append13(k1)([Eps.value]);
         })([[new A(v.value0)], []]))(function() {
-          var $1262 = commutative2(v.value0);
-          if ($1262) {
+          var $1265 = commutative2(v.value0);
+          if ($1265) {
             return append13([[new MR(v.value0), new A(v.value0)]])(append13([[new A(v.value0), new ML(v.value0)]])(append13(map22(function(k1) {
               return append13([new MR(v.value0)])(append13(k1)([new ML(v.value0)]));
             })([[new J(v.value0)], []]))(map22(function(k1) {
@@ -10374,7 +10383,7 @@
       return lam(op)(lam(l)(lam(r)(new App2(new App2(extendTerm(v.value0), lam(l$prime)(new App2(new App2(new App2(opTerm(v.value1), op), l$prime), r))), l))));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 463, column 10 - line 504, column 74): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 466, column 10 - line 507, column 74): " + [v.constructor.name]);
   };
   var addA = function(dictFunctor) {
     var mapFlipped12 = mapFlipped(dictFunctor);
@@ -10402,10 +10411,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value0 instanceof C) {
-      var $1331 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
-      if ($1331) {
-        var $1332 = norm(v.value0)(DN.value);
-        if ($1332) {
+      var $1334 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
+      if ($1334) {
+        var $1335 = norm(v.value0)(DN.value);
+        if ($1335) {
           return pure6(new Tuple(new Cons(DN.value, v.value0), new Tuple(new App2(opTerm(DN.value), v.value1.value0), v.value1.value1.value0.value0)));
         }
         ;
@@ -10442,10 +10451,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value1 instanceof Eff) {
-      var $1361 = monad(v.value1.value1.value0);
-      if ($1361) {
-        var $1362 = norm(v.value0)(new J(v.value1.value1.value0));
-        if ($1362) {
+      var $1364 = monad(v.value1.value1.value0);
+      if ($1364) {
+        var $1365 = norm(v.value0)(new J(v.value1.value1.value0));
+        if ($1365) {
           return mapFlipped2(combineFs(v.value1.value1.value0)(v.value1.value1.value1.value0))(function(h) {
             return new Tuple(new Cons(new J(h), v.value0), new Tuple(new App2(opTerm(new J(h)), v.value1.value0), new Eff(h, v.value1.value1.value1.value1)));
           });
@@ -10540,10 +10549,10 @@
             return pure32(Nil.value);
           };
           if (v1.value0 instanceof Arr && (v1.value0.value1 instanceof Arr && (v1.value1 instanceof Eff && v1.value1.value0 instanceof R))) {
-            var $1426 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
-            if ($1426) {
-              var $1427 = eq3(v1.value1.value1)(v1.value0.value0);
-              if ($1427) {
+            var $1429 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
+            if ($1429) {
+              var $1430 = eq3(v1.value1.value1)(v1.value0.value0);
+              if ($1430) {
                 return mapFlipped12(combine(new Tuple(new Arr(v1.value0.value0, v1.value0.value1.value1), v1.value1.value1)))(map10(function(v3) {
                   return new Tuple(new Cons(Z.value, v3.value0), new Tuple(new App2(opTerm(Z.value), v3.value1.value0), new Arr(v1.value0.value1.value0, v3.value1.value1)));
                 }));
@@ -10591,11 +10600,11 @@
               return function(combine) {
                 return function(v) {
                   return map42(function() {
-                    var $1493 = map10(function(v1) {
+                    var $1496 = map10(function(v1) {
                       return new Tuple(v1.value0, new Tuple($$eval(v1.value1.value0), v1.value1.value1));
                     });
-                    return function($1494) {
-                      return $1493(concat2($1494));
+                    return function($1497) {
+                      return $1496(concat2($1497));
                     };
                   }())(flippedApply2(foldl6(function(ls) {
                     return function(k1) {
@@ -10620,15 +10629,15 @@
           return function(bins) {
             return function(uns) {
               return curry(fix4(function() {
-                var $1495 = memoizeTag2(tag);
-                var $1496 = openCombine2(bins)(uns);
-                return function($1497) {
-                  return $1495(function(v) {
-                    var $1498 = map32(handler);
-                    return function($1499) {
-                      return $1498(v($1499));
+                var $1498 = memoizeTag2(tag);
+                var $1499 = openCombine2(bins)(uns);
+                return function($1500) {
+                  return $1498(function(v) {
+                    var $1501 = map32(handler);
+                    return function($1502) {
+                      return $1501(v($1502));
                     };
-                  }($1496($1497)));
+                  }($1499($1500)));
                 };
               }()));
             };
@@ -10679,10 +10688,10 @@
             }))(v.value0)(v.value1);
           }
           ;
-          throw new Error("Failed pattern match at TDParseCFG (line 268, column 5 - line 268, column 63): " + [v.constructor.name]);
+          throw new Error("Failed pattern match at TDParseCFG (line 271, column 5 - line 271, column 63): " + [v.constructor.name]);
         };
-        return function($1500) {
-          return execute(go($1500));
+        return function($1503) {
+          return execute(go($1503));
         };
       };
     };
@@ -10691,10 +10700,12 @@
     var synsem1 = synsem(dictFoldable);
     return function(cfg) {
       return function(lex) {
-        return function(bins) {
-          return function(uns) {
-            return function(input3) {
-              return map1(concatMap2(synsem1(bins)(uns)))(parse(cfg)(lex)(input3));
+        return function(isles) {
+          return function(bins) {
+            return function(uns) {
+              return function(input3) {
+                return map1(concatMap2(synsem1(bins)(uns)))(parse(cfg)(lex)(isles)(input3));
+              };
             };
           };
         };
@@ -35221,6 +35232,13 @@
     ToggleParams2.value = new ToggleParams2();
     return ToggleParams2;
   }();
+  var ToggleIslands = /* @__PURE__ */ function() {
+    function ToggleIslands2() {
+    }
+    ;
+    ToggleIslands2.value = new ToggleIslands2();
+    return ToggleIslands2;
+  }();
   var AddLex = /* @__PURE__ */ function() {
     function AddLex2(value0) {
       this.value0 = value0;
@@ -35286,7 +35304,7 @@
       };
     }
   };
-  var elem4 = /* @__PURE__ */ elem2(eqLexName);
+  var elem5 = /* @__PURE__ */ elem2(eqLexName);
   var eq6 = /* @__PURE__ */ eq(eqLexName);
   var eqCombName = {
     eq: function(x2) {
@@ -35339,10 +35357,12 @@
   var proofs = function(dictFoldable) {
     var prove2 = prove(dictFoldable);
     return function(l2) {
-      return function(bins) {
-        return function(uns) {
-          return function(s) {
-            return map25(fromFoldable8)(prove2(demoCFG)(l2)(bins)(uns)(s));
+      return function(isles) {
+        return function(bins) {
+          return function(uns) {
+            return function(s) {
+              return map25(fromFoldable8)(prove2(demoCFG)(l2)(isles)(bins)(uns)(s));
+            };
           };
         };
       };
@@ -35395,17 +35415,18 @@
         showDens: true,
         showParams: false,
         showLex: true,
+        islands: false,
         lexItems: function(l2) {
-          var $137 = elem4(l2)(defLexes);
-          if ($137) {
+          var $139 = elem5(l2)(defLexes);
+          if ($139) {
             return true;
           }
           ;
           return false;
         },
         combs: function(c2) {
-          var $138 = elem12(c2)(defCombs);
-          if ($138) {
+          var $140 = elem12(c2)(defCombs);
+          if ($140) {
             return true;
           }
           ;
@@ -35416,8 +35437,8 @@
   }();
   var buildUns = function(m2) {
     return bind11(unsInventory)(function(v) {
-      var $140 = m2.opts.combs(v.value0);
-      if ($140) {
+      var $142 = m2.opts.combs(v.value0);
+      if ($142) {
         return [v.value1];
       }
       ;
@@ -35426,8 +35447,8 @@
   };
   var buildLex = function(m2) {
     return concat(cons2(m2.customLex)(map111(function(v) {
-      var $144 = m2.opts.lexItems(v.value0);
-      if ($144) {
+      var $146 = m2.opts.lexItems(v.value0);
+      if ($146) {
         return v.value1;
       }
       ;
@@ -35447,8 +35468,8 @@
       var binsInventory2 = binsInventory1(dictApplicative);
       return function(m2) {
         return bind11(binsInventory2)(function(v) {
-          var $148 = m2.opts.combs(v.value0);
-          if ($148) {
+          var $150 = m2.opts.combs(v.value0);
+          if ($150) {
             return [v.value1];
           }
           ;
@@ -35464,7 +35485,13 @@
         return {
           currentPhrase: '"' + (v.value0.value1 + '"'),
           typeOfInterest: model.typeOfInterest,
-          currentProofs: proofs1(fromFoldable1(buildLex(model)))(fromFoldable1(buildBins1(model)))(fromFoldable1(buildUns(model)))(v.value0.value1),
+          currentProofs: proofs1(fromFoldable1(buildLex(model)))(fromFoldable1(function() {
+            if (model.opts.islands) {
+              return [CP.value];
+            }
+            ;
+            return [];
+          }()))(fromFoldable1(buildBins1(model)))(fromFoldable1(buildUns(model)))(v.value0.value1),
           customLex: model.customLex,
           lexFeedback: model.lexFeedback,
           opts: model.opts
@@ -35501,7 +35528,7 @@
           };
         }
         ;
-        throw new Error("Failed pattern match at Main (line 131, column 5 - line 133, column 77): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 138, column 5 - line 140, column 77): " + [v1.constructor.name]);
       }
       ;
       if (v instanceof ToggleLex) {
@@ -35516,6 +35543,7 @@
             showDens: model.opts.showDens,
             showParams: model.opts.showParams,
             showLex: !model.opts.showLex,
+            islands: model.opts.islands,
             lexItems: model.opts.lexItems,
             combs: model.opts.combs
           }
@@ -35534,6 +35562,7 @@
             showDens: !model.opts.showDens,
             showParams: model.opts.showParams,
             showLex: model.opts.showLex,
+            islands: model.opts.islands,
             lexItems: model.opts.lexItems,
             combs: model.opts.combs
           }
@@ -35552,6 +35581,7 @@
             showDens: model.opts.showDens,
             showParams: !model.opts.showParams,
             showLex: model.opts.showLex,
+            islands: model.opts.islands,
             lexItems: model.opts.lexItems,
             combs: model.opts.combs
           }
@@ -35570,6 +35600,26 @@
             showDens: model.opts.showDens,
             showParams: model.opts.showParams,
             showLex: model.opts.showLex,
+            islands: model.opts.islands,
+            lexItems: model.opts.lexItems,
+            combs: model.opts.combs
+          }
+        };
+      }
+      ;
+      if (v instanceof ToggleIslands) {
+        return {
+          currentPhrase: model.currentPhrase,
+          typeOfInterest: model.typeOfInterest,
+          currentProofs: model.currentProofs,
+          customLex: model.customLex,
+          lexFeedback: model.lexFeedback,
+          opts: {
+            showOpts: model.opts.showOpts,
+            showDens: model.opts.showDens,
+            showParams: model.opts.showParams,
+            showLex: model.opts.showLex,
+            islands: !model.opts.islands,
             lexItems: model.opts.lexItems,
             combs: model.opts.combs
           }
@@ -35600,7 +35650,7 @@
           };
         }
         ;
-        throw new Error("Failed pattern match at Main (line 144, column 5 - line 146, column 83): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 154, column 5 - line 156, column 83): " + [v1.constructor.name]);
       }
       ;
       if (v instanceof AddLex) {
@@ -35612,8 +35662,8 @@
           return function(items) {
             return function(l2) {
               return function() {
-                var $173 = eq6(l2)(n1);
-                if ($173) {
+                var $176 = eq6(l2)(n1);
+                if ($176) {
                   return not2;
                 }
                 ;
@@ -35633,6 +35683,7 @@
             showDens: model.opts.showDens,
             showParams: model.opts.showParams,
             showLex: model.opts.showLex,
+            islands: model.opts.islands,
             lexItems: $$switch(v.value0)(model.opts.lexItems),
             combs: model.opts.combs
           }
@@ -35644,8 +35695,8 @@
           return function(items) {
             return function(c2) {
               return function() {
-                var $175 = eq12(c2)(n1);
-                if ($175) {
+                var $178 = eq12(c2)(n1);
+                if ($178) {
                   return not2;
                 }
                 ;
@@ -35665,13 +35716,14 @@
             showDens: model.opts.showDens,
             showParams: model.opts.showParams,
             showLex: model.opts.showLex,
+            islands: model.opts.islands,
             lexItems: model.opts.lexItems,
             combs: $$switch(v.value0)(model.opts.combs)
           }
         };
       }
       ;
-      throw new Error("Failed pattern match at Main (line 121, column 16 - line 155, column 78): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Main (line 123, column 16 - line 165, column 78): " + [v.constructor.name]);
     };
   };
   var addSwitch = function(dictToNode) {
@@ -35703,18 +35755,18 @@
     }() + " lexicon")]), button2([id("opts-button"), onClick(ToggleOpts.value)])([text("\u2261")]), p1("current")([text("Showing "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(min3(200)(maybe(0)(function() {
-      var $185 = filter(model.typeOfInterest);
-      return function($186) {
-        return length($185($186));
+      var $188 = filter(model.typeOfInterest);
+      return function($189) {
+        return length($188($189));
       };
     }())(model.currentProofs))))]), text(" of "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(maybe(0)(length)(model.currentProofs)))]), text(" parses for: " + model.currentPhrase)]), div1("content")([div1("parses")(fromMaybe([text("No parse")])(mapFlipped1(model.currentProofs)(function() {
-      var $187 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
-      var $188 = take(100);
-      var $189 = filter(model.typeOfInterest);
-      return function($190) {
-        return $187($188($189($190)));
+      var $190 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
+      var $191 = take(100);
+      var $192 = filter(model.typeOfInterest);
+      return function($193) {
+        return $190($191($192($193)));
       };
     }()))), div5([id("lexicon"), style2({
       display: function() {
@@ -35732,8 +35784,8 @@
         ;
         return "none";
       }()
-    })])([div5([id("denInput"), class$prime3("opt-group")])([div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(true), onClick(ToggleDen.value)]), span_2([text("show meanings")])]), div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(false), onClick(ToggleParams.value)]), span_2([text("show eff params")])])]), div5([id("lexInventory"), class$prime3("opt-group")])(append15([text("Select fragments:")])(map111(addSwitch1(LexChoice.create)(function(v) {
-      return elem4(v)(defLexes);
+    })])([div5([id("denInput"), class$prime3("opt-group")])([div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(true), onClick(ToggleDen.value)]), span_2([text("show meanings")])]), div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(false), onClick(ToggleParams.value)]), span_2([text("show full types")])]), div_2([input2([class$prime3("opt-switch"), type$prime("checkbox"), checked(false), onClick(ToggleIslands.value)]), span_2([text("islands")])])]), div5([id("lexInventory"), class$prime3("opt-group")])(append15([text("Select fragments:")])(map111(addSwitch1(LexChoice.create)(function(v) {
+      return elem5(v)(defLexes);
     }))([new Tuple([text("pure")], PureLex.value), new Tuple([text("pro")], ProLex.value), new Tuple([text("indef")], IndefLex.value), new Tuple([text("dyn")], DynLex.value), new Tuple([text("quant")], QuantLex.value), new Tuple([text("push")], PushLex.value), new Tuple([text("demo")], DemoLex.value)]))), div5([id("combsInventory"), class$prime3("opt-group")])(append15([text("Select combinators:")])(map111(addSwitch1(CombChoice.create)(function(v) {
       return elem12(v)(defCombs);
     }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("E"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);

@@ -70,6 +70,7 @@ type Model =
             , showDens :: Boolean
             , showParams :: Boolean
             , showLex :: Boolean
+            , islands :: Boolean
             , lexItems :: LexName -> Boolean
             , combs :: CombName -> Boolean
             }
@@ -83,6 +84,7 @@ data Message
   | ToggleDen
   | ToggleOpts
   | ToggleParams
+  | ToggleIslands
   | AddLex (Key ^ String)
   | LexChoice LexName
   | CombChoice CombName
@@ -95,7 +97,7 @@ init =
   , currentProofs: Just []
   , customLex: []
   , lexFeedback: Nothing
-  , opts: { showOpts: true, showDens: true, showParams: false, showLex: true
+  , opts: { showOpts: true, showDens: true, showParams: false, showLex: true, islands: false
           , lexItems: \l -> if l `elem` defLexes then true else false
           , combs: \c -> if c `elem` defCombs then true else false
           }
@@ -105,7 +107,7 @@ defLexes = [PureLex, ProLex, IndefLex]
 defCombs = [MRComb, MLComb, AComb, JComb]
 
 -- proofs :: Lexicon -> String -> Maybe (Array Proof)
-proofs l bins uns s = fromFoldable <$> prove Demo.demoCFG l bins uns s
+proofs l isles bins uns s = fromFoldable <$> prove Demo.demoCFG l isles bins uns s
   -- where bins = List.fromFoldable [addML , addMR , addUR , addUL , addEps]
   --       uns  = List.fromFoldable [addD , addJ , pure ]
 
@@ -121,7 +123,12 @@ update :: Model -> Message -> Model
 update model = case _ of
   PhraseInput ("Enter" ^ s) ->
                   model { currentPhrase = "\"" <> s <> "\""
-                        , currentProofs = proofs (List.fromFoldable $ buildLex model) (List.fromFoldable $ buildBins model) (List.fromFoldable $ buildUns model) s
+                        , currentProofs = proofs
+                            (List.fromFoldable $ buildLex model)
+                            (List.fromFoldable $ if model.opts.islands then [CP] else [])
+                            (List.fromFoldable $ buildBins model)
+                            (List.fromFoldable $ buildUns model)
+                            s
                         }
 
   PhraseInput (_ ^ s) ->
@@ -139,6 +146,9 @@ update model = case _ of
   ToggleParams -> model { opts = model.opts { showParams = not model.opts.showParams } }
 
   ToggleOpts ->   model { opts = model.opts { showOpts = not model.opts.showOpts } }
+
+  ToggleIslands ->
+                  model { opts = model.opts { islands = not model.opts.islands } }
 
   AddLex ("Enter" ^ s) ->
     case lexParse s of
@@ -206,7 +216,11 @@ view model =
             ]
           , HE.div_
             [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked false, HA.onClick ToggleParams]
-            , HE.span_ [HE.text "show eff params"]
+            , HE.span_ [HE.text "show full types"]
+            ]
+          , HE.div_
+            [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked false, HA.onClick ToggleIslands]
+            , HE.span_ [HE.text "islands"]
             ]
           ]
 

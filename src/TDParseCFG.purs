@@ -133,12 +133,12 @@ type Lexicon = List Word
 -- a simple memoized chart parser, parameterized to a particular grammar
 protoParse ::
   forall m. Monad m
-  => CFG
+  => CFG -> List Cat
   -> (Int ^ Int ^ Phrase -> m (List (Cat ^ Syn)))
   ->  Int ^ Int ^ Phrase -> m (List (Cat ^ Syn))
-protoParse _   _ (_^_^(s^sign):Nil) =
+protoParse _ _ _ (_^_^(s^sign):Nil) =
   pure $ map (\(d^c^t) -> c ^ Leaf s d t) sign
-protoParse cfg f phrase =
+protoParse cfg isles f phrase =
   concat <$> traverse help (bisect phrase)
   where
     bisect (lo ^ hi ^ u) = do
@@ -155,16 +155,19 @@ protoParse cfg f phrase =
         cat <- cfg lcat rcat
         pure $ cat ^ mkIsland cat lsyn rsyn
 
-    mkIsland CP = Island
-    mkIsland _  = Branch
+    mkIsland cat
+      | cat `elem` isles = Island
+      | otherwise        = Branch
+    -- mkIsland CP = Island
+    -- mkIsland _  = Branch
 
 -- Return all the grammatical constituency structures of a phrase by parsing it
 -- and throwing away the category information
-parse :: CFG -> Lexicon -> String -> Maybe (List Syn)
-parse cfg dict input = do
+parse :: CFG -> Lexicon -> List Cat -> String -> Maybe (List Syn)
+parse cfg dict isles input = do
   let lexes = fromFoldable $ {-filter (_ /= "") $-} words input >>= stripClitics
   ws <- traverse (\s -> map (s ^ _) $ lookup s dict) lexes
-  pure $ snd <$> memo (protoParse cfg) (0 ^ length ws - 1 ^ ws)
+  pure $ snd <$> memo (protoParse cfg isles) (0 ^ length ws - 1 ^ ws)
   where
     stripClitics :: String -> Array String
     stripClitics s = clitics >>= \c -> maybe [s] (\w -> [w,c]) $ DS.stripSuffix (DS.Pattern c) s
@@ -284,7 +287,7 @@ synsem bins uns = execute <<< go
             pure $ Proof (lstr <> " " <> rstr) cval ty (lp:rp:Nil)
 
 -- prove ∷ CFG -> Lexicon -> String -> Maybe (List Proof)
-prove cfg lex bins uns input = concatMap (synsem bins uns) <$> parse cfg lex input
+prove cfg lex isles bins uns input = concatMap (synsem bins uns) <$> parse cfg lex isles input
 
 -- The basic unEffectful modes of combination (add to these as you like)
 modes :: Ty -> Ty -> List (Mode ^ Term ^ Ty)
