@@ -39,6 +39,7 @@ proLex = map mkLex $
 
     top = let f = make_var "f" in f ! f
     ann = make_con "a"
+    john = make_con "j"
     mary = make_con "m"
     ma = make_con "ma"
     maref = pushTerm % ma
