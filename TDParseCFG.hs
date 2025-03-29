@@ -149,6 +149,7 @@ data Op
   | A F               -- Applicative <*>
   | J F               -- Monad       join
   | Eps               -- Adjoint     counit
+  | EL F | ER F       -- Distribute  eject
   | D                 -- Cont        lower
   | XL F Op           -- Comonad     extend
   deriving (Eq)
@@ -168,6 +169,8 @@ instance Show Op where
     Eps    -> "Eps"
     D      -> "D"
     XL f o -> "XL " ++ show o
+    EL _   -> "EL"
+    ER _   -> "ER"
 
 
 {- Type classes -}
@@ -337,6 +340,20 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
                                 return (m:op, opTerm m % d, eff c)
     _ -> return []
 
+  <+> case l of
+    (a :-> Eff (R i) b) ->
+      combine (Eff (R i) (a :-> b), r) <&>
+      concatMap \(op,d,c) -> let m = EL (R i)
+                              in [(m:op, opTerm m % d, c)]
+    _ -> return []
+
+  <+> case r of
+    (a :-> Eff (R i) b) ->
+      combine (l, Eff (R i) (a :-> b)) <&>
+      concatMap \(op,d,c) -> let m = ER (R i)
+                              in [(m:op, opTerm m % d, c)]
+    _ -> return []
+
   -- finally see if the resulting types can additionally be lowered/joined
   <**> return [addD, addJ, return]
 
@@ -455,6 +472,12 @@ opTerm = \case
           -- \l r -> l =>> \l' -> o op l' r
   XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
 
+          -- \l r -> op (eject l) r
+  EL f -> op ! l ! r ! op % (ejectTerm f % l) % r
+
+          -- \l r -> op (eject l) r
+  ER f -> op ! l ! r ! op % l % (ejectTerm f % r)
+
 
 l = make_var "l"
 l' = make_var "l'"
@@ -496,3 +519,5 @@ mzeroTerm = \case
 mplusTerm = \case
   T     -> \p q -> make_con "and" % p % q
   _     -> \_ _ -> make_con "this really shouldn't happen"
+ejectTerm = \case
+  R _   -> k ! g ! a ! k % a % g

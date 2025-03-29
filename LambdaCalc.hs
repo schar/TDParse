@@ -24,6 +24,7 @@ import Prelude hiding ((!), (*))
 import Control.Monad.Writer
 import Data.Maybe
 import Data.Monoid
+import Data.Function (fix)
 
 type VColor = Int
 data VarName = VC VColor String deriving (Eq,Show,Ord)

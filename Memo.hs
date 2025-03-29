@@ -4,6 +4,7 @@ module Memo where
 
 import Control.Monad.State.Lazy
 import Data.Map
+import Data.Function (fix)
 import Prelude hiding (lookup)
 
 -- memoization
