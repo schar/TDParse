@@ -7190,8 +7190,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $561 = v3.value1.value0 > v4.value1.value0;
-          if ($561) {
+          var $551 = v3.value1.value0 > v4.value1.value0;
+          if ($551) {
             return v3.value1;
           }
           ;
@@ -7203,8 +7203,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $574 = v3.value1.value0 > v4.value1.value0;
-          if ($574) {
+          var $564 = v3.value1.value0 > v4.value1.value0;
+          if ($564) {
             return v3.value1;
           }
           ;
@@ -7224,8 +7224,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $589 = v3.value1.value0 > v4.value1.value0;
-          if ($589) {
+          var $579 = v3.value1.value0 > v4.value1.value0;
+          if ($579) {
             return v3.value1;
           }
           ;
@@ -7253,8 +7253,8 @@
         var v3 = occurs(v.value0)(v1);
         var v4 = occurs(v.value1)(v1);
         return new Tuple(v3.value0 || v4.value0, function() {
-          var $607 = v3.value1.value0 > v4.value1.value0;
-          if ($607) {
+          var $597 = v3.value1.value0 > v4.value1.value0;
+          if ($597) {
             return v3.value1;
           }
           ;
@@ -7281,9 +7281,9 @@
     };
   };
   var make_var = /* @__PURE__ */ function() {
-    var $1027 = VC.create(0);
-    return function($1028) {
-      return Var.create($1027($1028));
+    var $1017 = VC.create(0);
+    return function($1018) {
+      return Var.create($1017($1018));
     };
   }();
   var p2 = /* @__PURE__ */ make_var("p");
@@ -7321,8 +7321,8 @@
           }
           ;
           if (v instanceof Var) {
-            var $638 = elem3(v.value0)(bound);
-            if ($638) {
+            var $628 = elem3(v.value0)(bound);
+            if ($628) {
               return free;
             }
             ;
@@ -7446,8 +7446,8 @@
   };
   var bump_color$prime = function(v) {
     return function(v1) {
-      var $685 = v.value1 === v1.value1;
-      if ($685) {
+      var $675 = v.value1 === v1.value1;
+      if ($675) {
         return bump_color(v)(v1);
       }
       ;
@@ -7762,8 +7762,8 @@
             var $tco_result;
             function $tco_loop(n, v4) {
               if (v4 instanceof Pair) {
-                var $812 = n === 1;
-                if ($812) {
+                var $802 = n === 1;
+                if ($802) {
                   $tco_done = true;
                   return v4.value1;
                 }
@@ -7787,8 +7787,8 @@
         var leftSplit = function(n) {
           return function(v4) {
             if (v4 instanceof Pair) {
-              var $816 = n === 1;
-              if ($816) {
+              var $806 = n === 1;
+              if ($806) {
                 return v4.value0;
               }
               ;
@@ -7925,8 +7925,8 @@
         if (e instanceof Proj && s instanceof Nil) {
           var v = ev(e.value1);
           if (v instanceof Push) {
-            var $895 = e.value0 === 0;
-            if ($895) {
+            var $885 = e.value0 === 0;
+            if ($885) {
               return eval$prime(v.value0)(s);
             }
             ;
@@ -7992,8 +7992,8 @@
     };
   };
   var evalFinal = function(term) {
-    return fix2(function($1029) {
-      return openFinal(openEval($1029));
+    return fix2(function($1019) {
+      return openFinal(openEval($1019));
     })(term)(Nil.value);
   };
 
@@ -8517,6 +8517,26 @@
     Eps2.value = new Eps2();
     return Eps2;
   }();
+  var EL = /* @__PURE__ */ function() {
+    function EL2(value0) {
+      this.value0 = value0;
+    }
+    ;
+    EL2.create = function(value0) {
+      return new EL2(value0);
+    };
+    return EL2;
+  }();
+  var ER = /* @__PURE__ */ function() {
+    function ER2(value0) {
+      this.value0 = value0;
+    }
+    ;
+    ER2.create = function(value0) {
+      return new ER2(value0);
+    };
+    return ER2;
+  }();
   var DN = /* @__PURE__ */ function() {
     function DN2() {
     }
@@ -8836,7 +8856,7 @@
       }
       ;
       if (v instanceof Eps) {
-        return "E";
+        return "C";
       }
       ;
       if (v instanceof DN) {
@@ -8847,7 +8867,15 @@
         return "XL " + show(showOp)(v.value1);
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 202, column 10 - line 216, column 30): " + [v.constructor.name]);
+      if (v instanceof EL) {
+        return "\xC8";
+      }
+      ;
+      if (v instanceof ER) {
+        return "\xC9";
+      }
+      ;
+      throw new Error("Failed pattern match at TDParseCFG (line 203, column 10 - line 219, column 18): " + [v.constructor.name]);
     }
   };
   var genericCat_ = {
@@ -9262,6 +9290,14 @@
         ;
         if (x2 instanceof Eps && y instanceof Eps) {
           return true;
+        }
+        ;
+        if (x2 instanceof EL && y instanceof EL) {
+          return eq22(x2.value0)(y.value0);
+        }
+        ;
+        if (x2 instanceof ER && y instanceof ER) {
+          return eq22(x2.value0)(y.value0);
         }
         ;
         if (x2 instanceof DN && y instanceof DN) {
@@ -9899,7 +9935,7 @@
       return v.value1;
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 457, column 1 - line 457, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 475, column 1 - line 475, column 23): " + [v.constructor.name]);
   };
   var r = /* @__PURE__ */ make_var("r");
   var protoParse = function(dictMonad) {
@@ -10127,7 +10163,7 @@
         return false;
       }
       ;
-      throw new Error("Failed pattern match at TDParseCFG (line 241, column 17 - line 247, column 19): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at TDParseCFG (line 244, column 17 - line 250, column 19): " + [v.constructor.name]);
     }
   };
   var commutative2 = /* @__PURE__ */ commutative(commuteF);
@@ -10146,7 +10182,7 @@
           return eq5(v.value0)(v1.value0) && startsWith(v.value1)(v1.value1);
         }
         ;
-        throw new Error("Failed pattern match at TDParseCFG (line 428, column 5 - line 428, column 37): " + [v.constructor.name, v1.constructor.name]);
+        throw new Error("Failed pattern match at TDParseCFG (line 446, column 5 - line 446, column 37): " + [v.constructor.name, v1.constructor.name]);
       };
     };
     var anyOf = function(p12) {
@@ -10191,8 +10227,8 @@
         })([[new J(v.value0)], []]))(append13(map22(function(k1) {
           return append13(k1)([Eps.value]);
         })([[new A(v.value0)], []]))(function() {
-          var $1265 = commutative2(v.value0);
-          if ($1265) {
+          var $1327 = commutative2(v.value0);
+          if ($1327) {
             return append13([[new MR(v.value0), new A(v.value0)]])(append13([[new A(v.value0), new ML(v.value0)]])(append13(map22(function(k1) {
               return append13([new MR(v.value0)])(append13(k1)([new ML(v.value0)]));
             })([[new J(v.value0)], []]))(map22(function(k1) {
@@ -10257,6 +10293,13 @@
     };
   };
   var a2 = /* @__PURE__ */ make_var("a");
+  var ejectTerm = function(v) {
+    if (v instanceof R) {
+      return lam(k)(lam(g)(lam(a2)(new App2(new App2(k, a2), g))));
+    }
+    ;
+    return make_con("this really shouldn't happen");
+  };
   var fmapTerm = function(v) {
     if (v instanceof S) {
       return lam(k)(lam(m)(set2(set$prime(lam(a2)(new App2(k, new App2(get_rng(m), a2))))(get_dom(m)))));
@@ -10383,7 +10426,15 @@
       return lam(op)(lam(l)(lam(r)(new App2(new App2(extendTerm(v.value0), lam(l$prime)(new App2(new App2(new App2(opTerm(v.value1), op), l$prime), r))), l))));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 466, column 10 - line 507, column 74): " + [v.constructor.name]);
+    if (v instanceof EL) {
+      return lam(op)(lam(l)(lam(r)(new App2(new App2(op, new App2(ejectTerm(v.value0), l)), r))));
+    }
+    ;
+    if (v instanceof ER) {
+      return lam(op)(lam(l)(lam(r)(new App2(new App2(op, l), new App2(ejectTerm(v.value0), r)))));
+    }
+    ;
+    throw new Error("Failed pattern match at TDParseCFG (line 484, column 10 - line 531, column 50): " + [v.constructor.name]);
   };
   var addA = function(dictFunctor) {
     var mapFlipped12 = mapFlipped(dictFunctor);
@@ -10411,10 +10462,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value0 instanceof C) {
-      var $1334 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
-      if ($1334) {
-        var $1335 = norm(v.value0)(DN.value);
-        if ($1335) {
+      var $1400 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
+      if ($1400) {
+        var $1401 = norm(v.value0)(DN.value);
+        if ($1401) {
           return pure6(new Tuple(new Cons(DN.value, v.value0), new Tuple(new App2(opTerm(DN.value), v.value1.value0), v.value1.value1.value0.value0)));
         }
         ;
@@ -10425,6 +10476,42 @@
     }
     ;
     return v1(true);
+  };
+  var addEL = function(dictFunctor) {
+    var mapFlipped12 = mapFlipped(dictFunctor);
+    return function(dictApplicative) {
+      var pure32 = pure(dictApplicative);
+      return function(combine) {
+        return function(v) {
+          if (v.value0 instanceof Arr && (v.value0.value1 instanceof Eff && v.value0.value1.value0 instanceof R)) {
+            return mapFlipped12(combine(new Tuple(new Eff(new R(v.value0.value1.value0.value0), new Arr(v.value0.value0, v.value0.value1.value1)), v.value1)))(map10(function(v1) {
+              var m1 = new EL(new R(v.value0.value1.value0.value0));
+              return new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1));
+            }));
+          }
+          ;
+          return pure32(Nil.value);
+        };
+      };
+    };
+  };
+  var addER = function(dictFunctor) {
+    var mapFlipped12 = mapFlipped(dictFunctor);
+    return function(dictApplicative) {
+      var pure32 = pure(dictApplicative);
+      return function(combine) {
+        return function(v) {
+          if (v.value1 instanceof Arr && (v.value1.value1 instanceof Eff && v.value1.value1.value0 instanceof R)) {
+            return mapFlipped12(combine(new Tuple(v.value0, new Eff(new R(v.value1.value1.value0.value0), new Arr(v.value1.value0, v.value1.value1.value1)))))(map10(function(v1) {
+              var m1 = new ER(new R(v.value1.value1.value0.value0));
+              return new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1));
+            }));
+          }
+          ;
+          return pure32(Nil.value);
+        };
+      };
+    };
   };
   var addEps = function(dictFunctor) {
     var mapFlipped12 = mapFlipped(dictFunctor);
@@ -10451,10 +10538,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value1 instanceof Eff) {
-      var $1364 = monad(v.value1.value1.value0);
-      if ($1364) {
-        var $1365 = norm(v.value0)(new J(v.value1.value1.value0));
-        if ($1365) {
+      var $1460 = monad(v.value1.value1.value0);
+      if ($1460) {
+        var $1461 = norm(v.value0)(new J(v.value1.value1.value0));
+        if ($1461) {
           return mapFlipped2(combineFs(v.value1.value1.value0)(v.value1.value1.value1.value0))(function(h) {
             return new Tuple(new Cons(new J(h), v.value0), new Tuple(new App2(opTerm(new J(h)), v.value1.value0), new Eff(h, v.value1.value1.value1.value1)));
           });
@@ -10549,10 +10636,10 @@
             return pure32(Nil.value);
           };
           if (v1.value0 instanceof Arr && (v1.value0.value1 instanceof Arr && (v1.value1 instanceof Eff && v1.value1.value0 instanceof R))) {
-            var $1429 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
-            if ($1429) {
-              var $1430 = eq3(v1.value1.value1)(v1.value0.value0);
-              if ($1430) {
+            var $1525 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
+            if ($1525) {
+              var $1526 = eq3(v1.value1.value1)(v1.value0.value0);
+              if ($1526) {
                 return mapFlipped12(combine(new Tuple(new Arr(v1.value0.value0, v1.value0.value1.value1), v1.value1.value1)))(map10(function(v3) {
                   return new Tuple(new Cons(Z.value, v3.value0), new Tuple(new App2(opTerm(Z.value), v3.value1.value0), new Arr(v1.value0.value1.value0, v3.value1.value1)));
                 }));
@@ -10600,11 +10687,11 @@
               return function(combine) {
                 return function(v) {
                   return map42(function() {
-                    var $1496 = map10(function(v1) {
+                    var $1592 = map10(function(v1) {
                       return new Tuple(v1.value0, new Tuple($$eval(v1.value1.value0), v1.value1.value1));
                     });
-                    return function($1497) {
-                      return $1496(concat2($1497));
+                    return function($1593) {
+                      return $1592(concat2($1593));
                     };
                   }())(flippedApply2(foldl6(function(ls) {
                     return function(k1) {
@@ -10629,15 +10716,15 @@
           return function(bins) {
             return function(uns) {
               return curry(fix4(function() {
-                var $1498 = memoizeTag2(tag);
-                var $1499 = openCombine2(bins)(uns);
-                return function($1500) {
-                  return $1498(function(v) {
-                    var $1501 = map32(handler);
-                    return function($1502) {
-                      return $1501(v($1502));
+                var $1594 = memoizeTag2(tag);
+                var $1595 = openCombine2(bins)(uns);
+                return function($1596) {
+                  return $1594(function(v) {
+                    var $1597 = map32(handler);
+                    return function($1598) {
+                      return $1597(v($1598));
                     };
-                  }($1499($1500)));
+                  }($1595($1596)));
                 };
               }()));
             };
@@ -10688,10 +10775,10 @@
             }))(v.value0)(v.value1);
           }
           ;
-          throw new Error("Failed pattern match at TDParseCFG (line 271, column 5 - line 271, column 63): " + [v.constructor.name]);
+          throw new Error("Failed pattern match at TDParseCFG (line 274, column 5 - line 274, column 63): " + [v.constructor.name]);
         };
-        return function($1503) {
-          return execute(go($1503));
+        return function($1599) {
+          return execute(go($1599));
         };
       };
     };
@@ -10771,7 +10858,7 @@
     var eo2 = new App2(new App2(fmapTerm(new C(T.value, T.value)), pushTerm), eo);
     var eclo = make_con("\u2203");
     var ann = make_con("a");
-    return map11(mkLex)(new Cons(new Tuple("ann", pure7(new Tuple(new Just(ann), new Tuple(DP.value, E.value)))), new Cons(new Tuple("mary", pure7(new Tuple(new Just(mref), new Tuple(DP.value, effW(E.value)(E.value))))), new Cons(new Tuple("marianne", append4(pure7(new Tuple(new Just(ma), new Tuple(DP.value, E.value))))(pure7(new Tuple(new Just(maref), new Tuple(DP.value, effW(E.value)(E.value)))))), new Cons(new Tuple("'s", append4(pure7(new Tuple(new Just(poss), new Tuple(GenD.value, new Arr(E.value, new Arr(new Arr(E.value, E.value), E.value))))))(pure7(new Tuple(new Just(poss$prime), new Tuple(GenD.value, new Arr(E.value, new Arr(new Arr(E.value, E.value), effW(E.value)(E.value)))))))), new Cons(new Tuple("left", pure7(new Tuple(Nothing.value, new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("whistled", pure7(new Tuple(Nothing.value, new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("saw", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("saved", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("spent", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("chased", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("said", pure7(new Tuple(Nothing.value, new Tuple(AV.value, new Arr(T.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("gave", pure7(new Tuple(Nothing.value, new Tuple(DV.value, new Arr(E.value, new Arr(E.value, new Arr(E.value, T.value))))))), new Cons(new Tuple("she", pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("it", append4(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple("her", append4(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure7(new Tuple(new Just(idTerm), new Tuple(Gen.value, effR(E.value)(E.value)))))), new Cons(new Tuple("she2", pure7(new Tuple(new Just(pushTerm), new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("her2", append4(pure7(new Tuple(new Just(pushTerm), new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value))))))(append4(pure7(new Tuple(new Just(pushTerm), new Tuple(Gen.value, effR(E.value)(effW(E.value)(E.value))))))(append4(pure7(new Tuple(new Just(pc$prime), new Tuple(Gen.value, new Arr(new Arr(E.value, E.value), effR(E.value)(effW(E.value)(E.value)))))))(pure7(new Tuple(new Just(pc), new Tuple(Gen.value, new Arr(new Arr(E.value, E.value), effR(E.value)(effW(effR(E.value)(E.value))(E.value)))))))))), new Cons(new Tuple("mom", pure7(new Tuple(Nothing.value, new Tuple(FN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("paycheck", pure7(new Tuple(Nothing.value, new Tuple(FN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("pictureof", pure7(new Tuple(Nothing.value, new Tuple(RN.value, new Arr(E.value, new Arr(E.value, E.value)))))), new Cons(new Tuple("the", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), E.value))))), new Cons(new Tuple("theC", pure7(new Tuple(Nothing.value, new Tuple(Det.value, effC(E.value)(T.value)(E.value))))), new Cons(new Tuple("very", pure7(new Tuple(Nothing.value, new Tuple(Deg.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value)))))), new Cons(new Tuple("every", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effC(T.value)(T.value)(E.value)))))), new Cons(new Tuple("everyP", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), new Arr(new Arr(E.value, T.value), T.value)))))), new Cons(new Tuple("everyC", pure7(new Tuple(Nothing.value, new Tuple(Det.value, effC(effC(T.value)(T.value)(E.value))(T.value)(E.value))))), new Cons(new Tuple("big", pure7(new Tuple(Nothing.value, new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("happy", pure7(new Tuple(Nothing.value, new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("dog", pure7(new Tuple(Nothing.value, new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("cat", pure7(new Tuple(Nothing.value, new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("near", pure7(new Tuple(Nothing.value, new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("some", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(E.value)))))), new Cons(new Tuple("some2", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(effW(E.value)(E.value))))))), new Cons(new Tuple("someone", pure7(new Tuple(Nothing.value, new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("someone2", pure7(new Tuple(new Just(so2), new Tuple(DP.value, effS(effW(E.value)(E.value)))))), new Cons(new Tuple("someone3", pure7(new Tuple(new Just(so3), new Tuple(DP.value, effS(E.value))))), new Cons(new Tuple("everyone", pure7(new Tuple(new Just(eo), new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("everyone2", pure7(new Tuple(new Just(eo2), new Tuple(DP.value, effC(T.value)(T.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("tr", pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("and", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("but", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("andE", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(E.value, new Arr(E.value, E.value)))))), new Cons(new Tuple("with", pure7(new Tuple(Nothing.value, new Tuple(TAdv.value, new Arr(E.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value))))))), new Cons(new Tuple("eclo", append4(pure7(new Tuple(new Just(eclo), new Tuple(Cmp.value, new Arr(effS(T.value), T.value)))))(pure7(new Tuple(new Just(eclo), new Tuple(Dmp.value, new Arr(effS(T.value), T.value)))))), new Cons(new Tuple("maryaling", pure7(new Tuple(new Just(ml), new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("sassyacat", pure7(new Tuple(new Just(sc), new Tuple(DP.value, effW(T.value)(E.value))))), Nil.value)))))))))))))))))))))))))))))))))))))))))))))));
+    return map11(mkLex)(new Cons(new Tuple("ann", pure7(new Tuple(new Just(ann), new Tuple(DP.value, E.value)))), new Cons(new Tuple("mary", pure7(new Tuple(new Just(mref), new Tuple(DP.value, effW(E.value)(E.value))))), new Cons(new Tuple("marianne", append4(pure7(new Tuple(new Just(ma), new Tuple(DP.value, E.value))))(pure7(new Tuple(new Just(maref), new Tuple(DP.value, effW(E.value)(E.value)))))), new Cons(new Tuple("'s", append4(pure7(new Tuple(new Just(poss), new Tuple(GenD.value, new Arr(E.value, new Arr(new Arr(E.value, E.value), E.value))))))(pure7(new Tuple(new Just(poss$prime), new Tuple(GenD.value, new Arr(E.value, new Arr(new Arr(E.value, E.value), effW(E.value)(E.value)))))))), new Cons(new Tuple("left", pure7(new Tuple(Nothing.value, new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("whistled", pure7(new Tuple(Nothing.value, new Tuple(VP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("saw", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("saved", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("spent", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("chased", pure7(new Tuple(Nothing.value, new Tuple(TV.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("said", pure7(new Tuple(Nothing.value, new Tuple(AV.value, new Arr(T.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("gave", pure7(new Tuple(Nothing.value, new Tuple(DV.value, new Arr(E.value, new Arr(E.value, new Arr(E.value, T.value))))))), new Cons(new Tuple("she", pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("it", append4(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(effR(E.value)(E.value))(effR(E.value)(E.value))))))), new Cons(new Tuple("her", append4(pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value)))))(pure7(new Tuple(new Just(idTerm), new Tuple(Gen.value, effR(E.value)(E.value)))))), new Cons(new Tuple("she2", pure7(new Tuple(new Just(pushTerm), new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("her2", append4(pure7(new Tuple(new Just(pushTerm), new Tuple(DP.value, effR(E.value)(effW(E.value)(E.value))))))(append4(pure7(new Tuple(new Just(pushTerm), new Tuple(Gen.value, effR(E.value)(effW(E.value)(E.value))))))(append4(pure7(new Tuple(new Just(pc$prime), new Tuple(Gen.value, new Arr(new Arr(E.value, E.value), effR(E.value)(effW(E.value)(E.value)))))))(pure7(new Tuple(new Just(pc), new Tuple(Gen.value, new Arr(new Arr(E.value, E.value), effR(E.value)(effW(effR(E.value)(E.value))(E.value)))))))))), new Cons(new Tuple("mom", pure7(new Tuple(Nothing.value, new Tuple(FN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("paycheck", pure7(new Tuple(Nothing.value, new Tuple(FN.value, new Arr(E.value, E.value))))), new Cons(new Tuple("pictureof", pure7(new Tuple(Nothing.value, new Tuple(RN.value, new Arr(E.value, new Arr(E.value, E.value)))))), new Cons(new Tuple("the", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), E.value))))), new Cons(new Tuple("theC", pure7(new Tuple(Nothing.value, new Tuple(Det.value, effC(E.value)(T.value)(E.value))))), new Cons(new Tuple("very", pure7(new Tuple(Nothing.value, new Tuple(Deg.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value)))))), new Cons(new Tuple("every", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effC(T.value)(T.value)(E.value)))))), new Cons(new Tuple("everyP", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), new Arr(new Arr(E.value, T.value), T.value)))))), new Cons(new Tuple("everyC", pure7(new Tuple(Nothing.value, new Tuple(Det.value, effC(effC(T.value)(T.value)(E.value))(T.value)(E.value))))), new Cons(new Tuple("big", pure7(new Tuple(Nothing.value, new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("happy", pure7(new Tuple(Nothing.value, new Tuple(AdjP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("dog", pure7(new Tuple(Nothing.value, new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("cat", pure7(new Tuple(Nothing.value, new Tuple(NP.value, new Arr(E.value, T.value))))), new Cons(new Tuple("near", pure7(new Tuple(Nothing.value, new Tuple(TAdj.value, new Arr(E.value, new Arr(E.value, T.value)))))), new Cons(new Tuple("some", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(E.value)))))), new Cons(new Tuple("some2", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effS(effW(E.value)(E.value))))))), new Cons(new Tuple("someone", pure7(new Tuple(Nothing.value, new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("someone2", pure7(new Tuple(new Just(so2), new Tuple(DP.value, effS(effW(E.value)(E.value)))))), new Cons(new Tuple("someone3", pure7(new Tuple(new Just(so3), new Tuple(DP.value, effS(E.value))))), new Cons(new Tuple("everyone", pure7(new Tuple(new Just(eo), new Tuple(DP.value, effC(T.value)(T.value)(E.value))))), new Cons(new Tuple("everyone2", pure7(new Tuple(new Just(eo2), new Tuple(DP.value, effC(T.value)(T.value)(effW(E.value)(E.value)))))), new Cons(new Tuple("tr", pure7(new Tuple(new Just(idTerm), new Tuple(DP.value, effR(E.value)(E.value))))), new Cons(new Tuple("and", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("but", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(T.value, new Arr(T.value, T.value)))))), new Cons(new Tuple("andE", pure7(new Tuple(Nothing.value, new Tuple(Cor.value, new Arr(E.value, new Arr(E.value, E.value)))))), new Cons(new Tuple("with", pure7(new Tuple(Nothing.value, new Tuple(TAdv.value, new Arr(E.value, new Arr(new Arr(E.value, T.value), new Arr(E.value, T.value))))))), new Cons(new Tuple("eclo", append4(pure7(new Tuple(new Just(eclo), new Tuple(Cmp.value, new Arr(effS(T.value), T.value)))))(pure7(new Tuple(new Just(eclo), new Tuple(Dmp.value, new Arr(effS(T.value), T.value)))))), new Cons(new Tuple("maryaling", pure7(new Tuple(new Just(ml), new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("sassyacat", pure7(new Tuple(new Just(sc), new Tuple(DP.value, effW(T.value)(E.value))))), new Cons(new Tuple("another", pure7(new Tuple(Nothing.value, new Tuple(Det.value, new Arr(new Arr(E.value, T.value), effR(E.value)(effS(E.value))))))), Nil.value))))))))))))))))))))))))))))))))))))))))))))))));
   }();
 
   // output/Lexicon.Dyn/index.js
@@ -10977,6 +11064,7 @@
     var mref = new App2(pushTerm, mary);
     var ma = make_con("ma");
     var maref = new App2(pushTerm, ma);
+    var john = make_con("j");
     var idTerm = function() {
       var a3 = make_var("a");
       return lam(a3)(a3);
@@ -34754,7 +34842,7 @@
   var show32 = /* @__PURE__ */ show(showString);
   var ul_2 = /* @__PURE__ */ ul_(arrayToNodeData1);
   var showMode = function(mode) {
-    return intercalate5(", ")(map24(show7)(mode));
+    return intercalate5(" ")(map24(show7)(mode));
   };
   var displayTerm = function(v) {
     return function(depth) {
@@ -34831,8 +34919,8 @@
           var v2 = unrollDom($$eval)(v1)(var_stock);
           var showNext = function(q) {
             return function(c2) {
-              var $120 = $$null6(q);
-              if ($120) {
+              var $122 = $$null6(q);
+              if ($122) {
                 return q;
               }
               ;
@@ -34854,16 +34942,16 @@
             return function(vs) {
               var v3 = getvar(vs);
               if (t instanceof Pair) {
-                var $126 = eq4(t.value0)(new Con("_"));
-                if ($126) {
+                var $128 = eq4(t.value0)(new Con("_"));
+                if ($128) {
                   return showDom(t.value1)(v3.value1);
                 }
                 ;
                 return append14(go(v3.value0))(append14([span4([class$prime2("den-punct")])([text(" <- ")])])(append14(go$prime(t.value0))(showNext(showDom(t.value1)(v3.value1))([span4([class$prime2("den-punct")])([text(", ")])]))));
               }
               ;
-              var $129 = eq4(t)(new Con("_"));
-              if ($129) {
+              var $131 = eq4(t)(new Con("_"));
+              if ($131) {
                 return [];
               }
               ;
@@ -34872,8 +34960,8 @@
           };
           var d = showDom(v2.value0)(v2.value1);
           return append14([span4([class$prime2("den-punct")])([text("[")])])(append14(go$prime($$eval(new App2(v1.value1, tuple(map24(Var.create)(v2.value1))))))(append14(function() {
-            var $132 = $$null6(d);
-            if ($132) {
+            var $134 = $$null6(d);
+            if ($134) {
               return d;
             }
             ;
@@ -34970,8 +35058,8 @@
       var displayF = function(b1) {
         return function(f) {
           return span4([class$prime2("constructor")])(function() {
-            var $160 = !b1;
-            if ($160) {
+            var $162 = !b1;
+            if ($162) {
               return [text(showNoIndices(f))];
             }
             ;
@@ -35163,6 +35251,13 @@
     AComb2.value = new AComb2();
     return AComb2;
   }();
+  var JComb = /* @__PURE__ */ function() {
+    function JComb2() {
+    }
+    ;
+    JComb2.value = new JComb2();
+    return JComb2;
+  }();
   var EpsComb = /* @__PURE__ */ function() {
     function EpsComb2() {
     }
@@ -35170,12 +35265,19 @@
     EpsComb2.value = new EpsComb2();
     return EpsComb2;
   }();
-  var JComb = /* @__PURE__ */ function() {
-    function JComb2() {
+  var ELComb = /* @__PURE__ */ function() {
+    function ELComb2() {
     }
     ;
-    JComb2.value = new JComb2();
-    return JComb2;
+    ELComb2.value = new ELComb2();
+    return ELComb2;
+  }();
+  var ERComb = /* @__PURE__ */ function() {
+    function ERComb2() {
+    }
+    ;
+    ERComb2.value = new ERComb2();
+    return ERComb2;
   }();
   var DComb = /* @__PURE__ */ function() {
     function DComb2() {
@@ -35333,11 +35435,19 @@
           return true;
         }
         ;
+        if (x2 instanceof JComb && y instanceof JComb) {
+          return true;
+        }
+        ;
         if (x2 instanceof EpsComb && y instanceof EpsComb) {
           return true;
         }
         ;
-        if (x2 instanceof JComb && y instanceof JComb) {
+        if (x2 instanceof ELComb && y instanceof ELComb) {
+          return true;
+        }
+        ;
+        if (x2 instanceof ERComb && y instanceof ERComb) {
           return true;
         }
         ;
@@ -35417,16 +35527,16 @@
         showLex: true,
         islands: false,
         lexItems: function(l2) {
-          var $139 = elem5(l2)(defLexes);
-          if ($139) {
+          var $143 = elem5(l2)(defLexes);
+          if ($143) {
             return true;
           }
           ;
           return false;
         },
         combs: function(c2) {
-          var $140 = elem12(c2)(defCombs);
-          if ($140) {
+          var $144 = elem12(c2)(defCombs);
+          if ($144) {
             return true;
           }
           ;
@@ -35437,8 +35547,8 @@
   }();
   var buildUns = function(m2) {
     return bind11(unsInventory)(function(v) {
-      var $142 = m2.opts.combs(v.value0);
-      if ($142) {
+      var $146 = m2.opts.combs(v.value0);
+      if ($146) {
         return [v.value1];
       }
       ;
@@ -35447,8 +35557,8 @@
   };
   var buildLex = function(m2) {
     return concat(cons2(m2.customLex)(map111(function(v) {
-      var $146 = m2.opts.lexItems(v.value0);
-      if ($146) {
+      var $150 = m2.opts.lexItems(v.value0);
+      if ($150) {
         return v.value1;
       }
       ;
@@ -35459,7 +35569,7 @@
     var addML2 = addML(dictFunctor);
     return function(dictApplicative) {
       var Functor0 = dictApplicative.Apply0().Functor0();
-      return [new Tuple(MLComb.value, addML2(dictApplicative)), new Tuple(MRComb.value, addMR(Functor0)(dictApplicative)), new Tuple(ULComb.value, addUL(Functor0)(dictApplicative)), new Tuple(URComb.value, addUR(Functor0)(dictApplicative)), new Tuple(ZComb.value, addZ(Functor0)(dictApplicative)), new Tuple(AComb.value, addA(Functor0)(dictApplicative)), new Tuple(EpsComb.value, addEps(Functor0)(dictApplicative))];
+      return [new Tuple(MLComb.value, addML2(dictApplicative)), new Tuple(MRComb.value, addMR(Functor0)(dictApplicative)), new Tuple(ULComb.value, addUL(Functor0)(dictApplicative)), new Tuple(URComb.value, addUR(Functor0)(dictApplicative)), new Tuple(ZComb.value, addZ(Functor0)(dictApplicative)), new Tuple(AComb.value, addA(Functor0)(dictApplicative)), new Tuple(EpsComb.value, addEps(Functor0)(dictApplicative)), new Tuple(ELComb.value, addEL(Functor0)(dictApplicative)), new Tuple(ERComb.value, addER(Functor0)(dictApplicative))];
     };
   };
   var buildBins = function(dictFunctor) {
@@ -35468,8 +35578,8 @@
       var binsInventory2 = binsInventory1(dictApplicative);
       return function(m2) {
         return bind11(binsInventory2)(function(v) {
-          var $150 = m2.opts.combs(v.value0);
-          if ($150) {
+          var $154 = m2.opts.combs(v.value0);
+          if ($154) {
             return [v.value1];
           }
           ;
@@ -35528,7 +35638,7 @@
           };
         }
         ;
-        throw new Error("Failed pattern match at Main (line 138, column 5 - line 140, column 77): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 141, column 5 - line 143, column 77): " + [v1.constructor.name]);
       }
       ;
       if (v instanceof ToggleLex) {
@@ -35650,7 +35760,7 @@
           };
         }
         ;
-        throw new Error("Failed pattern match at Main (line 154, column 5 - line 156, column 83): " + [v1.constructor.name]);
+        throw new Error("Failed pattern match at Main (line 157, column 5 - line 159, column 83): " + [v1.constructor.name]);
       }
       ;
       if (v instanceof AddLex) {
@@ -35662,8 +35772,8 @@
           return function(items) {
             return function(l2) {
               return function() {
-                var $176 = eq6(l2)(n1);
-                if ($176) {
+                var $180 = eq6(l2)(n1);
+                if ($180) {
                   return not2;
                 }
                 ;
@@ -35695,8 +35805,8 @@
           return function(items) {
             return function(c2) {
               return function() {
-                var $178 = eq12(c2)(n1);
-                if ($178) {
+                var $182 = eq12(c2)(n1);
+                if ($182) {
                   return not2;
                 }
                 ;
@@ -35723,7 +35833,7 @@
         };
       }
       ;
-      throw new Error("Failed pattern match at Main (line 123, column 16 - line 165, column 78): " + [v.constructor.name]);
+      throw new Error("Failed pattern match at Main (line 126, column 16 - line 168, column 78): " + [v.constructor.name]);
     };
   };
   var addSwitch = function(dictToNode) {
@@ -35755,18 +35865,18 @@
     }() + " lexicon")]), button2([id("opts-button"), onClick(ToggleOpts.value)])([text("\u2261")]), p1("current")([text("Showing "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(min3(200)(maybe(0)(function() {
-      var $188 = filter(model.typeOfInterest);
-      return function($189) {
-        return length($188($189));
+      var $192 = filter(model.typeOfInterest);
+      return function($193) {
+        return length($192($193));
       };
     }())(model.currentProofs))))]), text(" of "), span5([style2({
       color: "var(--accent)"
     })])([text(show8(maybe(0)(length)(model.currentProofs)))]), text(" parses for: " + model.currentPhrase)]), div1("content")([div1("parses")(fromMaybe([text("No parse")])(mapFlipped1(model.currentProofs)(function() {
-      var $190 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
-      var $191 = take(100);
-      var $192 = filter(model.typeOfInterest);
-      return function($193) {
-        return $190($191($192($193)));
+      var $194 = mapWithIndex(displayProof(model.opts.showDens)(model.opts.showParams));
+      var $195 = take(100);
+      var $196 = filter(model.typeOfInterest);
+      return function($197) {
+        return $194($195($196($197)));
       };
     }()))), div5([id("lexicon"), style2({
       display: function() {
@@ -35788,7 +35898,7 @@
       return elem5(v)(defLexes);
     }))([new Tuple([text("pure")], PureLex.value), new Tuple([text("pro")], ProLex.value), new Tuple([text("indef")], IndefLex.value), new Tuple([text("dyn")], DynLex.value), new Tuple([text("quant")], QuantLex.value), new Tuple([text("push")], PushLex.value), new Tuple([text("demo")], DemoLex.value)]))), div5([id("combsInventory"), class$prime3("opt-group")])(append15([text("Select combinators:")])(map111(addSwitch1(CombChoice.create)(function(v) {
       return elem12(v)(defCombs);
-    }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("E"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);
+    }))([new Tuple([strong_2("R"), text(" (map right)")], MRComb.value), new Tuple([strong_2("L"), text(" (map left)")], MLComb.value), new Tuple([strong_2("\xDA"), text(" (unit right)")], URComb.value), new Tuple([strong_2("\xD9"), text(" (unit left)")], ULComb.value), new Tuple([strong_2("A"), text(" (apply)")], AComb.value), new Tuple([strong_2("C"), text(" (counit)")], EpsComb.value), new Tuple([strong_2("\xC9"), text(" (eject right)")], ERComb.value), new Tuple([strong_2("\xC8"), text(" (eject left)")], ELComb.value), new Tuple([strong_2("J"), text(" (join)")], JComb.value), new Tuple([strong_2("D"), text(" (lower)")], DComb.value)])))])])]);
   };
   var main = /* @__PURE__ */ mount_2("#home")({
     init: init3,

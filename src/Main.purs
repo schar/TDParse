@@ -43,7 +43,8 @@ lexInventory =
   , (PureLex  ^ fromFoldable pureLex  )
   , (DemoLex  ^ fromFoldable demoLex  )
   ]
-data CombName = MLComb | MRComb | ULComb | URComb | ZComb | AComb | EpsComb | JComb | DComb
+data CombName = MLComb | MRComb | ULComb | URComb | ZComb | AComb | JComb |
+                EpsComb | ELComb | ERComb | DComb
 derive instance Eq CombName
 binsInventory =
   [ (MLComb  ^ addML    )
@@ -53,6 +54,8 @@ binsInventory =
   , (ZComb   ^ addZ     )
   , (AComb   ^ addA     )
   , (EpsComb ^ addEps   )
+  , (ELComb  ^ addEL    )
+  , (ERComb  ^ addER    )
   ]
 unsInventory =
   [ (JComb   ^ addJ     )
@@ -239,15 +242,17 @@ view model =
         , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
           [ HE.text "Select combinators:" ]
           <> map (addSwitch CombChoice (_ `elem` defCombs))
-          [ ([HE.strong_ "R", HE.text " (map right)" ]  ^ MRComb )
-          , ([HE.strong_ "L", HE.text " (map left)"  ]  ^ MLComb )
-          , ([HE.strong_ "Ú", HE.text " (unit right)"]  ^ URComb )
-          , ([HE.strong_ "Ù", HE.text " (unit left)" ]  ^ ULComb )
-          -- , ([HE.strong_ "Z", HE.text " (binding)"   ]  ^ ZComb  )
-          , ([HE.strong_ "A", HE.text " (apply)"     ]  ^ AComb  )
-          , ([HE.strong_ "E", HE.text " (counit)"    ]  ^ EpsComb)
-          , ([HE.strong_ "J", HE.text " (join)"      ]  ^ JComb  )
-          , ([HE.strong_ "D", HE.text " (lower)"     ]  ^ DComb  )
+          [ ([HE.strong_ "R", HE.text " (map right)"  ]  ^ MRComb )
+          , ([HE.strong_ "L", HE.text " (map left)"   ]  ^ MLComb )
+          , ([HE.strong_ "Ú", HE.text " (unit right)" ]  ^ URComb )
+          , ([HE.strong_ "Ù", HE.text " (unit left)"  ]  ^ ULComb )
+          -- , ([HE.strong_ "Z", HE.text " (binding)"    ]  ^ ZComb  )
+          , ([HE.strong_ "A", HE.text " (apply)"      ]  ^ AComb  )
+          , ([HE.strong_ "C", HE.text " (counit)"     ]  ^ EpsComb)
+          , ([HE.strong_ "É", HE.text " (eject right)"]  ^ ERComb )
+          , ([HE.strong_ "È", HE.text " (eject left)" ]  ^ ELComb )
+          , ([HE.strong_ "J", HE.text " (join)"       ]  ^ JComb  )
+          , ([HE.strong_ "D", HE.text " (lower)"      ]  ^ DComb  )
           ]
         ]
       ]

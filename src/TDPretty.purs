@@ -223,7 +223,9 @@ prettyOp = case _ of
   Z    -> text "$\\comb{Z}$,"
   A  _ -> text "$\\comb{A},$"
   J  _ -> text "$\\comb{J}$,"
-  Eps  -> text "$\\comb{E}$,"
+  Eps  -> text "$\\comb{C}$,"
+  EL _ -> text "$\\grave{\\comb{E}}$,"
+  ER _ -> text "$\\acute{\\comb{E}}$,"
   DN   -> text "$\\comb{D}$,"
   XL _ o -> text "$\\comb{XL}($" <> prettyOp o <> text "$)$,"
 
@@ -316,7 +318,7 @@ displayProof dens params i proof =
       _ -> HE.li_ [ HE.span [HA.class' "tf-nc"] [HE.text $ "wrong number of daughters"] ]
 
 showMode :: Mode -> String
-showMode mode = intercalate ", " (map show mode)
+showMode mode = intercalate " " (map show mode)
 
 showTy :: Doc -> Ty -> String
 showTy a = render 100 <<< prettyTy a

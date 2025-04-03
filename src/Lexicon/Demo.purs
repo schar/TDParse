@@ -73,6 +73,7 @@ demoLex = map mkLex $
                 <> pure ( Just eclo ^ Dmp  ^ (effS T :-> T)                   ))
   : ("maryaling" ^ pure ( Just ml   ^ DP   ^ (effW T E)                       ))
   : ("sassyacat" ^ pure ( Just sc   ^ DP   ^ (effW T E)                       ))
+  : ("another"   ^ pure ( Nothing   ^ Det  ^ ((E :-> T) :-> effR E (effS E))  ))
   : Nil
   where
     first  (a ^ s) f = f a ^ s

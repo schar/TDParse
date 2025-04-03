@@ -194,6 +194,7 @@ data Op
   | A F               -- Applicative <*>
   | J F               -- Monad       join
   | Eps               -- Adjoint     counit
+  | EL F | ER F       -- Distribute  eject
   | DN                -- Cont        lower
   | XL F Op           -- Comonad     extend
 derive instance Eq Op
@@ -211,9 +212,11 @@ instance Show Op where
     Z    -> "Z"
     A f  -> "A"  -- <> " " <> show f
     J f  -> "J"  -- <> " " <> show f
-    Eps  -> "E"
+    Eps  -> "C"
     DN   -> "D"
     XL f o -> "XL " <> show o
+    EL f   -> "È" -- <> " " <> show f
+    ER f   -> "É" -- <> " " <> show f
 
 
 {- Type classes -}
@@ -381,7 +384,22 @@ addEps combine (l ^ r) = case (l^r) of
                               pure (m:op ^ opTerm m % d ^ eff c)
   _ -> pure Nil
 
-allBins = addML : addMR : addUR : addUL : addEps : Nil
+addEL combine (l ^ r) = case l of
+    (a :-> Eff (R i) b) ->
+      combine (Eff (R i) (a :-> b) ^ r) <#>
+      map \(op^d^c) -> let m = EL (R i)
+                        in (m:op ^ opTerm m % d ^ c)
+    _ -> pure Nil
+
+addER combine (l ^ r) = case r of
+    (a :-> Eff (R i) b) ->
+      combine (l ^ Eff (R i) (a :-> b)) <#>
+      map \(op^d^c) -> let m = ER (R i)
+                        in (m:op ^ opTerm m % d ^ c)
+    _ -> pure Nil
+
+
+allBins = addML : addMR : addUR : addUL : addEps : addEL : addER : Nil
 allUns  = addD : addJ : Nil
 
 addJ :: (Mode ^ Term ^ Ty) -> List (Mode ^ Term ^ Ty)
@@ -506,6 +524,12 @@ opTerm = case _ of
           -- \l r -> l =>> \l' -> o op l' r
   XL f o -> op ! l ! r ! extendTerm f % (l' ! opTerm o % op % l' % r) % l
 
+          -- \l r -> op (eject l) r
+  EL f -> op ! l ! r ! op % (ejectTerm f % l) % r
+
+          -- \l r -> op (eject l) r
+  ER f -> op ! l ! r ! op % l % (ejectTerm f % r)
+
 l = make_var "l"
 l' = make_var "l'"
 r = make_var "r"
@@ -550,6 +574,9 @@ mzeroTerm = case _ of
 mplusTerm = case _ of
   T     -> \p q -> make_con "and" % p % q
   _     -> \_ _ -> make_con "this really shouldn't happen"
+ejectTerm = case _ of
+  R _   -> k ! g ! a ! k % a % g
+  _     -> make_con "this really shouldn't happen"
 
 {-- some test terms -}
 -- left = (Lex (Set (App (Var (VC 0 "some")) (Var (VC 0 "person"))) (Lam (VC 0 "x") (Var (VC 0 "x")))))
