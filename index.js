@@ -10218,28 +10218,28 @@
       if (v instanceof J) {
         return !anyOf(function(v1) {
           return startsWith(op1)(v1);
-        })(append13(lift22(function(k1) {
+        })(append13(lift22(function(j) {
           return function(m1) {
-            return append13([m1(v.value0)])(append13(k1)([m1(v.value0)]));
+            return append13([m1(v.value0)])(append13(j)([m1(v.value0)]));
           };
-        })([[new J(v.value0)], []])([MR.create, ML.create]))(append13(map22(function(k1) {
-          return append13([new ML(v.value0)])(append13(k1)([new MR(v.value0)]));
-        })([[new J(v.value0)], []]))(append13(map22(function(k1) {
-          return append13([new A(v.value0)])(append13(k1)([new MR(v.value0)]));
-        })([[new J(v.value0)], []]))(append13(map22(function(k1) {
-          return append13([new ML(v.value0)])(append13(k1)([new A(v.value0)]));
-        })([[new J(v.value0)], []]))(append13(map22(function(k1) {
-          return append13([new ML(v.value0)])(append13(k1)([new MR(v.value0)]));
-        })([[new EL(v.value0)], []]))(append13(map22(function(k1) {
-          return append13(k1)([Eps.value]);
+        })([[new J(v.value0)], []])([MR.create, ML.create]))(append13(map22(function(j) {
+          return append13([new ML(v.value0)])(append13(j)([new MR(v.value0)]));
+        })([[new J(v.value0)], []]))(append13(map22(function(j) {
+          return append13([new A(v.value0)])(append13(j)([new MR(v.value0)]));
+        })([[new J(v.value0)], []]))(append13(map22(function(j) {
+          return append13([new ML(v.value0)])(append13(j)([new A(v.value0)]));
+        })([[new J(v.value0)], []]))(append13(map22(function(e) {
+          return append13(e)(append13([new ML(v.value0)])([new MR(v.value0)]));
+        })([[new EL(v.value0)], []]))(append13(map22(function(a1) {
+          return append13(a1)([Eps.value]);
         })([[new A(v.value0)], []]))(function() {
           var $1329 = commutative2(v.value0);
           if ($1329) {
-            return append13([[new MR(v.value0), new A(v.value0)]])(append13([[new A(v.value0), new ML(v.value0)]])(append13(map22(function(k1) {
-              return append13([new A(v.value0)])(append13(k1)([new A(v.value0)]));
-            })([[new J(v.value0)], []]))(lift22(function(j) {
-              return function(k1) {
-                return append13(j)(append13([new MR(v.value0)])(append13(k1)([new ML(v.value0)])));
+            return append13([[new MR(v.value0), new A(v.value0)]])(append13([[new A(v.value0), new ML(v.value0)]])(append13(map22(function(j) {
+              return append13([new A(v.value0)])(append13(j)([new A(v.value0)]));
+            })([[new J(v.value0)], []]))(lift22(function(e) {
+              return function(j) {
+                return append13(e)(append13([new MR(v.value0)])(append13(j)([new ML(v.value0)])));
               };
             })([[new ER(v.value0)], []])([[new J(v.value0)], []]))));
           }

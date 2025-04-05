@@ -428,20 +428,20 @@ norm op = case _ of
               ])
   J f -> not $ (op `startsWith` _) `anyOf` (
     -- avoid higher-order detours for all J-able effects
-       lift2 (\k m -> [m  f] <> k <> [m  f]) [[J  f], []] [MR, ML]
-    <> map   (\k   -> [ML f] <> k <> [MR f]) [[J  f], []]
-    <> map   (\k   -> [A  f] <> k <> [MR f]) [[J  f], []]
-    <> map   (\k   -> [ML f] <> k <> [A  f]) [[J  f], []]
+       lift2 (\j m -> [m  f] <> j <> [m  f]) [[J  f], []] [MR, ML]
+    <> map   (\j   -> [ML f] <> j <> [MR f]) [[J  f], []]
+    <> map   (\j   -> [A  f] <> j <> [MR f]) [[J  f], []]
+    <> map   (\j   -> [ML f] <> j <> [A  f]) [[J  f], []]
     -- ejections can feed (pointless) left over right joins
-    <> map   (\k   -> [ML f] <> k <> [MR f]) [[EL f], []]
+    <> map   (\e   -> e <> [ML f] <> [MR f]) [[EL f], []]
     -- safe if no lexical FRFs:
-    <> map   (\k   ->           k <> [Eps] ) [[A  f], []]
+    <> map   (\a   ->           a <> [Eps] ) [[A  f], []]
     -- avoid all (non-split) inverse scope for commutative effects
     <> if commutative f
           then    [ [MR f, A  f] ]
                <> [ [A  f, ML f] ]
-               <> map (\k -> [A  f] <> k <> [A  f]) [[J  f], []]
-               <> lift2 (\j k -> j <> [MR f] <> k <> [ML f]) [[ER f], []] [[J f], []]
+               <> map (\j -> [A  f] <> j <> [A  f]) [[J  f], []]
+               <> lift2 (\e j -> e <> [MR f] <> j <> [ML f]) [[ER f], []] [[J f], []]
           else []
     )
   -- morally, perhaps, we should keep E,A derivations, but since all ejectable
