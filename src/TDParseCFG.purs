@@ -10,7 +10,7 @@ import Prelude hiding ((#), (*))
 import Debug
 
 import Control.Alternative (guard)
-import Control.Apply (lift2)
+import Control.Apply (lift2, lift3)
 import Control.Lazy (fix)
 import Data.Bounded.Generic (genericBottom, genericTop)
 import Data.Enum.Generic (genericPred, genericSucc)
@@ -387,15 +387,15 @@ addEps combine (l ^ r) = case (l^r) of
 addEL combine (l ^ r) = case l of
     (a :-> Eff (R i) b) ->
       combine (Eff (R i) (a :-> b) ^ r) <#>
-      map \(op^d^c) -> let m = EL (R i)
-                        in (m:op ^ opTerm m % d ^ c)
+      concatMap \(op^d^c) -> let m = EL (R i)
+                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
     _ -> pure Nil
 
 addER combine (l ^ r) = case r of
     (a :-> Eff (R i) b) ->
       combine (l ^ Eff (R i) (a :-> b)) <#>
-      map \(op^d^c) -> let m = ER (R i)
-                        in (m:op ^ opTerm m % d ^ c)
+      concatMap \(op^d^c) -> let m = ER (R i)
+                              in guard (norm op m) *> pure (m:op ^ opTerm m % d ^ c)
     _ -> pure Nil
 
 
@@ -426,23 +426,34 @@ norm op = case _ of
               , [ML U, DN, A  U]
               , [Eps]
               ])
-  J f -> not $ (op `startsWith` _) `anyOf`
+  J f -> not $ (op `startsWith` _) `anyOf` (
     -- avoid higher-order detours for all J-able effects
-    (lift2 (\k m -> [m  f] <> k <> [m  f]) [[J f], []] [MR, ML]
-    <> map (\k   -> [ML f] <> k <> [MR f]) [[J f], []]
-    <> map (\k   -> [A  f] <> k <> [MR f]) [[J f], []]
-    <> map (\k   -> [ML f] <> k <> [A  f]) [[J f], []]
-    <> map (\k   ->           k <> [Eps] ) [[A f], []] -- safe if no lexical FRFs
-    -- and all (non-split) inverse scope for commutative effects
+       lift2 (\k m -> [m  f] <> k <> [m  f]) [[J  f], []] [MR, ML]
+    <> map   (\k   -> [ML f] <> k <> [MR f]) [[J  f], []]
+    <> map   (\k   -> [A  f] <> k <> [MR f]) [[J  f], []]
+    <> map   (\k   -> [ML f] <> k <> [A  f]) [[J  f], []]
+    -- ejections can feed (pointless) left over right joins
+    <> map   (\k   -> [ML f] <> k <> [MR f]) [[EL f], []]
+    -- safe if no lexical FRFs:
+    <> map   (\k   ->           k <> [Eps] ) [[A  f], []]
+    -- avoid all (non-split) inverse scope for commutative effects
     <> if commutative f
           then    [ [MR f, A  f] ]
                <> [ [A  f, ML f] ]
-               <> map (\k -> [MR f] <> k <> [ML f]) [[J f], []]
-               <> map (\k -> [A  f] <> k <> [A  f]) [[J f], []]
-          else [])
-  _ -> true
+               <> map (\k -> [A  f] <> k <> [A  f]) [[J  f], []]
+               <> lift2 (\j k -> j <> [MR f] <> k <> [ML f]) [[ER f], []] [[J f], []]
+          else []
+    )
+  -- morally, perhaps, we should keep E,A derivations, but since all ejectable
+  -- effects are commutative, these are equivalent to E-free J,R
+  -- (inverse-scope) derivations, and since even non-ejectable effects have J,R
+  -- derivations that we need to keep, it's easier to sweep these E ones out
+  EL f -> not $ (op `startsWith`_) `anyOf` [[ML f, FA], [MR U], [A f]]
+  ER f -> not $ (op `startsWith`_) `anyOf` [[MR f, BA], [ML U], [A f]]
+  _    -> true
 
   where
+    startsWith Nil Nil       = true
     startsWith Nil _         = false
     startsWith _  Nil        = true
     startsWith (x:xs) (y:ys) = x == y && startsWith xs ys

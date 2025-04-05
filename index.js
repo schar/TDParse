@@ -8297,10 +8297,10 @@
   var lift22 = /* @__PURE__ */ lift2(applyArray);
   var lift21 = /* @__PURE__ */ lift2(applyList);
   var set2 = /* @__PURE__ */ set(categoryFn);
-  var identity7 = /* @__PURE__ */ identity(categoryFn);
-  var mapFlipped2 = /* @__PURE__ */ mapFlipped(functorList);
   var applySecond2 = /* @__PURE__ */ applySecond(applyList);
   var guard3 = /* @__PURE__ */ guard(alternativeList);
+  var identity7 = /* @__PURE__ */ identity(categoryFn);
+  var mapFlipped2 = /* @__PURE__ */ mapFlipped(functorList);
   var fix4 = /* @__PURE__ */ fix(lazyFn);
   var functorStateT2 = /* @__PURE__ */ functorStateT(functorIdentity);
   var map32 = /* @__PURE__ */ map(functorStateT2);
@@ -9935,7 +9935,7 @@
       return v.value1;
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 475, column 1 - line 475, column 23): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 486, column 1 - line 486, column 23): " + [v.constructor.name]);
   };
   var r = /* @__PURE__ */ make_var("r");
   var protoParse = function(dictMonad) {
@@ -10170,6 +10170,10 @@
   var norm = function(op1) {
     var startsWith = function(v) {
       return function(v1) {
+        if (v instanceof Nil && v1 instanceof Nil) {
+          return true;
+        }
+        ;
         if (v instanceof Nil) {
           return false;
         }
@@ -10182,7 +10186,7 @@
           return eq5(v.value0)(v1.value0) && startsWith(v.value1)(v1.value1);
         }
         ;
-        throw new Error("Failed pattern match at TDParseCFG (line 446, column 5 - line 446, column 37): " + [v.constructor.name, v1.constructor.name]);
+        throw new Error("Failed pattern match at TDParseCFG (line 456, column 5 - line 456, column 36): " + [v.constructor.name, v1.constructor.name]);
       };
     };
     var anyOf = function(p12) {
@@ -10225,19 +10229,35 @@
         })([[new J(v.value0)], []]))(append13(map22(function(k1) {
           return append13([new ML(v.value0)])(append13(k1)([new A(v.value0)]));
         })([[new J(v.value0)], []]))(append13(map22(function(k1) {
+          return append13([new ML(v.value0)])(append13(k1)([new MR(v.value0)]));
+        })([[new EL(v.value0)], []]))(append13(map22(function(k1) {
           return append13(k1)([Eps.value]);
         })([[new A(v.value0)], []]))(function() {
-          var $1327 = commutative2(v.value0);
-          if ($1327) {
+          var $1329 = commutative2(v.value0);
+          if ($1329) {
             return append13([[new MR(v.value0), new A(v.value0)]])(append13([[new A(v.value0), new ML(v.value0)]])(append13(map22(function(k1) {
-              return append13([new MR(v.value0)])(append13(k1)([new ML(v.value0)]));
-            })([[new J(v.value0)], []]))(map22(function(k1) {
               return append13([new A(v.value0)])(append13(k1)([new A(v.value0)]));
-            })([[new J(v.value0)], []]))));
+            })([[new J(v.value0)], []]))(lift22(function(j) {
+              return function(k1) {
+                return append13(j)(append13([new MR(v.value0)])(append13(k1)([new ML(v.value0)])));
+              };
+            })([[new ER(v.value0)], []])([[new J(v.value0)], []]))));
           }
           ;
           return [];
-        }()))))));
+        }())))))));
+      }
+      ;
+      if (v instanceof EL) {
+        return !anyOf(function(v1) {
+          return startsWith(op1)(v1);
+        })([[new ML(v.value0), FA.value], [new MR(U.value)], [new A(v.value0)]]);
+      }
+      ;
+      if (v instanceof ER) {
+        return !anyOf(function(v1) {
+          return startsWith(op1)(v1);
+        })([[new MR(v.value0), BA.value], [new ML(U.value)], [new A(v.value0)]]);
       }
       ;
       return true;
@@ -10434,7 +10454,7 @@
       return lam(op)(lam(l)(lam(r)(new App2(new App2(op, l), new App2(ejectTerm(v.value0), r)))));
     }
     ;
-    throw new Error("Failed pattern match at TDParseCFG (line 484, column 10 - line 531, column 50): " + [v.constructor.name]);
+    throw new Error("Failed pattern match at TDParseCFG (line 495, column 10 - line 542, column 50): " + [v.constructor.name]);
   };
   var addA = function(dictFunctor) {
     var mapFlipped12 = mapFlipped(dictFunctor);
@@ -10462,10 +10482,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value0 instanceof C) {
-      var $1400 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
-      if ($1400) {
-        var $1401 = norm(v.value0)(DN.value);
-        if ($1401) {
+      var $1404 = eq3(v.value1.value1.value0.value1)(v.value1.value1.value1);
+      if ($1404) {
+        var $1405 = norm(v.value0)(DN.value);
+        if ($1405) {
           return pure6(new Tuple(new Cons(DN.value, v.value0), new Tuple(new App2(opTerm(DN.value), v.value1.value0), v.value1.value1.value0.value0)));
         }
         ;
@@ -10484,9 +10504,9 @@
       return function(combine) {
         return function(v) {
           if (v.value0 instanceof Arr && (v.value0.value1 instanceof Eff && v.value0.value1.value0 instanceof R)) {
-            return mapFlipped12(combine(new Tuple(new Eff(new R(v.value0.value1.value0.value0), new Arr(v.value0.value0, v.value0.value1.value1)), v.value1)))(map10(function(v1) {
+            return mapFlipped12(combine(new Tuple(new Eff(new R(v.value0.value1.value0.value0), new Arr(v.value0.value0, v.value0.value1.value1)), v.value1)))(concatMap2(function(v1) {
               var m1 = new EL(new R(v.value0.value1.value0.value0));
-              return new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1));
+              return applySecond2(guard3(norm(v1.value0)(m1)))(pure6(new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1))));
             }));
           }
           ;
@@ -10502,9 +10522,9 @@
       return function(combine) {
         return function(v) {
           if (v.value1 instanceof Arr && (v.value1.value1 instanceof Eff && v.value1.value1.value0 instanceof R)) {
-            return mapFlipped12(combine(new Tuple(v.value0, new Eff(new R(v.value1.value1.value0.value0), new Arr(v.value1.value0, v.value1.value1.value1)))))(map10(function(v1) {
+            return mapFlipped12(combine(new Tuple(v.value0, new Eff(new R(v.value1.value1.value0.value0), new Arr(v.value1.value0, v.value1.value1.value1)))))(concatMap2(function(v1) {
               var m1 = new ER(new R(v.value1.value1.value0.value0));
-              return new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1));
+              return applySecond2(guard3(norm(v1.value0)(m1)))(pure6(new Tuple(new Cons(m1, v1.value0), new Tuple(new App2(opTerm(m1), v1.value1.value0), v1.value1.value1))));
             }));
           }
           ;
@@ -10538,10 +10558,10 @@
       return Nil.value;
     };
     if (v.value1.value1 instanceof Eff && v.value1.value1.value1 instanceof Eff) {
-      var $1460 = monad(v.value1.value1.value0);
-      if ($1460) {
-        var $1461 = norm(v.value0)(new J(v.value1.value1.value0));
-        if ($1461) {
+      var $1464 = monad(v.value1.value1.value0);
+      if ($1464) {
+        var $1465 = norm(v.value0)(new J(v.value1.value1.value0));
+        if ($1465) {
           return mapFlipped2(combineFs(v.value1.value1.value0)(v.value1.value1.value1.value0))(function(h) {
             return new Tuple(new Cons(new J(h), v.value0), new Tuple(new App2(opTerm(new J(h)), v.value1.value0), new Eff(h, v.value1.value1.value1.value1)));
           });
@@ -10636,10 +10656,10 @@
             return pure32(Nil.value);
           };
           if (v1.value0 instanceof Arr && (v1.value0.value1 instanceof Arr && (v1.value1 instanceof Eff && v1.value1.value0 instanceof R))) {
-            var $1525 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
-            if ($1525) {
-              var $1526 = eq3(v1.value1.value1)(v1.value0.value0);
-              if ($1526) {
+            var $1529 = eq3(v1.value0.value1.value0)(v1.value1.value0.value0);
+            if ($1529) {
+              var $1530 = eq3(v1.value1.value1)(v1.value0.value0);
+              if ($1530) {
                 return mapFlipped12(combine(new Tuple(new Arr(v1.value0.value0, v1.value0.value1.value1), v1.value1.value1)))(map10(function(v3) {
                   return new Tuple(new Cons(Z.value, v3.value0), new Tuple(new App2(opTerm(Z.value), v3.value1.value0), new Arr(v1.value0.value1.value0, v3.value1.value1)));
                 }));
@@ -10687,11 +10707,11 @@
               return function(combine) {
                 return function(v) {
                   return map42(function() {
-                    var $1592 = map10(function(v1) {
+                    var $1596 = map10(function(v1) {
                       return new Tuple(v1.value0, new Tuple($$eval(v1.value1.value0), v1.value1.value1));
                     });
-                    return function($1593) {
-                      return $1592(concat2($1593));
+                    return function($1597) {
+                      return $1596(concat2($1597));
                     };
                   }())(flippedApply2(foldl6(function(ls) {
                     return function(k1) {
@@ -10716,15 +10736,15 @@
           return function(bins) {
             return function(uns) {
               return curry(fix4(function() {
-                var $1594 = memoizeTag2(tag);
-                var $1595 = openCombine2(bins)(uns);
-                return function($1596) {
-                  return $1594(function(v) {
-                    var $1597 = map32(handler);
-                    return function($1598) {
-                      return $1597(v($1598));
+                var $1598 = memoizeTag2(tag);
+                var $1599 = openCombine2(bins)(uns);
+                return function($1600) {
+                  return $1598(function(v) {
+                    var $1601 = map32(handler);
+                    return function($1602) {
+                      return $1601(v($1602));
                     };
-                  }($1595($1596)));
+                  }($1599($1600)));
                 };
               }()));
             };
@@ -10777,8 +10797,8 @@
           ;
           throw new Error("Failed pattern match at TDParseCFG (line 274, column 5 - line 274, column 63): " + [v.constructor.name]);
         };
-        return function($1599) {
-          return execute(go($1599));
+        return function($1603) {
+          return execute(go($1603));
         };
       };
     };
