@@ -344,14 +344,14 @@ openCombine combine (l, r) = map (\(m,d,t) -> (m, eval d, t)) . concat <$>
     (a :-> Eff (R i) b) ->
       combine (Eff (R i) (a :-> b), r) <&>
       concatMap \(op,d,c) -> let m = EL (R i)
-                              in [(m:op, opTerm m % d, c)]
+                              in [(m:op, opTerm m % d, c) | norm op m]
     _ -> return []
 
   <+> case r of
     (a :-> Eff (R i) b) ->
       combine (l, Eff (R i) (a :-> b)) <&>
       concatMap \(op,d,c) -> let m = ER (R i)
-                              in [(m:op, opTerm m % d, c)]
+                              in [(m:op, opTerm m % d, c) | norm op m]
     _ -> return []
 
   -- finally see if the resulting types can additionally be lowered/joined
@@ -388,18 +388,28 @@ norm op = \case
        , [ML U, D, A U]
        , [Eps]
        ]
-  J f -> not $ (op `startsWith`) `anyOf`
+  J  f -> not $ (op `startsWith`) `anyOf`
     -- avoid higher-order detours for all J-able effects
-       [ [m f]  ++ k ++ [m f]  | k <- [[J f], []], m <- [MR, ML] ]
-    ++ [ [ML f] ++ k ++ [MR f] | k <- [[J f], []] ]
-    ++ [ [A f]  ++ k ++ [MR f] | k <- [[J f], []] ]
-    ++ [ [ML f] ++ k ++ [A f]  | k <- [[J f], []] ]
-    ++ [           k ++ [Eps]  | k <- [[A f], []] ] -- safe if no lexical FRFs
+       [ [m  f] ++ j ++ [m  f] | j <- [[J  f], []], m <- [MR, ML] ]
+    ++ [ [ML f] ++ j ++ [MR f] | j <- [[J  f], []] ]
+    ++ [ [A  f] ++ j ++ [MR f] | j <- [[J  f], []] ]
+    ++ [ [ML f] ++ j ++ [A  f] | j <- [[J  f], []] ]
+    -- ejections can feed (pointless) left over right joins
+    ++ [ e ++ [ML f] ++ [MR f] | e <- [[EL f], []] ]
+    -- safe if no lexical FRFs
+    ++ [           a ++ [Eps]  | a <- [[A  f], []] ]
     -- and all (non-split) inverse scope for commutative effects
-    ++ [ [MR f   ,     A  f]   | commutative f ]
-    ++ [ [A f    ,     ML f]   | commutative f ]
-    ++ [ [MR f] ++ k ++ [ML f] | commutative f, k <- [[J f], []] ]
-    ++ [ [A f]  ++ k ++ [A f]  | commutative f, k <- [[J f], []] ]
+    ++ [      [MR f     ,     A  f] | commutative f ]
+    ++ [      [A  f     ,     ML f] | commutative f ]
+    ++ [      [A  f] ++ j ++ [A  f] | commutative f, j <- [[J f], []] ]
+    ++ [ e ++ [MR f] ++ j ++ [ML f] | commutative f
+                                    , e <- [[ER f], []], j <- [[J f], []] ]
+  -- morally, perhaps, we should keep E,A derivations, but since all ejectable
+  -- effects are commutative, these are equivalent to E-free J,R
+  -- (inverse-scope) derivations, and since even non-ejectable effects have J,R
+  -- derivations that we need to keep, it's easier to sweep these E ones out
+  EL f -> not $ (op `startsWith`) `anyOf` [[ML f, FA], [MR U], [A f]]
+  ER f -> not $ (op `startsWith`) `anyOf` [[MR f, BA], [ML U], [A f]]
 
   _ -> True
 
