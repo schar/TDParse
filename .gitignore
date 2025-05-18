@@ -1,16 +1,4 @@
-/bower_components/
-/node_modules/
-/.pulp-cache/
-/output/
-/generated-docs/
-/.psc-package/
-/.psc*
-/.purs*
-/.psa*
-/.spago
-/test/
-/old/
-/experimental/
+/.lake
 .DS_Store
 *.swp
 *.swo

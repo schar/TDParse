@@ -1,0 +1,10 @@
+name = "TDParse"
+version = "0.1.0"
+defaultTargets = ["tdparse"]
+
+[[lean_lib]]
+name = "TDParse"
+
+[[lean_exe]]
+name = "tdparse"
+root = "Main"
