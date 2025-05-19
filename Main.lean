@@ -1,4 +1,5 @@
 import TDParse
+import TDParse.Display
 
 open Expr
 open Cat
@@ -74,32 +75,33 @@ def tree0 :=
 -- Example derivations
 -- ------------------------------------------------------------------------
 
-def interpret (u : String) := parse myCFG myLex u.splitOn >>= synsem
-def interpretAs (t : Ty) (u : String) := interpret u |>.filterMap (runAs t)
+def derive (u : String) : Exprs := parse myCFG myLex u.splitOn >>= synsem
+def interpret (u : String) := derive u <&> run -- can't display this hlist (yet)
+def interpretAs (t : Ty) (u : String) : Interps t := derive u |>.filterMap (runAs t)
 
-#eval interpret "two exceeds one"
+#eval derive "two exceeds one"
 #eval interpretAs T "two exceeds one"
 
-#eval interpret "whichnum exceeds two"
+#eval derive "whichnum exceeds two"
 #eval interpretAs (S T) "whichnum exceeds two"
-#eval interpret "whichnum exceeds whichnum"
+#eval derive "whichnum exceeds whichnum"
 #eval interpretAs (S T) "whichnum exceeds whichnum"
 
-#eval interpret "everyprime exceeds pro"
-#eval interpretAs (R^E T) "everyprime exceeds pro" <*> [1,3]
+#eval derive "everyprime exceeds pro"
+#eval interpretAs (R^E T) "everyprime exceeds pro" >>= λ(e,v) => [(e, v 1), (e, v 3)]
 
-#eval interpret "push two exceeds one"
+#eval derive "push two exceeds one"
 #eval interpretAs (W^E T) "push two exceeds one"
 
-#eval interpret "push two exceeds its predecessor"
+#eval derive "push two exceeds its predecessor"
 #eval interpretAs T "push two exceeds its predecessor"
-#eval interpret "push two exceeds its successor"
+#eval derive "push two exceeds its successor"
 #eval interpretAs T "push two exceeds its successor"
 
-#eval interpret "everyprime succeeds somenum"
+#eval derive "everyprime succeeds somenum"
 #eval interpretAs T "everyprime succeeds somenum"
 
-#eval interpret "push everyprime succeeds its predecessor"
+#eval derive "push everyprime succeeds its predecessor"
 #eval interpretAs T "push everyprime succeeds its predecessor"
 
 

@@ -49,11 +49,23 @@ def Expr.rp : Expr t -> Std.Format
 instance : Repr (Expr t) where
   reprPrec e _ := Expr.rp e
 
-def display : (List ((t : Ty) × Expr t)) -> Std.Format
-    | []            => nil
-    | (⟨t,e⟩ :: es) =>
-      ":: " ++ repr t ++ line ++ "== " ++ nest 3 (repr e) ++ line ++
-      display es
+def TypedExpr := (t : Ty) × Expr t
+def TypedExpr.rp : TypedExpr -> Std.Format
+  | ⟨t,e⟩ => ":: " ++ repr t ++ line ++ "== " ++ nest 3 (repr e)
 
-instance : Repr (List ((t : Ty) × Expr t)) where
-  reprPrec l _ := display l
+def Exprs := List ((t : Ty) × Expr t)
+def Exprs.rp : List ((t : Ty) × Expr t) -> Std.Format
+  | []        => nil
+  | (e :: es) => TypedExpr.rp e ++ line ++ line ++ rp es
+
+instance : Repr Exprs where
+  reprPrec l _ := Exprs.rp l
+
+def Interps (t : Ty) := List (Expr t × t.dom)
+def Interps.rp {t :Ty} [Repr t.dom] : Interps t -> Std.Format
+  | [] => nil
+  | ((e,d) :: es) =>
+    TypedExpr.rp ⟨t,e⟩ ++ line ++ "〚〛= " ++ repr d ++ line ++ line ++ rp es
+
+instance (priority := high) instDens {t : Ty} [Repr t.dom] : Repr (Interps t) where
+  reprPrec l _ := Interps.rp l

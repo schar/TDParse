@@ -8,5 +8,8 @@ def synsem : Tree c ((u : Ty) × Expr u) -> List ((t : Ty) × Expr t)
       let ⟨wt,md⟩ <- combine lt rt
       pure ⟨wt, .moc md le re⟩
 
-def runAs : (s : Ty) -> ((t : Ty) × Expr t) -> Option s.dom
-  | s, ⟨t,e⟩ => if h : t = s then by subst h; exact some e.den else none
+def run : ((t : Ty) × Expr t) -> ((t : Ty) × Expr t × t.dom)
+  | ⟨t,e⟩ => ⟨t, e, e.den⟩
+
+def runAs : (s : Ty) -> ((t : Ty) × Expr t) -> Option (Expr s × s.dom)
+  | s, ⟨t,e⟩ => if h : t = s then by subst h; exact some (e, e.den) else none
