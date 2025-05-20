@@ -30,11 +30,11 @@ instance : Applicative (Cont r) where
 instance : Monad (Cont r) where
   bind x f g := x fun i => f i g
 
-class Adjoint (f g : Type → Type) where
+class Adjoint (f g : Type → Type) [Functor f] [Functor g] where
   unit   : a -> g (f a)
   counit : f (g a) -> a
-  -- phi    : (f a -> b) -> a -> g b := fun c => Functor.map c ∘ unit
-  -- psi    : (a -> g b) -> f a -> b := fun k => counit ∘ Functor.map k
+  phi    : (f a -> b) -> a -> g b := fun c => Functor.map c ∘ unit
+  psi    : (a -> g b) -> f a -> b := fun k => counit ∘ Functor.map k
 
 instance : Adjoint (Prod e) (Reader e) where
   unit x := λ io => (io, x)

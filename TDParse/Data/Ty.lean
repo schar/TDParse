@@ -12,7 +12,7 @@ inductive Ty where
   | nat
   | bool
   | fn (a r : Ty)
-  | comp (e : FX) (a : Ty)
+  | comp (f : FX) (a : Ty)
 deriving BEq, DecidableEq
 end
 
@@ -41,7 +41,7 @@ def Ty.dom : Ty -> Type
   | .nat      => Nat
   | .bool     => Bool
   | .fn a r   => a.dom -> r.dom
-  | .comp e a => e.dom a.dom
+  | .comp f a => f.dom a.dom
 end
 
 def functor : (f : FX) -> Option (Functor f.dom)
@@ -55,8 +55,8 @@ def monad : (f : FX) -> Option (Monad f.dom)
   | .spawn | .query _ | .scope _ => some (inferInstanceAs _)
   | _ => none
 
-def adjoint : (f g : FX) -> Option (Adjoint f.dom g.dom)
+def adjoint : (f g : FX) -> Option ((_ : Functor f.dom) × (_ : Functor g.dom) × Adjoint f.dom g.dom)
   | .store o, .query e =>
-      if h : o = e then by subst h; exact some (inferInstanceAs _)
+      if h : o = e then by subst h; exact some ⟨_, _, inferInstanceAs _⟩
       else none
   | _, _ => none

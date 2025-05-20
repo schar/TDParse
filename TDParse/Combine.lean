@@ -15,35 +15,36 @@ def Mode.ba : Mode α (α → β) β := ⟨BA, (·|>·)⟩
 def Mode.pm : Mode (α → Bool) (α → Bool) (α → Bool) := ⟨PM, fun p q x => p x && q x⟩
 
 -- Meta-modes
+variable {f g : Type -> Type} (m : ModeLabel) -- all of these take a ModeLabel as 1st arg
 
-def Mode.ml [Functor f] (m : ModeLabel) (op : α → β → γ) : Mode (f α) β (f γ) :=
+def Mode.ml (op : α → β → γ) : [Functor f] -> Mode (f α) β (f γ) :=
   ⟨ML m, fun xs y  => xs <&> (fun a => op a y)⟩
 
-def Mode.mr [Functor f] (m : ModeLabel) (op : α → β → γ) : Mode α (f β) (f γ) :=
+def Mode.mr (op : α → β → γ) : [Functor f] -> Mode α (f β) (f γ) :=
   ⟨MR m, fun x ys  => (fun b => op x b) <$> ys⟩
 
-def Mode.ap [Applicative f] (m : ModeLabel) (op : α → β → γ) : Mode (f α) (f β) (f γ) :=
+def Mode.ap (op : α → β → γ) : [Applicative f] -> Mode (f α) (f β) (f γ) :=
   ⟨AP m, fun xs ys => op <$> xs <*> ys⟩
 
-def Mode.ul [Applicative f] (m : ModeLabel) (op : α → (β → β') → γ) : Mode α (f β → β') γ :=
+def Mode.ul (op : α → (β → β') → γ) :[Applicative f] -> Mode α (f β → β') γ :=
   ⟨UL m, fun x y => op x (fun b => y (pure b))⟩
 
-def Mode.ur [Applicative f] (m : ModeLabel) (op : (α → α') → β → γ) : Mode (f α → α') β γ :=
+def Mode.ur (op : (α → α') → β → γ) : [Applicative f] -> Mode (f α → α') β γ :=
   ⟨UL m, fun x y => op (fun a => x (pure a)) y⟩
 
-def Mode.cu [Functor f] [Functor g] [Adjoint f g] (m : ModeLabel) (op : α → β → γ) : Mode (f α) (g β) γ :=
+def Mode.cu (op : α → β → γ) : [Functor f] -> [Functor g] -> [Adjoint f g] -> Mode (f α) (g β) γ :=
   ⟨CU m, fun xs ys => Adjoint.counit ((fun a => op a <$> ys) <$> xs)⟩
 
-def Mode.jn [Monad f] (m : ModeLabel) (op : α → β → f (f γ)) : Mode α β (f γ) :=
+def Mode.jn (op : α → β → f (f γ)) : [Monad f] -> Mode α β (f γ) :=
   ⟨JN m, fun x y => op x y >>= id⟩
 
-def Mode.dn (m : ModeLabel) (op : α → β → (Cont γ γ)) : Mode α β γ :=
+def Mode.dn (op : α → β → (Cont γ γ)) : Mode α β γ :=
   ⟨DN m, fun x y => op x y id⟩
 
 end
 
 
--- Recursive, nondeterministic combination
+-- Primitive, deterministic combination
 -- ------------------------------------------------------------------------
 
 def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u.dom v.dom w.dom)
@@ -53,6 +54,10 @@ def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u.dom v.dom w.dom)
   | _     , _      => []
 
 #eval List.map (fun ⟨w, m, _⟩ => (w, m)) (prims (E ~> T) E)
+
+
+-- Recursive, nondeterministic combination
+-- ------------------------------------------------------------------------
 
 mutual
 
@@ -93,9 +98,7 @@ def addUR (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
 def addCU (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
   let .comp f a := u | []
   let .comp g b := v | []
-  let some _ := adjoint f g | []
-  let some _ := functor f | []
-  let some _ := functor g | []
+  let some ⟨_,_,_⟩ := adjoint f g | []
   combine a b <&> λ⟨w,m,op⟩ => ⟨w, .cu m op⟩
 
 def addJN {a b : Ty} (e : (c : Ty) × Mode a.dom b.dom c.dom) : List ((w : Ty) × Mode a.dom b.dom w.dom) := do
