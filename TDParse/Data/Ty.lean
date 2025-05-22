@@ -60,3 +60,11 @@ def adjoint : (f g : FX) -> Option ((_ : Functor f.dom) × (_ : Functor g.dom) �
       if h : o = e then by subst h; exact some ⟨_, _, inferInstanceAs _⟩
       else none
   | _, _ => none
+
+def Ty.commutative (t : Ty) : Bool :=
+  t == T
+
+def FX.commutative : (f : FX) -> Bool
+  | .spawn | .query _ => true
+  | .store o => Ty.commutative o
+  | _ => false

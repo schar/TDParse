@@ -65,7 +65,6 @@ def combine u v := bins >>= uns where
   bins  := prims u v ++ addML u v ++ addMR u v ++ addAP u v ++ addCU u v
   uns e := pure e ++ addJN e ++ addDN e
 
-
 def addML (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
   let .comp f a := u | []
   let some _ := functor f | []
@@ -112,5 +111,44 @@ def addDN {a b : Ty} (e : (c : Ty) × Mode a.dom b.dom c.dom) : List ((w : Ty) �
 
 end
 
-#eval List.map (fun ⟨w, m, _⟩ => (w, m)) (combine (S (E ~> T)) (S E))
-#eval List.map (fun ⟨w, m, _⟩ => (w, m)) (combine (E ~> S T) (S E))
+#eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m, _⟩ => (w, m)
+#eval combine (E ~> S T) (S E) <&> fun ⟨w, m, _⟩ => (w, m)
+
+
+-- Normalization
+-- ------------------------------------------------------------------------
+
+open ModeLabel
+def norm {u v w : Ty} (md : Mode u.dom v.dom w.dom) : Bool :=
+  match md.mode with
+  -- unit equivalences
+  | m:UR MR __ | m:UR DN MR __
+  | m:UL ML __ | m:UL DN ML __
+
+  -- lowering equivalences
+  | m:DN MR DN MR __ | m:DN ML DN ML __ | m:DN ML DN MR __
+  | m:DN AP DN MR __ | m:DN ML DN AP __
+  | m:DN CU __
+
+  -- monad equivalences
+  | m:JN MR MR __ | m:JN MR JN MR __
+  | m:JN ML ML __ | m:JN ML JN ML __
+  | m:JN ML MR __ | m:JN ML JN MR __
+  | m:JN AP MR __ | m:JN AP JN MR __
+  | m:JN ML AP __ | m:JN ML JN AP __
+  => false
+
+  -- commutative monad equivalences
+  | mlab => Id.run do
+    let .comp f _ := w | true
+    if not (FX.commutative f) then true else
+    match mlab with
+    | m:JN MR AP __ | m:JN AP ML __
+    | m:JN AP AP __ | m:JN AP JN AP __
+    | m:JN MR ML __ | m:JN MR JN ML __
+    => false
+
+    | _ => true
+
+#eval combine (S (E ~> T)) (S E) >>= fun ⟨w, m, o⟩ => guard (norm ⟨m,o⟩) *> pure (w, m)
+#eval combine (C^T (E ~> T)) (C^T E) >>= fun ⟨w, m, o⟩ => guard (norm ⟨m,o⟩) *> pure (w, m)

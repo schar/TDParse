@@ -39,6 +39,24 @@ inductive ModeLabel : Type where
   | DN (m : ModeLabel)
 deriving BEq, DecidableEq
 
+-- for convenience, parse lists of mode labels as right-nested
+section
+open ModeLabel Lean
+def ModeLabel.build : List Syntax → MacroM (TSyntax `term)
+  | [] => Macro.throwError "Empty mode label sequence"
+  | [m] => `($(mkIdent m.getId))
+  | m :: ms => build ms >>= fun inner => `($(Lean.mkIdent m.getId) $inner)
+
+syntax "m:" ident+ : term
+macro_rules
+  | `(m: $ids*) => build ids.toList
+
+#eval match MR (AP FA) with
+  | m:MR ML __ => true
+  | m:MR MR __ => false
+  | _ => true
+end
+
 structure Mode (α : Type) (β : Type) (γ : Type) where
   mode : ModeLabel
   op : α → β → γ
