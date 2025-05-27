@@ -1,6 +1,7 @@
 import TDParse.Data.Ty
 import TDParse.Data.Derivation
-import TDParse.Display
+import TDParse.Display -- just used for #eval tests
+import TDParse.Memoize
 
 -- Modes of combination
 -- ------------------------------------------------------------------------
@@ -55,10 +56,11 @@ def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u.dom v.dom w.dom)
 
 #eval List.map (fun ⟨w, m, _⟩ => (w, m)) (prims (E ~> T) E)
 
+
 -- Normalization
 -- ------------------------------------------------------------------------
-
 open ModeLabel
+
 def norm {u v w : Ty} (md : Mode u.dom v.dom w.dom) : Bool :=
   match md.mode with
   -- unit equivalences
@@ -91,68 +93,72 @@ def norm {u v w : Ty} (md : Mode u.dom v.dom w.dom) : Bool :=
     | _ => true
 
 
+
 -- Recursive, nondeterministic combination
 -- ------------------------------------------------------------------------
 
-mutual
+abbrev Combo (u : Ty) (v : Ty) := ((w : Ty) × Mode u.dom v.dom w.dom)
 
-def combine u v := bins >>= uns where
-  bins  := prims u v ++ addML u v ++ addMR u v ++ addAP u v ++ addCU u v
-  uns e := pure e ++ addJN e ++ addDN e
+def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
-def addML (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f a := u | []
-  let some _ := functor f | []
-  combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml m⟩
+  where go combine u v :=
 
-def addMR (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f b := v | []
-  let some _ := functor f | []
-  combine u b <&> λ⟨w,m⟩ => ⟨.comp f w, .mr m⟩
+    let addML : List (Combo u v) := do
+          let .comp f a := u | []
+          let some _ := functor f | []
+          combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml m⟩
 
-def addAP (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f a := u | []
-  let .comp g b := v | []
-  let some _ := applicative f | []
-  if h : f = g then
-    by subst h; exact
-    combine a b <&> λ⟨w,m⟩ => ⟨.comp f w, .ap m⟩
-  else []
+    let addMR := do
+          let .comp f b := v | []
+          let some _ := functor f | []
+          combine u b <&> λ⟨w,m⟩ => ⟨.comp f w, .mr m⟩
 
-def addUL (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f b ~> b' := v | []
-  let some _ := applicative f | []
-  let ⟨w,m⟩ <- combine u (b ~> b')
-  let m' := .ul m; guard (norm m') *> pure ⟨w, m'⟩
+    let addAP : List (Combo u v) := do
+          let .comp f a := u | []
+          let .comp g b := v | []
+          let some _ := applicative f | []
+          if h : f = g then
+            by subst h; exact
+            combine a b <&> λ⟨w,m⟩ => ⟨.comp f w, .ap m⟩
+          else []
 
-def addUR (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f a ~> a' := u | []
-  let some _ := applicative f | []
-  let ⟨w,m⟩ <- combine (a ~> a') v
-  let m' := .ur m; guard (norm m') *> pure ⟨w, m'⟩
+    let addUL : List (Combo u v) := do
+          let .comp f b ~> b' := v | []
+          let some _ := applicative f | []
+          let ⟨w,m⟩ <- combine u (b ~> b')
+          let m' := .ul m; guard (norm m') *> pure ⟨w, m'⟩
 
-def addCU (u v : Ty) : List ((w : Ty) × Mode u.dom v.dom w.dom) := do
-  let .comp f a := u | []
-  let .comp g b := v | []
-  let some ⟨_,_,_⟩ := adjoint f g | []
-  combine a b <&> λ⟨w,m⟩ => ⟨w, .cu m⟩
+    let addUR : List (Combo u v) := do
+          let .comp f a ~> a' := u | []
+          let some _ := applicative f | []
+          let ⟨w,m⟩ <- combine (a ~> a') v
+          let m' := .ur m; guard (norm m') *> pure ⟨w, m'⟩
 
-def addJN {a b : Ty} (e : (c : Ty) × Mode a.dom b.dom c.dom) : List ((w : Ty) × Mode a.dom b.dom w.dom) := do
-  let ⟨.comp f (.comp g c), m⟩ := e | []
-  let some _ := monad f | []
-  if h : f = g then
-    by subst h; exact
-    let m' := .jn m; guard (norm m') *> pure ⟨.comp f c, m'⟩
-  else []
+    let addCU : List (Combo u v) := do
+          let .comp f a := u | []
+          let .comp g b := v | []
+          let some ⟨_,_,_⟩ := adjoint f g | []
+          combine a b <&> λ⟨w,m⟩ => ⟨w, .cu m⟩
 
-def addDN {a b : Ty} (e : (c : Ty) × Mode a.dom b.dom c.dom) : List ((w : Ty) × Mode a.dom b.dom w.dom) := do
-  let ⟨C^r a, m⟩ := e | []
-  if h : r = a then
-    by subst h; exact
-    let m' := .dn m; guard (norm m')  *> pure ⟨r, .dn m⟩
-  else []
+    let addJN (e : Combo u v) : List (Combo u v) := do
+          let ⟨.comp f (.comp g c), m⟩ := e | []
+          let some _ := monad f | []
+          if h : f = g then
+            by subst h; exact
+            let m' := .jn m; guard (norm m') *> pure ⟨.comp f c, m'⟩
+          else []
 
-end
+    let addDN (e : Combo u v) : List (Combo u v) := do
+          let ⟨C^r a, m⟩ := e | []
+          if h : r = a then
+            by subst h; exact
+            let m' := .dn m; guard (norm m')  *> pure ⟨r, .dn m⟩
+          else []
+
+    let bins := prims u v ++ addML ++ addMR ++ addAP ++ addCU
+    let uns e := pure e ++ addJN e ++ addDN e
+
+    bins >>= uns
 
 #eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m, _⟩ => (w, m)
 #eval combine (E ~> S T) (S E) <&> fun ⟨w, m, _⟩ => (w, m)

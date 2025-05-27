@@ -1,6 +1,4 @@
 import TDParse.Data.Ty
-open Function -- provides 'curry'/'uncurry'
-
 
 -- Syntactic derivations
 -- ------------------------------------------------------------------------
@@ -79,6 +77,12 @@ def exprTest (x y : Nat) : Expr T :=
 #eval exprTest 5 2 |>.den
 #eval exprTest 2 5 |>.den
 
+-- convenience type synonyms (used for custom displays)
+def TypedExpr := (t : Ty) × Expr t
+def Exprs := List ((t : Ty) × Expr t)
+def Interps (t : Ty) := List (Expr t × t.dom)
+
+
 -- Lexicon
 -- ------------------------------------------------------------------------
 
@@ -95,20 +99,3 @@ macro_rules (kind := hdict)
   | `({[ $a, $as,* ]}) => `(HDict.cons $a {[$as,*]})
 
 example: {[x,y,z]} = HDict.cons x (HDict.cons y (HDict.cons z HDict.nil)) := rfl
-
-def HDict.lookup (k : String) : HDict ts → Option (Cat × (t : Ty) × Expr t)
-  | .nil                        => none
-  | .cons (c, e@(.lex k' _)) xs => if k' = k then some ⟨c, _, e⟩ else xs.lookup k
-  | .cons _ xs                  => xs.lookup k
-
--- not actually partial, but because it's not structurally inductive,
--- lean can't prove it terminates
-partial def parse (cfg : CFG) (lex : HDict ts) : List String -> List (Tree Cat ((t : Ty) × Expr t))
-  | [ ] => []
-  | [w] => lex.lookup w <&> uncurry .leaf |>.toList
-  | wds => do
-      let (ls,rs) <- List.range' 1 (wds.length - 1) <&> wds.splitAt
-      let lt <- parse cfg lex ls
-      let rt <- parse cfg lex rs
-      let nt <- cfg lt.root rt.root
-      pure (.node nt lt rt)

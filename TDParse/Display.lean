@@ -49,14 +49,12 @@ def Expr.rp : Expr t -> Std.Format
 instance : Repr (Expr t) where
   reprPrec e _ := Expr.rp e
 
-def TypedExpr := (t : Ty) × Expr t
 def TypedExpr.rp : TypedExpr -> Std.Format
   | ⟨t,e⟩ => ":: " ++ repr t ++ line ++ "== " ++ nest 3 (repr e)
 
 instance : Repr TypedExpr where
   reprPrec e _ := TypedExpr.rp e
 
-def Exprs := List ((t : Ty) × Expr t)
 def Exprs.rp : List ((t : Ty) × Expr t) -> Std.Format
   | []        => nil
   | (e :: es) => TypedExpr.rp e ++ line ++ line ++ rp es
@@ -64,11 +62,19 @@ def Exprs.rp : List ((t : Ty) × Expr t) -> Std.Format
 instance : Repr Exprs where
   reprPrec l _ := Exprs.rp l
 
-def Interps (t : Ty) := List (Expr t × t.dom)
 def Interps.rp {t :Ty} [Repr t.dom] : Interps t -> Std.Format
   | [] => nil
-  | ((e,d) :: es) =>
+  | (⟨e,d⟩ :: es) =>
     TypedExpr.rp ⟨t,e⟩ ++ line ++ "〚〛= " ++ repr d ++ line ++ line ++ rp es
 
 instance {t : Ty} [Repr t.dom] : Repr (Interps t) where
   reprPrec l _ := Interps.rp l
+
+-- def RInterps := List ((t : Ty) × Repr t.dom × Expr t × t.dom)
+-- def RInterps.rp : RInterps -> Std.Format
+--   | []                => nil
+--   | (⟨t,_,e,d⟩ :: es) =>
+--     TypedExpr.rp ⟨t,e⟩ ++ line ++ "〚〛= " ++ repr d ++ line ++ line ++ rp es
+
+-- instance : Repr RInterps where
+--   reprPrec l _ := RInterps.rp l
