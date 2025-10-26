@@ -18,8 +18,9 @@ import Data.Foldable (or)
 import Effect (Effect)
 import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Flame (QuerySelector(..), Html, Key)
-import Flame.Application.NoEffects as FAN
+import Flame (Html, Key, Update)
+import Flame as F
+import Web.DOM.ParentNode (QuerySelector(..))
 import Flame.Html.Attribute as HA
 import Flame.Html.Element as HE
 import Lexicon.Pure (pureLex)
@@ -122,8 +123,8 @@ buildBins m = binsInventory >>= \(c ^ comb) -> if m.opts.combs c then [comb] els
 buildUns  m = unsInventory  >>= \(c ^ comb) -> if m.opts.combs c then [comb] else []
 
 -- | `update` is called to handle events
-update :: Model -> Message -> Model
-update model = case _ of
+update :: Update Model Message
+update model = F.noMessages <<< case _ of
   PhraseInput ("Enter" ^ s) ->
                   model { currentPhrase = "\"" <> s <> "\""
                         , currentProofs = proofs
@@ -188,7 +189,7 @@ view model =
     , HE.button [HA.id "opts-button", HA.onClick ToggleOpts]
         [ HE.text "≡" ]
 
-    , HE.p "current"
+    , HE.p [HA.id "current"]
        [ HE.text $ "Showing "
        , HE.span [HA.style {color: "var(--accent)"}]
          [ HE.text $ show $
@@ -200,9 +201,9 @@ view model =
        , HE.text $ " parses for: " <> model.currentPhrase
        ]
 
-    , HE.div "content"
+    , HE.div [HA.id "content"]
 
-      [ HE.div "parses" $
+      [ HE.div [HA.id "parses"] $
           fromMaybe [HE.text "No parse"] $
             model.currentProofs <#>
               (filter model.typeOfInterest >>> take 100 >>> mapWithIndex (displayProof model.opts.showDens model.opts.showParams))
@@ -242,17 +243,17 @@ view model =
         , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
           [ HE.text "Select combinators:" ]
           <> map (addSwitch CombChoice (_ `elem` defCombs))
-          [ ([HE.strong_ "R", HE.text " (map right)"  ]  ^ MRComb )
-          , ([HE.strong_ "L", HE.text " (map left)"   ]  ^ MLComb )
-          , ([HE.strong_ "Ú", HE.text " (unit right)" ]  ^ URComb )
-          , ([HE.strong_ "Ù", HE.text " (unit left)"  ]  ^ ULComb )
-          -- , ([HE.strong_ "Z", HE.text " (binding)"    ]  ^ ZComb  )
-          , ([HE.strong_ "A", HE.text " (apply)"      ]  ^ AComb  )
-          , ([HE.strong_ "C", HE.text " (counit)"     ]  ^ EpsComb)
-          , ([HE.strong_ "É", HE.text " (eject right)"]  ^ ERComb )
-          , ([HE.strong_ "È", HE.text " (eject left)" ]  ^ ELComb )
-          , ([HE.strong_ "J", HE.text " (join)"       ]  ^ JComb  )
-          , ([HE.strong_ "D", HE.text " (lower)"      ]  ^ DComb  )
+          [ ([HE.strong_ [HE.text "R"], HE.text " (map right)"  ]  ^ MRComb )
+          , ([HE.strong_ [HE.text "L"], HE.text " (map left)"   ]  ^ MLComb )
+          , ([HE.strong_ [HE.text "Ú"], HE.text " (unit right)" ]  ^ URComb )
+          , ([HE.strong_ [HE.text "Ù"], HE.text " (unit left)"  ]  ^ ULComb )
+          -- , ([HE.strong_ [HE.text "Z"], HE.text " (binding)"    ]  ^ ZComb  )
+          , ([HE.strong_ [HE.text "A"], HE.text " (apply)"      ]  ^ AComb  )
+          , ([HE.strong_ [HE.text "C"], HE.text " (counit)"     ]  ^ EpsComb)
+          , ([HE.strong_ [HE.text "É"], HE.text " (eject right)"]  ^ ERComb )
+          , ([HE.strong_ [HE.text "È"], HE.text " (eject left)" ]  ^ ELComb )
+          , ([HE.strong_ [HE.text "J"], HE.text " (join)"       ]  ^ JComb  )
+          , ([HE.strong_ [HE.text "D"], HE.text " (lower)"      ]  ^ DComb  )
           ]
         ]
       ]
@@ -266,7 +267,7 @@ addSwitch action toggle (s ^ l) =
 
 addLexText m =
   HE.p [HA.style {marginBottom: "0px"}]
-    [ HE.text "Add item: ", HE.span "lexFeedback" [HE.text m] ]
+    [ HE.text "Add item: ", HE.span [HA.id "lexFeedback"] [HE.text m] ]
 addLexInput =
   HE.input
     [ HA.type' "text", HA.id "lexname", HA.placeholder "(name, cat, type)", HA.onKeyup AddLex ]
@@ -287,8 +288,8 @@ displayLexItem b (s ^ w) = let item = fromFoldable w in
 
 -- | Mount the application on the given selector
 main :: Effect Unit
-main = FAN.mount_ (QuerySelector "#home")
-       { init
+main = F.mount_ (QuerySelector "#home")
+       { model: init
        , subscribe: []
        , update
        , view

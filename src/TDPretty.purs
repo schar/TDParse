@@ -13,7 +13,8 @@ import Data.Foldable (sequence_, traverse_, null)
 import Data.Traversable (sequence)
 import Effect (Effect)
 import Effect.Console (log, logShow)
-import Flame (QuerySelector(..), Html, Key, mount_)
+import Flame (Html, Key, mount_)
+import Web.DOM.ParentNode (QuerySelector(..))
 import Flame.Html.Attribute as HA
 import Flame.Html.Element as HE
 import Text.Pretty (Doc) as PP
