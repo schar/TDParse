@@ -99,8 +99,8 @@ in  upstream
 -------------------------------
 -}
 let upstream =
-      https://github.com/purescript/package-sets/releases/download/psc-0.15.4-20220816/packages.dhall
-        sha256:8b4467b4b5041914f9b765779c8936d6d4c230b1f60eb64f6269c71812fd7e98
+      https://github.com/purescript/package-sets/releases/download/psc-0.15.15-20240801/packages.dhall
+        sha256:12eb09db3da6c045daf62890376acfb910ebb9362957da1310f9d13e9ea7014f
 
 in  upstream
   with prettyprinter =
