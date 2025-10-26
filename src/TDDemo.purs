@@ -42,6 +42,8 @@ demoCFG = case _,_ of
   VP   , AdvP  -> pure VP
   DV   , DP    -> pure TV
   TAdv , DP    -> pure AdvP
+  NP   , PP    -> pure NP
+  Prep , DP    -> pure PP
   _    , _     -> Nil
 
 

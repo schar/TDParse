@@ -34,7 +34,7 @@ data Cat
   | DP | Det | Gen | GenD | Dmp -- (Genitive) Determiners and full Determiner Phrases
   | NP | FN | RN -- Functional/Relational Nouns and Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
-  | AdjP | TAdj | Deg | AdvP | TAdv | AdcP | Adc -- Modifiers
+  | AdjP | TAdj | Deg | AdvP | TAdv | AdcP | Adc | PP | Prep -- Modifiers
 derive instance Eq Cat
 derive instance Ord Cat
 derive instance Generic Cat _
