@@ -1,0 +1,3 @@
+(jack, DP, e)
+(owen, DP, e)
+(nora, DD, e)

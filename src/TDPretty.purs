@@ -26,7 +26,7 @@ type Doc = PP.Doc String
 
 {- Various pretty printers -}
 
-arrow = text " -> "
+arrow = text "→"
 
 prettyTy :: Doc -> Ty -> Doc
 prettyTy a = case _ of
@@ -95,7 +95,7 @@ displayTy b ty = HE.span [HA.class' "type"] $ go ty
       <> [HE.span [HA.class' "ty-punct"] [HE.text ")"]]
 
     ar =
-      [HE.span [HA.class' "ty-punct"] [HE.text $ render 100 arrow]]
+      [HE.span [HA.class' "ty-arrow"] [HE.text $ render 100 arrow]]
 
 
 displayVal :: forall m. Sem -> Html m
@@ -113,11 +113,12 @@ displayTerm term depth              = go term
       (Lam v body) ->
         [ HE.span [HA.class' "den-punct"] [HE.text "λ"] ]
         <> [ HE.text (showVar v) ]
-        <> [ HE.span [HA.class' "den-punct"] [HE.text ". "] ]
+        <> [ HE.span [HA.class' "den-punct"] [HE.text ".", HE.span' [HA.class' "den-dot-space"]] ]
         <> go' body
       (App t1 t2) ->
         displayLeft go' t1
-        <> [ HE.text " " ]
+        -- <> [ HE.text " " ]
+        <> [ HE.span' [HA.class' "den-app-space"]]
         <> displayRight go' t2
       (Pair t1 t2) ->
         [ HE.span [HA.class' "den-punct"] [HE.text "⟨"] ]
