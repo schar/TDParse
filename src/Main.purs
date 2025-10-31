@@ -1,49 +1,42 @@
--- | Counter example using side effects free updating
 module Main where
 
-import Data.Array
-import Data.List (fromFoldable) as List
-import Data.Either
-import Data.Maybe
-import Data.Tuple
-import Data.Tuple.Nested
-import Flame.Types
 import Prelude
+import Data.Array
+import Data.Either (Either(..), either)
+import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
 import TDParseCFG
 import TDParseTy
 import TDPretty
 import Utils
 
 import Data.Foldable (or)
+import Data.List (fromFoldable) as List
+import Data.String (Pattern(..), split)
+import Data.String.CodeUnits (stripPrefix) as SCU
 import Effect (Effect)
-import Effect.Aff (Aff)
 import Effect.Class (liftEffect)
-import Flame (Html, Key, Update)
+import FileInput (getFileFromEvent, readFileAsText)
 import Flame as F
-import Web.DOM.ParentNode (QuerySelector(..))
+import Flame.Types (Html, Key)
 import Flame.Html.Attribute as HA
 import Flame.Html.Element as HE
-import Lexicon.Pure (pureLex)
-import Lexicon.Pro (proLex)
-import Lexicon.Indef (indefLex)
-import Lexicon.Dyn (dynLex)
-import Lexicon.Quant (quantLex)
-import Lexicon.Push (pushLex)
 import Lexicon.Demo (demoLex)
+import Lexicon.Dyn (dynLex)
+import Lexicon.Indef (indefLex)
+import Lexicon.Pro (proLex)
+import Lexicon.Pure (pureLex)
+import Lexicon.Push (pushLex)
+import Lexicon.Quant (quantLex)
 import TDDemo (demoCFG) as Demo
+import Web.DOM.ParentNode (QuerySelector(..))
+import Web.Event.Event (Event)
+import Web.File.File as File
 
 type Lex = Array Word
-data LexName = PureLex | ProLex | DynLex | IndefLex | QuantLex | PushLex | DemoLex
+-- data LexName = PureLex | ProLex | DynLex | IndefLex | QuantLex | PushLex | DemoLex
+data LexName = LexID String
 derive instance Eq LexName
-lexInventory =
-  [ (ProLex   ^ fromFoldable proLex   )
-  , (IndefLex ^ fromFoldable indefLex )
-  , (DynLex   ^ fromFoldable dynLex   )
-  , (QuantLex ^ fromFoldable quantLex )
-  , (PushLex  ^ fromFoldable pushLex  )
-  , (PureLex  ^ fromFoldable pureLex  )
-  , (DemoLex  ^ fromFoldable demoLex  )
-  ]
+lexID (LexID s) = s
 data CombName = MLComb | MRComb | ULComb | URComb | ZComb | AComb | JComb |
                 EpsComb | ELComb | ERComb | DComb
 derive instance Eq CombName
@@ -70,6 +63,7 @@ type Model =
   , currentProofs :: Maybe (Array Proof)
   , customLex :: Lex
   , lexFeedback :: Maybe String
+  , lexInventory :: Array (LexName ^ Lex)
   , opts :: { showOpts :: Boolean
             , showDens :: Boolean
             , showParams :: Boolean
@@ -92,6 +86,8 @@ data Message
   | AddLex (Key ^ String)
   | LexChoice LexName
   | CombChoice CombName
+  | UploadLex Event
+  | BatchLex String String
 
 -- | Initial state of the app
 init :: Model
@@ -101,13 +97,21 @@ init =
   , currentProofs: Just []
   , customLex: []
   , lexFeedback: Nothing
+  , lexInventory:
+      [ (LexID "pure"  ^ fromFoldable pureLex  )
+      , (LexID "pro"   ^ fromFoldable proLex   )
+      , (LexID "indef" ^ fromFoldable indefLex )
+      , (LexID "quant" ^ fromFoldable quantLex )
+      , (LexID "push"  ^ fromFoldable pushLex  )
+      , (LexID "dyn"   ^ fromFoldable dynLex   )
+      , (LexID "demo"  ^ fromFoldable demoLex  )
+      ]
   , opts: { showOpts: true, showDens: true, showParams: false, showLex: true, islands: false
-          , lexItems: \l -> if l `elem` defLexes then true else false
-          , combs: \c -> if c `elem` defCombs then true else false
+          , lexItems: (_ `elem` [LexID "pure"])
+          , combs: (_ `elem` defCombs)
           }
   }
 
-defLexes = [PureLex, ProLex, IndefLex]
 defCombs = [MRComb, MLComb, AComb, JComb]
 
 -- proofs :: Lexicon -> String -> Maybe (Array Proof)
@@ -117,56 +121,83 @@ proofs l isles bins uns s = fromFoldable <$> prove Demo.demoCFG l isles bins uns
 
 buildLex :: Model -> Lex
 buildLex m = concat $
-  m.customLex : map (\(l ^ lex) -> if m.opts.lexItems l then lex else []) lexInventory
+  m.customLex : map (\(l ^ lex) -> if m.opts.lexItems l then lex else []) m.lexInventory
 
 buildBins m = binsInventory >>= \(c ^ comb) -> if m.opts.combs c then [comb] else []
 buildUns  m = unsInventory  >>= \(c ^ comb) -> if m.opts.combs c then [comb] else []
 
 -- | `update` is called to handle events
-update :: Update Model Message
-update model = F.noMessages <<< case _ of
-  PhraseInput ("Enter" ^ s) ->
-                  model { currentPhrase = "\"" <> s <> "\""
-                        , currentProofs = proofs
-                            (List.fromFoldable $ buildLex model)
-                            (List.fromFoldable $ if model.opts.islands then [CP] else [])
-                            (List.fromFoldable $ buildBins model)
-                            (List.fromFoldable $ buildUns model)
-                            s
-                        }
+update :: F.Update Model Message
+update model = case _ of
+  PhraseInput ("Enter" ^ s) -> F.noMessages $
+    model { currentPhrase = "\"" <> s <> "\""
+          , currentProofs = proofs
+              (List.fromFoldable $ buildLex model)
+              (List.fromFoldable $ if model.opts.islands then [CP] else [])
+              (List.fromFoldable $ buildBins model)
+              (List.fromFoldable $ buildUns model)
+              s
+          }
 
-  PhraseInput (_ ^ s) ->
-                  model
+  PhraseInput (_ ^ s) -> F.noMessages $
+    model
 
-  TypeInput (_ ^ t) ->
+  TypeInput (_ ^ t) -> F.noMessages $
     case tyParse t of
       Left _   -> model { typeOfInterest = const true }
       Right ty -> model { typeOfInterest = \p -> or $ map hasType ty <@> p }
 
-  ToggleLex ->    model { opts = model.opts { showLex = not model.opts.showLex } }
+  ToggleLex -> F.noMessages $
+    model { opts = model.opts { showLex = not model.opts.showLex } }
 
-  ToggleDen ->    model { opts = model.opts { showDens = not model.opts.showDens } }
+  ToggleDen -> F.noMessages $
+    model { opts = model.opts { showDens = not model.opts.showDens } }
 
-  ToggleParams -> model { opts = model.opts { showParams = not model.opts.showParams } }
+  ToggleParams -> F.noMessages $ 
+    model { opts = model.opts { showParams = not model.opts.showParams } }
 
-  ToggleOpts ->   model { opts = model.opts { showOpts = not model.opts.showOpts } }
+  ToggleOpts -> F.noMessages $
+    model { opts = model.opts { showOpts = not model.opts.showOpts } }
 
-  ToggleIslands ->
-                  model { opts = model.opts { islands = not model.opts.islands } }
+  ToggleIslands -> F.noMessages $
+    model { opts = model.opts { islands = not model.opts.islands } }
 
-  AddLex ("Enter" ^ s) ->
+  AddLex ("Enter" ^ s) -> F.noMessages $
     case lexParse s of
       Left e   -> model { lexFeedback = Just e }
       Right l  -> model { lexFeedback = Nothing, customLex = l : model.customLex }
 
-  AddLex (_ ^ s) ->
-                  model
+  AddLex (_ ^ s) -> F.noMessages $
+    model
 
-  LexChoice n  -> model { opts = model.opts { lexItems = switch n model.opts.lexItems } }
+  LexChoice n -> F.noMessages $
+    model { opts = model.opts { lexItems = switch n model.opts.lexItems } }
     where switch n items = \l -> (if l == n then not else identity) (items l)
 
-  CombChoice n -> model { opts = model.opts { combs = switch n model.opts.combs } }
+  CombChoice n -> F.noMessages $
+    model { opts = model.opts { combs = switch n model.opts.combs } }
     where switch n items = \c -> (if c == n then not else identity) (items c)
+
+  UploadLex event -> model ^ 
+    [ do
+        file <- liftEffect $ getFileFromEvent event
+        content <- readFileAsText file
+        pure $ Just $ BatchLex content (File.name file)
+    ]
+
+  BatchLex content name ->
+    model { lexInventory = newLI, lexFeedback = feedback } ^ [ pure $ Just $ LexChoice (LexID name) ]
+    where
+      lines = split (Pattern "\n") content
+      isCommentOrEmpty s = s == "" || (SCU.stripPrefix (Pattern "#") s # isJust)
+      validLines = filter (not <<< isCommentOrEmpty) lines
+      parseResults = map lexParse validLines
+      successfulParses = parseResults >>= either (const []) pure
+      errors = parseResults >>= either pure (const [])
+      newLI = (LexID name ^ successfulParses) : model.lexInventory
+      feedback = if null errors
+        then Just $ "Added " <> show (length successfulParses) <> " items"
+        else Just $ "Added " <> show (length successfulParses) <> " items with " <> show (length errors) <> " errors"
 
 
 -- | `view` updates the app markup whenever the model is updated
@@ -209,7 +240,10 @@ view model =
               (filter model.typeOfInterest >>> take 100 >>> mapWithIndex (displayProof model.opts.showDens model.opts.showParams))
 
       , HE.div [HA.id "lexicon", HA.style {display: if model.opts.showLex then "block" else "none"}] $
-        addLexText (fromMaybe "" model.lexFeedback) : addLexInput : map (displayLexItem model.opts.showParams) (buildLex model)
+        [ addLexText (fromMaybe "" model.lexFeedback)
+        , addLexInput
+        ]
+        <> map (displayLexItem model.opts.showParams) (buildLex model)
 
       , HE.div [HA.id "options", HA.style {display: if model.opts.showOpts then "block" else "none"}]
 
@@ -230,15 +264,8 @@ view model =
 
         , HE.div [HA.id "lexInventory", HA.class' "opt-group"] $
           [ HE.text "Select fragments:" ]
-          <> map (addSwitch LexChoice (_ `elem` defLexes))
-          [ ([HE.text "pure" ] ^ PureLex )
-          , ([HE.text "pro"  ] ^ ProLex  )
-          , ([HE.text "indef"] ^ IndefLex)
-          , ([HE.text "dyn"  ] ^ DynLex  )
-          , ([HE.text "quant"] ^ QuantLex)
-          , ([HE.text "push" ] ^ PushLex )
-          , ([HE.text "demo" ] ^ DemoLex )
-          ]
+          <> map (\(l ^ _) -> addSwitch LexChoice model.opts.lexItems ([HE.text (lexID l)] ^ l)) model.lexInventory
+          <> [addLexFile]
 
         , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
           [ HE.text "Select combinators:" ]
@@ -265,6 +292,17 @@ addSwitch action toggle (s ^ l) =
     , HE.span_ s
     ]
 
+addLexFile =
+  HE.div [HA.style {marginTop: "1em"}]
+    [ HE.label [HA.for "lexFileInput"]
+      [ HE.text "Upload fragment" ]
+    , HE.input
+      [ HA.type' "file"
+      , HA.id "lexFileInput"
+      , HA.accept ".txt"
+      , HA.onChange' UploadLex
+      ]
+    ]
 addLexText m =
   HE.p [HA.style {marginBottom: "0px"}]
     [ HE.text "Add item: ", HE.span [HA.id "lexFeedback"] [HE.text m] ]

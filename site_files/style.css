@@ -212,6 +212,7 @@ pre, textarea { /* for code samples */
 
 /* Inline footnotes */
 
+/*
 label {
   cursor: pointer;
   vertical-align: super;
@@ -226,6 +227,15 @@ label:hover {
 
 label:before {content:"[";}
 label:after {content:"]";}
+*/
+
+label {
+  background-color: ButtonFace;
+  padding: 0.5rem;
+  border: 1pt solid ButtonBorder;
+  border-radius: 0.3rem;
+  cursor: pointer;
+}
 
 label + input,
 label + input + small {
@@ -476,9 +486,11 @@ article time {
 
   /* Inline footnotes */
 
+  /*
   label + input + small { display: inline; }
   label + input + small:before { content: "["; }
   label + input + small:after { content: "]"; }
+  */
 
   /* Slides */
 
@@ -489,7 +501,7 @@ article time {
   }
 
   .slides figure img, .slides figure.cover img {
-    max-height: auto;
+    /* max-height: auto; */
     position: relative;
     z-index: 1;
     width: auto;
