@@ -1,30 +1,39 @@
 module TDParseTy where
 
-import Data.Array
-import Data.Either
-import Data.Tuple
-import Parsing
-import Parsing.Combinators
-import Parsing.Expr
 import Prelude hiding (between)
 import Control.Apply (lift2)
-import TDParseCFG
-import LambdaCalc (make_var)
-
-import Control.Lazy (fix)
+import Control.Lazy (defer, fix)
+import Data.Array (fromFoldable, many)
+import Data.String.CodeUnits (singleton, fromCharArray, charAt)
+import Data.String.CodePoints (length)
+import Data.Either (Either(..))
 import Data.Enum (enumFromTo)
-import Parsing.Language (haskellDef)
+import Data.Tuple (Tuple(..))
+import Data.Maybe (Maybe(..))
+import Data.List (List(..), (:))
+
+import TDParseCFG
+import LambdaCalc (make_var, make_con, (!), (%))
+
+import Parsing (Parser, fail, runParser, parseErrorMessage)
+import Parsing.Combinators (chainl1, option, try, choice, (<|>))
+import Parsing.Expr (Assoc(..), Operator(..), buildExprParser)
+import Parsing.Language (haskellStyle)
+import Parsing.String (char)
+import Parsing.String.Basic (alphaNum, letter)
 import Parsing.Token (makeTokenParser)
 
 
 
--- The lexer
-tokenParser = makeTokenParser haskellDef
+-- basic lexing/identifier/whitespace rules follow haskell conventions
+tokenParser = makeTokenParser haskellStyle
 parens      = tokenParser.parens
 symbol      = tokenParser.symbol
 whiteSpace  = tokenParser.whiteSpace
 identifier  = tokenParser.identifier
 comma       = tokenParser.comma
+dot         = tokenParser.dot
+lexeme      = tokenParser.lexeme
 
 mkOp name op = symbol name *> pure op
 binary name op assoc = Infix (mkOp name op) assoc
@@ -74,18 +83,56 @@ tyParserD = whiteSpace *> fix tyExpD
 tyParseD t = runParser t tyParserD
 
 
+{- Parser for lexical categories -}
+
 cats :: Array (Tuple String Cat)
 cats = map (\c -> Tuple (show c) c) $ enumFromTo bottom top
 
 catParser = choice $ map (\(Tuple s c) -> symbol s $> c) cats
 
+
+{- Parser for user-specified lambda terms -}
+
+varParser = lexeme $ try do
+  c <- letter
+  cs <- many (alphaNum <|> char '_')
+  pure <<< make_var $ singleton c <> fromCharArray cs
+
+conParser = lexeme $ try do
+  n <- identifier
+  if charAt (length n - 1) n == Just '\'' then pure (make_con n) else fail "needs prime"
+
+absParser = do
+  void (symbol "\\")
+  v <- varParser
+  void dot
+  term <- appParser
+  pure $ v ! term
+
+valParser = defer $ \_ -> parens appParser <|> absParser <|> conParser <|> varParser
+appParser = defer $ \_ -> chainl1 valParser (pure (%))
+
+lamParser = appParser
+
+lamParse w = case runParser w lamParser of 
+   Left e -> Left (parseErrorMessage e)
+   Right a -> Right a
+
+
+{- Parser for user-specified lexical entries -}
+-- format: (string, category, type)
+--     or: (string, category, type, meaning)
+-- in the former case, a constant is assigned as meaning
+
+lexParser ∷ Parser String Word
 lexParser = parens do
   s <- identifier
   void comma
   c <- catParser <|> fail "Unrecognized category"
   void comma
   t <- tyParserD <|> fail "Unrecognized type"
-  pure $ Tuple s (pure $ Tuple (make_var $ s <> "'") (Tuple c t))
+  d <- option (make_var $ s <> "'") $ void comma *> lamParser 
+  pure $ Tuple s (Tuple d (Tuple c t) : Nil)
 
 lexParse w = case runParser w lexParser of
   Left e  -> Left (parseErrorMessage e)

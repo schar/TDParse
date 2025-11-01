@@ -308,7 +308,8 @@ addLexText m =
     [ HE.text "Add item: ", HE.span [HA.id "lexFeedback"] [HE.text m] ]
 addLexInput =
   HE.input
-    [ HA.type' "text", HA.id "lexname", HA.placeholder "(name, cat, type)", HA.onKeyup AddLex ]
+    [ HA.type' "text", HA.id "lexname", HA.placeholder "(name, cat, type (, den)?)"
+    , HA.onKeyup AddLex ]
 
 displayLexItem :: forall m. Boolean -> Word -> Html m
 displayLexItem b (s ^ w) = let item = fromFoldable w in
