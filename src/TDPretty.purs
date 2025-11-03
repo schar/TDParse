@@ -107,7 +107,7 @@ displayTerm term depth              = go term
   where
     go = case _ of
       (Con c) ->
-        [ HE.text c ]
+        [ HE.span [HA.class' "den-const"] [HE.text c ] ]
       (Var v) ->
         [ HE.text (showVar v) ]
       (Lam v body) ->

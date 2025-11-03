@@ -1,16 +1,17 @@
-module TDParseTy where
+module TDParseLex where
 
 import Prelude hiding (between)
 import Control.Apply (lift2)
 import Control.Lazy (defer, fix)
 import Data.Array (fromFoldable, many)
-import Data.String.CodeUnits (singleton, fromCharArray, charAt)
-import Data.String.CodePoints (length)
+import Data.String.CodePoints (splitAt, length)
+import Data.String.CodeUnits (singleton, fromCharArray)
 import Data.Either (Either(..))
 import Data.Enum (enumFromTo)
 import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..))
 import Data.List (List(..), (:))
+import Control.Alternative (guard)
 
 import TDParseCFG
 import LambdaCalc (make_var, make_con, (!), (%))
@@ -100,7 +101,9 @@ varParser = lexeme $ try do
 
 conParser = lexeme $ try do
   n <- identifier
-  if charAt (length n - 1) n == Just '\'' then pure (make_con n) else fail "needs prime"
+  let {before, after} = splitAt (length n - 1) n
+  guard $ after == "\'"
+  pure (make_con before)
 
 absParser = do
   void (symbol "\\")
@@ -131,7 +134,7 @@ lexParser = parens do
   c <- catParser <|> fail "Unrecognized category"
   void comma
   t <- tyParserD <|> fail "Unrecognized type"
-  d <- option (make_var $ s <> "'") $ void comma *> lamParser 
+  d <- option (make_con s) $ void comma *> lamParser 
   pure $ Tuple s (Tuple d (Tuple c t) : Nil)
 
 lexParse w = case runParser w lexParser of

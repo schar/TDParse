@@ -7,6 +7,7 @@
   /* --highlight: #2749c9; */
   --highlight: rgb(1, 130, 172); /* ACMBlue */
   --accent: rgb(253, 27, 20);  /*ACMRed */ /* #cd5c5c; */
+  --shade: #cadcc8;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -16,6 +17,7 @@
     /* --highlight: #ffc400; */
     --highlight: #5ccdcd;
     --accent: #cd5c5c;
+    --shade: #9ac297;
   }
 
   .hl {
@@ -231,7 +233,8 @@ label:after {content:"]";}
 
 label {
   background-color: ButtonFace;
-  padding: 0.5rem;
+  color: ButtonText;
+  padding: 0.3em;
   border: 1pt solid ButtonBorder;
   border-radius: 0.3rem;
   cursor: pointer;

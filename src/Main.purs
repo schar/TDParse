@@ -3,14 +3,15 @@ module Main where
 import Prelude
 import Data.Array
 import Data.Either (Either(..), either)
-import Data.Maybe (Maybe(..), fromMaybe, isJust, maybe)
+import Data.Maybe (Maybe(..), fromMaybe, maybe)
 import TDParseCFG
-import TDParseTy
+import TDParseLex
 import TDPretty
 import Utils
 
 import Data.Foldable (or)
 import Data.List (fromFoldable) as List
+import Data.Filterable (partitionMap)
 import Data.String (Pattern(..), split)
 import Data.String.CodeUnits (stripPrefix) as SCU
 import Effect (Effect)
@@ -186,18 +187,17 @@ update model = case _ of
     ]
 
   BatchLex content name ->
-    model { lexInventory = newLI, lexFeedback = feedback } ^ [ pure $ Just $ LexChoice (LexID name) ]
+    if null left
+      then model { lexInventory = newLI, lexFeedback = feedback } ^ [ pure $ Just $ LexChoice (LexID name) ]
+      else model { lexFeedback = feedback } ^ []
     where
       lines = split (Pattern "\n") content
-      isCommentOrEmpty s = s == "" || (SCU.stripPrefix (Pattern "#") s # isJust)
-      validLines = filter (not <<< isCommentOrEmpty) lines
-      parseResults = map lexParse validLines
-      successfulParses = parseResults >>= either (const []) pure
-      errors = parseResults >>= either pure (const [])
-      newLI = (LexID name ^ successfulParses) : model.lexInventory
-      feedback = if null errors
-        then Just $ "Added " <> show (length successfulParses) <> " items"
-        else Just $ "Added " <> show (length successfulParses) <> " items with " <> show (length errors) <> " errors"
+      lexEntry s = s /= "" && (SCU.stripPrefix (Pattern "#") s == Nothing)
+      {left, right} = partitionMap lexParse (filter lexEntry lines)
+      newLI = (LexID name ^ right) : model.lexInventory
+      feedback = if null left
+        then Just $ "Added " <> show (length right) <> " items"
+        else Just $ "Error: " <> fromMaybe "" (head left) 
 
 
 -- | `view` updates the app markup whenever the model is updated
@@ -270,24 +270,24 @@ view model =
         , HE.div [HA.id "combsInventory", HA.class' "opt-group"] $
           [ HE.text "Select combinators:" ]
           <> map (addSwitch CombChoice (_ `elem` defCombs))
-          [ ([HE.strong_ [HE.text "R"], HE.text " (map right)"  ]  ^ MRComb )
-          , ([HE.strong_ [HE.text "L"], HE.text " (map left)"   ]  ^ MLComb )
-          , ([HE.strong_ [HE.text "Ú"], HE.text " (unit right)" ]  ^ URComb )
-          , ([HE.strong_ [HE.text "Ù"], HE.text " (unit left)"  ]  ^ ULComb )
+          [ ([ HE.span [HA.class' "mode"] [displayOp MRComb], HE.text " (map right)"  ]  ^ MRComb )
+          , ([ HE.span [HA.class' "mode"] [displayOp MLComb], HE.text " (map left)" ]  ^ MLComb )
+          , ([ HE.span [HA.class' "mode"] [displayOp URComb], HE.text " (unit right)" ]  ^ URComb )
+          , ([ HE.span [HA.class' "mode"] [displayOp ULComb], HE.text " (unit left)"  ]  ^ ULComb )
           -- , ([HE.strong_ [HE.text "Z"], HE.text " (binding)"    ]  ^ ZComb  )
-          , ([HE.strong_ [HE.text "A"], HE.text " (apply)"      ]  ^ AComb  )
-          , ([HE.strong_ [HE.text "C"], HE.text " (counit)"     ]  ^ EpsComb)
-          , ([HE.strong_ [HE.text "É"], HE.text " (eject right)"]  ^ ERComb )
-          , ([HE.strong_ [HE.text "È"], HE.text " (eject left)" ]  ^ ELComb )
-          , ([HE.strong_ [HE.text "J"], HE.text " (join)"       ]  ^ JComb  )
-          , ([HE.strong_ [HE.text "D"], HE.text " (lower)"      ]  ^ DComb  )
+          , ([ HE.span [HA.class' "mode"] [displayOp AComb], HE.text " (apply)"      ]  ^ AComb  )
+          , ([ HE.span [HA.class' "mode"] [displayOp EpsComb], HE.text " (counit)"     ]  ^ EpsComb)
+          , ([ HE.span [HA.class' "mode"] [displayOp ERComb], HE.text " (eject right)"]  ^ ERComb )
+          , ([ HE.span [HA.class' "mode"] [displayOp ELComb], HE.text " (eject left)" ]  ^ ELComb )
+          , ([ HE.span [HA.class' "mode"] [displayOp JComb], HE.text " (join)"       ]  ^ JComb  )
+          , ([ HE.span [HA.class' "mode"] [displayOp DComb], HE.text " (lower)"      ]  ^ DComb  )
           ]
         ]
       ]
     ]
 
 addSwitch action toggle (s ^ l) =
-  HE.div_
+  HE.div_ 
     [ HE.input [HA.class' "opt-switch", HA.type' "checkbox", HA.checked (toggle l), HA.onClick $ action l]
     , HE.span_ s
     ]
@@ -303,6 +303,7 @@ addLexFile =
       , HA.onChange' UploadLex
       ]
     ]
+
 addLexText m =
   HE.p [HA.style {marginBottom: "0px"}]
     [ HE.text "Add item: ", HE.span [HA.id "lexFeedback"] [HE.text m] ]
@@ -324,6 +325,30 @@ displayLexItem b (s ^ w) = let item = fromFoldable w in
           HE.ul [HA.style {paddingLeft: "0px", marginBottom: "0px"}]
             [HE.li [HA.style {marginBottom: "0px"}] [displayTy b ty]]
       ]
+
+displayOp :: forall m. CombName -> Html m
+displayOp = case _ of
+  MRComb  -> mkDir true "R"  -- <> " " <> show f
+  MLComb  -> mkDir false "L"  -- <> " " <> show f
+  URComb  -> mkDir true "U" -- <> " " <> show f
+  ULComb  -> mkDir false "U" -- <> " " <> show f
+  ZComb   -> HE.text "Z"
+  AComb   -> HE.text "A"  -- <> " " <> show f
+  JComb   -> HE.text "J"  -- <> " " <> show f
+  EpsComb -> HE.text "C"
+  DComb   -> HE.text "D"
+  ERComb  -> mkDir true "E" -- <> " " <> show f
+  ELComb  -> mkDir false "E" -- <> " " <> show f
+  where
+    mkDir p o =
+      HE.createElement_ "math"
+      [ HE.createElement_ "mover"
+        [ HE.createElement_ "mtext" [HE.text o]
+        , HE.createElement_ "mo" [HE.text if p then "→" else "←"]
+        ]
+      ] 
+      
+  
 
 -- | Mount the application on the given selector
 main :: Effect Unit
