@@ -328,25 +328,25 @@ displayLexItem b (s ^ w) = let item = fromFoldable w in
 
 displayOp :: forall m. CombName -> Html m
 displayOp = case _ of
-  MRComb  -> mkDir true "R"  -- <> " " <> show f
-  MLComb  -> mkDir false "L"  -- <> " " <> show f
-  URComb  -> mkDir true "U" -- <> " " <> show f
-  ULComb  -> mkDir false "U" -- <> " " <> show f
-  ZComb   -> HE.text "Z"
-  AComb   -> HE.text "A"  -- <> " " <> show f
-  JComb   -> HE.text "J"  -- <> " " <> show f
-  EpsComb -> HE.text "C"
-  DComb   -> HE.text "D"
-  ERComb  -> mkDir true "E" -- <> " " <> show f
-  ELComb  -> mkDir false "E" -- <> " " <> show f
+  MRComb  -> mkDir true "F"
+  MLComb  -> mkDir false "F"
+  URComb  -> mkDir true "U"
+  ULComb  -> mkDir false "U"
+  ZComb   -> mkText "Z"
+  AComb   -> mkText "A"
+  JComb   -> mkText "J"
+  EpsComb -> mkText "C"
+  DComb   -> mkText "D"
+  ERComb  -> mkDir true "E"
+  ELComb  -> mkDir false "E"
   where
     mkDir p o =
-      HE.createElement_ "math"
-      [ HE.createElement_ "mover"
-        [ HE.createElement_ "mtext" [HE.text o]
-        , HE.createElement_ "mo" [HE.text if p then "→" else "←"]
-        ]
-      ] 
+      HE.span [HA.class' "mode-op"]
+      [ HE.text o
+      , HE.span [HA.class' "mode-dir"]
+        [HE.text if p then "→" else "←"]
+      ]
+    mkText o = HE.span [ HA.class' "mode-op" ] [ HE.text o ]
       
   
 

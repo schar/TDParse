@@ -10,6 +10,7 @@ import Text.Pretty
 import Effect.Exception.Unsafe (unsafeThrow)
 
 import Data.Foldable (sequence_, traverse_, null)
+import Data.Array (intersperse)
 import Data.Traversable (sequence)
 import Effect (Effect)
 import Effect.Console (log, logShow)
@@ -313,11 +314,39 @@ displayProof dens params i proof =
             [ displayTy params ty ]
             <> (if dens then [ HE.br, displayVal v ] else [])
             <> [ HE.br ]
-            <> [ HE.span [HA.class' "mode"] [HE.text $ showMode m] ]
+            <> [ HE.span [HA.class' "mode"] (displayMode m) ]
           , HE.ul_ [ html l, html r ]
           ]
 
       _ -> HE.li_ [ HE.span [HA.class' "tf-nc"] [HE.text $ "wrong number of daughters"] ]
+
+displayMode :: forall m. Mode -> Array (Html m)
+displayMode = map displayOp >>> toUnfoldable >>> intersperse (HE.span' [HA.class' "mode-space"])
+  where
+    displayOp m = case m of
+      BA    -> mkText (show m)
+      FA    -> mkText (show m)
+      PM    -> mkText (show m)
+      FC    -> mkText (show m)
+      MR _  -> mkDir true "F"
+      ML _  -> mkDir false "F"
+      UR _  -> mkDir true "U"
+      UL _  -> mkDir false "U"
+      Z     -> mkText "Z"
+      A  _  -> mkText "A"
+      J  _  -> mkText "J"
+      Eps   -> mkText "C"
+      DN    -> mkText "D"
+      XL _ _-> mkText "X"
+      ER _  -> mkDir true "E"
+      EL _  -> mkDir false "E"
+    mkDir p o =
+      HE.span [HA.class' "mode-op"]
+      [ HE.text o
+      , HE.span [HA.class' "mode-dir"]
+        [HE.text if p then "→" else "←"]
+      ]
+    mkText o = HE.span [ HA.class' "mode-op" ] [ HE.text o ]
 
 showMode :: Mode -> String
 showMode mode = intercalate " " (map show mode)
