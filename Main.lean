@@ -16,8 +16,8 @@ def nxt : Expr (E ~> E) := lex "successor" (·+1)
 def prv : Expr (E ~> E) := lex "predecessor" (·-1)
 def exc : Expr (E ~> E ~> T) := lex "exceeds" (·<·)
 def scc : Expr (E ~> E ~> T) := lex "succeeds" (fun x y => y = x + 1)
-def evn : Expr (C^T E) := lex "everyprime" ([2,3,5].all ·)
-def smn : Expr (C^T E) := lex "somenum" (who.den.any ·)
+def evn : Expr (C^T T E) := lex "everyprime" ([2,3,5].all ·)
+def smn : Expr (C^T T E) := lex "somenum" (who.den.any ·)
 def psh : Expr (E ~> W^E E) := lex "push" (fun x => (x,x))
 
 def myLex :=
@@ -35,6 +35,88 @@ def myLex :=
   (TV  , exc),
   (Dmp , psh)
 ]}
+
+def ann : Expr E := lex "ann" 11
+def maryW : Expr (W^E E) := lex "mary" (12, 12)
+def marianne : Expr E := lex "marianne" 13
+def marianneW : Expr (W^E E) := lex "marianne" (13, 13)
+def poss : Expr (E ~> (E ~> E) ~> E) := lex "'s" (fun x rel => rel x)
+def possW : Expr (E ~> (E ~> E) ~> W^E E) := lex "'s" (fun x rel => (x, rel x))
+def leftV : Expr (E ~> T) := lex "left" (fun x => x % 2 == 1)
+def whistled : Expr (E ~> T) := lex "whistled" (fun x => x % 3 == 1)
+def sawV : Expr (E ~> E ~> T) := lex "saw" (fun x y => x != y)
+def savedV : Expr (E ~> E ~> T) := lex "saved" (fun x y => x <= y)
+def spentV : Expr (E ~> E ~> T) := lex "spent" (fun x y => x >= y)
+def chasedV : Expr (E ~> E ~> T) := lex "chased" (fun x y => x + 1 == y)
+def saidV : Expr (T ~> E ~> T) := lex "said" (fun p _ => p)
+def gaveV : Expr (E ~> E ~> E ~> T) := lex "gave" (fun x y z => x + y == z)
+def she : Expr (R^E E) := lex "she" id
+def it1 : Expr (R^E E) := lex "it" id
+def herGen : Expr (R^E E) := lex "her" id
+def herDP : Expr (R^E E) := lex "her" id
+def she2 : Expr (R^E (W^E E)) := lex "she2" (fun x => (x, x))
+def her2Gen : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
+def her2DP : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
+def mom : Expr (E ~> E) := lex "mom" (fun x => x + 100)
+def paycheck : Expr (E ~> E) := lex "paycheck" (fun x => x + 1000)
+def theDet : Expr ((E ~> T) ~> E) := lex "the" (fun p => if p 0 then 0 else 1)
+def very : Expr ((E ~> T) ~> E ~> T) := lex "very" (fun adj x => adj x)
+def dog : Expr (E ~> T) := lex "dog" (fun x => x % 2 == 0)
+def catN : Expr (E ~> T) := lex "cat" (fun x => x % 2 == 1)
+def big : Expr (E ~> T) := lex "big" (fun x => x > 10)
+def happy : Expr (E ~> T) := lex "happy" (fun x => x < 20)
+def near : Expr (E ~> E ~> T) := lex "near" (fun x y => x == y || x + 1 == y)
+def someDet : Expr ((E ~> T) ~> S E) := lex "some" (fun p => [0,1,2,3].filter p)
+def someoneC : Expr (C^T T E) := lex "someone" ([0,1,2,3].any ·)
+def someone2 : Expr (S (W^E E)) := lex "someone2" [(20,20),(21,21)]
+def andC : Expr (T ~> T ~> T) := lex "and" (fun p q => p && q)
+def butC : Expr (T ~> T ~> T) := lex "but" (fun p q => p && q)
+
+def demoLex :=
+{[
+  (DP  , ann),
+  (DP  , maryW),
+  (DP  , marianne),
+  (DP  , marianneW),
+  (GenD, poss),
+  (GenD, possW),
+  (VP  , leftV),
+  (VP  , whistled),
+  (TV  , sawV),
+  (TV  , savedV),
+  (TV  , spentV),
+  (TV  , chasedV),
+  (AV  , saidV),
+  (DV  , gaveV),
+  (DP  , she),
+  (DP  , it1),
+  (Gen , herGen),
+  (DP  , herDP),
+  (DP  , she2),
+  (Gen , her2Gen),
+  (DP  , her2DP),
+  (TN  , mom),
+  (TN  , paycheck),
+  (Det , theDet),
+  (Deg , very),
+  (NP  , dog),
+  (NP  , catN),
+  (AdjP, big),
+  (AdjP, happy),
+  (TAdj, near),
+  (Det , someDet),
+  (DP  , someoneC),
+  (DP  , someone2),
+  (Cor , andC),
+  (Cor , butC)
+]}
+
+def d1 := "the very big cat left"
+def d2 := "she saw her mom"
+def d3 := "ann's mom saw her"
+def d4 := "someone left and she2 whistled"
+def d5 := "the cat near someone2 saw her"
+def d6 := "marianne saved her2 paycheck but marianne's mom spent it"
 
 #eval myLex.lookup "one"
 #eval myLex.lookup "exceeds"
@@ -66,6 +148,8 @@ def myCFG : CFG
   | TAdv , DP    => [AdvP]
   | _    , _     => []
 
+def demoCFG := myCFG
+
 def tree0 :=
   synsem (.node CP (.leaf DP ⟨_,two⟩) (.node VP (.leaf TV ⟨_,exc⟩) (.leaf DP ⟨_,one⟩)))
 
@@ -78,6 +162,9 @@ def tree0 :=
 def derive (u : String) : Exprs := parse myCFG myLex u.splitOn >>= synsem
 def interpret (u : String) := derive u <&> run -- can't display this hlist (yet)
 def interpretAs (t : Ty) (u : String) : Interps t := derive u |>.filterMap (runAs t)
+
+def demoDerive (u : String) : Exprs := parse demoCFG demoLex u.splitOn >>= synsem
+def demoInterpretAs (t : Ty) (u : String) : Interps t := demoDerive u |>.filterMap (runAs t)
 
 #eval derive "two exceeds one"
 #eval interpretAs T "two exceeds one"
@@ -103,6 +190,14 @@ def interpretAs (t : Ty) (u : String) : Interps t := derive u |>.filterMap (runA
 
 #eval derive "push everyprime succeeds its predecessor"
 #eval interpretAs T "push everyprime succeeds its predecessor"
+
+#eval parse demoCFG demoLex d1.splitOn
+#eval demoDerive d1
+#eval demoDerive d2
+#eval demoDerive d3
+#eval demoDerive d4
+#eval demoDerive d5
+#eval demoDerive d6
 
 
 def main : IO Unit :=

@@ -6,10 +6,14 @@ import TDParse.Memoize
 -- Dictionary lookup
 -- ------------------------------------------------------------------------
 
-def HDict.lookup (k : String) : HDict ts → Option (Cat × (t : Ty) × Expr t)
-  | .nil                        => none
-  | .cons (c, e@(.lex k' _)) xs => if k' = k then some ⟨c, _, e⟩ else xs.lookup k
-  | .cons _ xs                  => xs.lookup k
+def HDict.lookupAll (k : String) : HDict ts → List (Cat × (t : Ty) × Expr t)
+  | .nil                        => []
+  | .cons (c, e@(.lex k' _)) xs =>
+      let rest := xs.lookupAll k
+      if k' = k then ⟨c, _, e⟩ :: rest else rest
+  | .cons _ xs                  => xs.lookupAll k
+
+def HDict.lookup (k : String) (d : HDict ts) := d.lookupAll k |>.head?
 
 
 -- Syntactic parser from strings to uninterpreted trees
@@ -17,16 +21,27 @@ def HDict.lookup (k : String) : HDict ts → Option (Cat × (t : Ty) × Expr t)
 
 abbrev Parser := List String -> List (Tree Cat TypedExpr)
 
-def parse (cfg : CFG) (lex : HDict ts) : Parser := memoFix go
+-- Split a token on possessive clitics: "john's" -> ["john", "'s"]
+def stripClitics (w : String) : List String :=
+  let clitics := ["'s"]
+  match clitics.find? (fun c => w.endsWith c) with
+  | some c => [w.dropRight c.length, c]
+  | none   => [w]
+
+def parse (cfg : CFG) (lex : HDict ts) : Parser :=
+  let parseRaw : Parser := memoFix go
+  fun wds => parseRaw (wds.flatMap stripClitics)
   where go parse
   | [ ] => []
-  | [w] => lex.lookup w <&> Function.uncurry .leaf |>.toList
+  | [w] => lex.lookupAll w <&> Function.uncurry .leaf
   | wds => do
       let (ls,rs) <- List.range' 1 (wds.length - 1) <&> wds.splitAt
       let lt <- parse ls
       let rt <- parse rs
       let nt <- cfg lt.root rt.root
-      pure (.node nt lt rt)
+      -- CP nodes are scope islands: quantifiers cannot scope out of them
+      let mk := if nt == Cat.CP then Tree.island else Tree.node
+      pure (mk nt lt rt)
 
 open Cat Expr
 #eval
@@ -52,6 +67,12 @@ def synsem : Tree c TypedExpr -> List TypedExpr
       let ⟨lt,le⟩ <- synsem l
       let ⟨rt,re⟩ <- synsem r
       let ⟨wt,md⟩ <- combine lt rt
+      pure ⟨wt, .moc md le re⟩
+  | .island _ l r => do
+      let ⟨lt,le⟩ <- synsem l
+      let ⟨rt,re⟩ <- synsem r
+      let ⟨wt,md⟩ <- combine lt rt
+      guard wt.evaluated   -- only survive if no unresolved scope effects
       pure ⟨wt, .moc md le re⟩
 
 

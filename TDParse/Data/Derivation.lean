@@ -10,50 +10,36 @@ inductive Cat : Type where
   | NP | TN -- Transitive (relational) Nouns and full Noun Phrases
   | VP | TV | DV | AV -- Transitive, Ditransitive, and Attitude Verbs and Verb Phrases
   | AdjP | TAdj | Deg | AdvP | TAdv -- Modifiers
-deriving Repr
+deriving Repr, BEq, DecidableEq
 
 abbrev CFG := Cat -> Cat -> List Cat
 
 inductive Tree (c : Type) (a : Type): Type where
-  | leaf : c -> a -> Tree c a
-  | node : c -> Tree c a → Tree c a → Tree c a
+  | leaf   : c -> a -> Tree c a
+  | node   : c -> Tree c a → Tree c a → Tree c a
+  | island : c -> Tree c a → Tree c a → Tree c a  -- scope-island: filters unresolved C
 deriving Repr
 
 def Tree.root : (t : Tree c a) -> c
-  | .leaf c _   => c
-  | .node c _ _ => c
+  | .leaf   c _   => c
+  | .node   c _ _ => c
+  | .island c _ _ => c
 
 
 -- Semantic derivations
 -- ------------------------------------------------------------------------
 
 inductive ModeLabel : Type where
-  | FA | BA | PM
-  | MR (m : ModeLabel) | ML (m : ModeLabel)
-  | AP (m : ModeLabel)
-  | UR (m : ModeLabel) | UL (m : ModeLabel)
-  | CU (m : ModeLabel)
-  | JN (m : ModeLabel)
+  | FA | BA | PM | FC
+  | MR (f : FX) (m : ModeLabel) | ML (f : FX) (m : ModeLabel)
+  | AP (f : FX) (m : ModeLabel)
+  | UR (f : FX) (m : ModeLabel) | UL (f : FX) (m : ModeLabel)
+  | CU (f g : FX) (m : ModeLabel)
+  | JN (f : FX) (m : ModeLabel)
   | DN (m : ModeLabel)
+  | EL (f : FX) (m : ModeLabel) | ER (f : FX) (m : ModeLabel)
+  | XL (f : FX) (m : ModeLabel)
 deriving BEq, DecidableEq
-
--- for convenience, parse lists of mode labels as right-nested
-section
-open ModeLabel Lean
-def ModeLabel.build : List Syntax → MacroM (TSyntax `term)
-  | [] => Macro.throwError "Empty mode label sequence"
-  | [m] => `($(mkIdent m.getId))
-  | m :: ms => build ms >>= fun inner => `($(Lean.mkIdent m.getId) $inner)
-
-syntax "m:" ident+ : term
-macro_rules
-  | `(m: $ids*) => build ids.toList
-
-#eval match MR (AP FA) with
-  | m:MR ML __ => true
-  | m:MR MR __ => false
-  | _ => true
-end
 
 structure Mode (α : Type) (β : Type) (γ : Type) where
   mode : ModeLabel
