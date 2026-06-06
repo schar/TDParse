@@ -20,6 +20,8 @@ def HDict.lookup (k : String) (d : HDict ts) := d.lookupAll k |>.head?
 -- ------------------------------------------------------------------------
 
 abbrev Parser := List String -> List (Tree Cat TypedExpr)
+abbrev ParseResult := List (Tree Cat TypedExpr)
+abbrev ParseChart := MemoM Nat Nat ParseResult
 
 -- Split a token on possessive clitics: "john's" -> ["john", "'s"]
 def stripClitics (w : String) : List String :=
@@ -28,43 +30,29 @@ def stripClitics (w : String) : List String :=
   | some c => [w.dropRight c.length, c]
   | none   => [w]
 
-partial def parse (cfg : CFG) (lex : HDict ts) : Parser :=
+def parse (cfg : CFG) (lex : HDict ts) : Parser :=
   fun wds =>
     let toks := (wds.flatMap stripClitics).toArray
-    let cache : Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr)) := ∅
-    (go toks 0 toks.size cache).1
+    let parseSpan : Nat -> Nat -> ParseChart ParseResult := memoFix2State (go toks)
+    (parseSpan 0 toks.size).run' ∅
   where
-    go (toks : Array String) (lo hi : Nat)
-        (cache : Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr))) :
-        List (Tree Cat TypedExpr) × Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr)) :=
-      match cache[(lo, hi)]? with
-      | some result => (result, cache)
-      | none =>
-          let (result, cache) :=
-            if hi <= lo then ([], cache)
-            else if hi = lo + 1 then
-              let result :=
-                match toks[lo]? with
-                | some w => lex.lookupAll w <&> Function.uncurry .leaf
-                | none   => []
-              (result, cache)
-            else
-              Id.run do
-                let mut result := []
-                let mut cache := cache
-                for mid in List.range' (lo + 1) (hi - lo - 1) do
-                  let (lts, cache') := go toks lo mid cache
-                  cache := cache'
-                  let (rts, cache') := go toks mid hi cache
-                  cache := cache'
-                  for lt in lts do
-                    for rt in rts do
-                      for nt in cfg lt.root rt.root do
-                        -- CP nodes are scope islands: quantifiers cannot scope out of them
-                        let mk := if nt == Cat.CP then Tree.island else Tree.node
-                        result := mk nt lt rt :: result
-                (result.reverse, cache)
-          (result, cache.insert (lo, hi) result)
+    go (toks : Array String) (parse : Nat -> Nat -> ParseChart ParseResult)
+        (lo hi : Nat) : ParseChart ParseResult :=
+    if hi <= lo then pure []
+    else if hi = lo + 1 then
+      match toks[lo]? with
+      | some w => pure (lex.lookupAll w <&> Function.uncurry .leaf)
+      | none   => pure []
+    else do
+      let mut result := []
+      for mid in List.range' (lo + 1) (hi - lo - 1) do
+        for lt in (← parse lo mid) do
+          for rt in (← parse mid hi) do
+            for nt in cfg lt.root rt.root do
+              -- CP nodes are scope islands: quantifiers cannot scope out of them
+              let mk := if nt == Cat.CP then Tree.island else Tree.node
+              result := mk nt lt rt :: result
+      pure result.reverse
 
 open Cat Expr
 #eval

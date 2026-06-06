@@ -303,15 +303,20 @@ Both main searches have overlapping subproblems:
 [TDParse/Memoize.lean](TDParse/Memoize.lean) provides:
 
 ```lean
-memoFix  : structurally keyed unary memoized fixed point
-memoFix2 : structurally keyed binary memoized fixed point
+memoFix       : structurally keyed unary memoized fixed point
+memoFix2      : structurally keyed binary memoized fixed point
+memoFix2State : binary memoized fixed point with an explicit state cache
 ```
 
-The cache is a `Std.HashMap`. The parser is memoized by `(Nat, Nat)` spans, and
-`combine` is memoized by structural `Ty` pairs. The implementation uses a small
-internal `unsafeCast` because the result type of a memoized dependent function
-depends on the key. The public API remains typed: callers still receive a result
-at exactly the requested type.
+The cache is a `Std.HashMap`. `combine` uses the persistent structural helpers
+and is memoized by `Ty` pairs. `parse` uses `memoFix2State` and memoizes only
+the `(Nat, Nat)` span, with the chart cache supplied by the parse call itself.
+This is the same convention as the Haskell implementation, where `(lo, hi)` is
+sufficient because the chart cache is local to one input string.
+
+The persistent dependent helpers use a small internal `unsafeCast` because the
+result type of a memoized dependent function depends on the key. The public API
+remains typed: callers still receive a result at exactly the requested type.
 
 ## Example
 

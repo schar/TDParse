@@ -38,3 +38,26 @@ def memoFix2 {α : Type} {β : Type} {γ : α → β → Type}
   let uncurry (h : MDep α β γ) := fun (a,b) => h a b
 
   curry $ memoFix (uncurry ∘ f ∘ curry)
+
+-- Binary memoized fixed point with an explicit state cache.
+-- Use this when keys are only meaningful inside one caller-provided scope.
+abbrev MemoCache (α : Type) (β : Type) (γ : Type)
+    [BEq (α × β)] [Hashable (α × β)] :=
+  Std.HashMap (α × β) γ
+
+abbrev MemoM (α : Type) (β : Type) (γ : Type)
+    [BEq (α × β)] [Hashable (α × β)] :=
+  StateM (MemoCache α β γ)
+
+partial def memoFix2State {α : Type} {β : Type} {γ : Type}
+    [BEq (α × β)] [Hashable (α × β)] [Nonempty γ]
+    (f : (α -> β -> MemoM α β γ γ) -> α -> β -> MemoM α β γ γ) :
+    α -> β -> MemoM α β γ γ :=
+  fun a b => do
+    let key := (a,b)
+    if let some result := (← get)[key]? then
+      pure result
+    else
+      let result ← f (memoFix2State f) a b
+      modify (·.insert key result)
+      pure result
