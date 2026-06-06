@@ -5,14 +5,18 @@ def ModeLabel.rp : ModeLabel -> Nat -> Std.Format
   | .FA  , _ => "|FA"
   | .BA  , _ => "|BA"
   | .PM  , _ => "|PM"
-  | .MR m, n => go "MR" m n
-  | .ML m, n => go "ML" m n
-  | .AP m, n => go "AP" m n
-  | .UR m, n => go "UR" m n
-  | .UL m, n => go "UL" m n
-  | .CU m, n => go "CU" m n
-  | .JN m, n => go "JN" m n
+  | .FC  , _ => "|FC"
+  | .MR _ m, n => go "MR" m n
+  | .ML _ m, n => go "ML" m n
+  | .AP _ m, n => go "AP" m n
+  | .UR _ m, n => go "UR" m n
+  | .UL _ m, n => go "UL" m n
+  | .CU _ _ m, n => go "CU" m n
+  | .JN _ m, n => go "JN" m n
   | .DN m, n => go "DN" m n
+  | .EL _ m, n => go "EL" m n
+  | .ER _ m, n => go "ER" m n
+  | .XL _ m, n => go "XL" m n
   where go label m n := (if n < 1 then "" else "∘") ++ label ++ rp m 1
 
 instance : Repr ModeLabel where
@@ -20,10 +24,10 @@ instance : Repr ModeLabel where
 
 mutual
 def FX.rp : FX -> Nat -> Std.Format
-  | .query e, _ => "R^" ++ e.rp max_prec
-  | .spawn  , _ => "S"
-  | .store o, _ => "W^" ++ o.rp max_prec
-  | .scope r, _ => "C^" ++ r.rp max_prec
+  | .query e,    _ => "R^" ++ e.rp max_prec
+  | .spawn  ,    _ => "S"
+  | .store o,    _ => "W^" ++ o.rp max_prec
+  | .scope r a,  _ => "C^" ++ r.rp max_prec ++ " " ++ a.rp max_prec
 
 def Ty.rp : Ty -> Nat -> Std.Format
   | .nat     , _ => "E"
