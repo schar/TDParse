@@ -32,7 +32,7 @@ def stripClitics (w : String) : List String :=
 
 def parse (cfg : CFG) (lex : HDict ts) : Parser :=
   fun wds =>
-    let toks := (wds.flatMap stripClitics).toArray
+    let toks := (wds.flatMap stripClitics |>.filter (fun w => w != "")).toArray
     let parseSpan : Nat -> Nat -> ParseChart ParseResult := memoFix2State (go toks)
     (parseSpan 0 toks.size).run' ∅
   where

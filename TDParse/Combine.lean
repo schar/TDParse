@@ -46,6 +46,66 @@ def Mode.dn (m : Mode α β (Cont2 γ δ δ)) : Mode α β γ :=
 end
 
 
+-- Compatible effect sequencing
+-- ------------------------------------------------------------------------
+
+structure AppCompat (f g : FX) where
+  out : FX
+  lift : (a b c : Ty) ->
+    Mode a.dom b.dom c.dom ->
+    Mode (f.dom a.dom) (g.dom b.dom) (out.dom c.dom)
+
+structure JoinCompat (f g : FX) where
+  out : FX
+  lift : (a b c : Ty) ->
+    Mode a.dom b.dom (f.dom (g.dom c.dom)) ->
+    Mode a.dom b.dom (out.dom c.dom)
+
+private def appCompatSame (f g : FX) : List (AppCompat f g) :=
+  if h : f = g then
+    by
+      subst h
+      match applicative f with
+      | some _ => exact [{ out := f, lift := fun _ _ _ m => .ap f m }]
+      | none   => exact []
+  else []
+
+def appCompat : (f g : FX) -> List (AppCompat f g)
+  | .scope ret midL, .scope midR ans =>
+      if h : midL = midR then
+        by
+          subst h
+          exact
+            [{ out := .scope ret ans
+             , lift := fun _ _ _ m =>
+                 ⟨.AP (.scope ret ans) m.mode,
+                   fun xs ys k => xs fun a => ys fun b => k (m.op a b)⟩ }]
+      else []
+  | f, g => appCompatSame f g
+
+private def joinCompatSame (f g : FX) : List (JoinCompat f g) :=
+  if h : f = g then
+    by
+      subst h
+      match monad f with
+      | some _ => exact [{ out := f, lift := fun _ _ _ m => .jn f m }]
+      | none   => exact []
+  else []
+
+def joinCompat : (f g : FX) -> List (JoinCompat f g)
+  | .scope ret midL, .scope midR ans =>
+      if h : midL = midR then
+        by
+          subst h
+          exact
+            [{ out := .scope ret ans
+             , lift := fun _ _ _ m =>
+                 ⟨.JN (.scope ret ans) m.mode,
+                   fun x y k => m.op x y fun z => z k⟩ }]
+      else []
+  | f, g => joinCompatSame f g
+
+
 -- Primitive, deterministic combination
 -- ------------------------------------------------------------------------
 
@@ -146,11 +206,8 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
     let addAP : List (Combo u v) := do
           let .comp f a := u | []
           let .comp g b := v | []
-          let some _ := applicative f | []
-          if h : f = g then
-            by subst h; exact
-            combine a b <&> λ⟨w,m⟩ => ⟨.comp f w, .ap f m⟩
-          else []
+          let seq <- appCompat f g
+          combine a b <&> λ⟨w,m⟩ => ⟨.comp seq.out w, seq.lift a b w m⟩
 
     let addUL : List (Combo u v) := do
           let .comp f b ~> b' := v | []
@@ -201,11 +258,10 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
     let addJN (e : Combo u v) : List (Combo u v) := do
           let ⟨.comp f (.comp g c), m⟩ := e | []
-          let some _ := monad f | []
-          if h : f = g then
-            by subst h; exact
-            let m' := .jn f m; guard (norm m') *> pure ⟨.comp f c, m'⟩
-          else []
+          let seq <- joinCompat f g
+          let m' : Mode u.dom v.dom (Ty.dom (.comp seq.out c)) := seq.lift u v c m
+          guard (norm m')
+          pure ⟨.comp seq.out c, m'⟩
 
     let addDN (e : Combo u v) : List (Combo u v) := do
           let ⟨.comp (.scope ret ans) payload, m⟩ := e | []
@@ -214,8 +270,8 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
             let m' := .dn m; guard (norm m') *> pure ⟨ret, m'⟩
           else []
 
-    let bins := prims u v ++ addML ++ addMR ++ addAP ++ addCU ++ addEL ++ addER
-    let uns e := pure e ++ addJN e ++ addDN e
+    let bins := prims u v ++ addML ++ addMR ++ addUL ++ addUR ++ addAP ++ addCU ++ addEL ++ addER
+    let uns e := addDN e ++ addJN e ++ pure e
 
     bins >>= uns
 

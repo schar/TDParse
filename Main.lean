@@ -52,15 +52,22 @@ def saidV : Expr (T ~> E ~> T) := lex "said" (fun p _ => p)
 def gaveV : Expr (E ~> E ~> E ~> T) := lex "gave" (fun x y z => x + y == z)
 def she : Expr (R^E E) := lex "she" id
 def it1 : Expr (R^E E) := lex "it" id
+def it2 : Expr (R^(R^E E) (R^E E)) := lex "it" id
 def herGen : Expr (R^E E) := lex "her" id
 def herDP : Expr (R^E E) := lex "her" id
 def she2 : Expr (R^E (W^E E)) := lex "she2" (fun x => (x, x))
 def her2Gen : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
 def her2DP : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
+def her2GenRelW : Expr ((E ~> E) ~> R^E (W^E E)) := lex "her2" (fun rel x => (x, rel x))
+def her2GenRelRW : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) := lex "her2" (fun rel x => (rel, rel x))
 def mom : Expr (E ~> E) := lex "mom" (fun x => x + 100)
 def paycheck : Expr (E ~> E) := lex "paycheck" (fun x => x + 1000)
 def theDet : Expr ((E ~> T) ~> E) := lex "the" (fun p => if p 0 then 0 else 1)
+def theC : Expr (C^E T E) := lex "theC" (fun k => if k 0 then 0 else 1)
 def very : Expr ((E ~> T) ~> E ~> T) := lex "very" (fun adj x => adj x)
+def everyDet : Expr ((E ~> T) ~> C^T T E) := lex "every" (fun restrict k => [0,1,2,3].filter restrict |>.all k)
+def everyP : Expr ((E ~> T) ~> (E ~> T) ~> T) := lex "everyP" (fun restrict scope => [0,1,2,3].filter restrict |>.all scope)
+def everyC : Expr (C^(C^T T E) T E) := lex "everyC" (fun k restrict => [0,1,2,3].filter restrict |>.all k)
 def dog : Expr (E ~> T) := lex "dog" (fun x => x % 2 == 0)
 def catN : Expr (E ~> T) := lex "cat" (fun x => x % 2 == 1)
 def big : Expr (E ~> T) := lex "big" (fun x => x > 10)
@@ -69,8 +76,17 @@ def near : Expr (E ~> E ~> T) := lex "near" (fun x y => x == y || x + 1 == y)
 def someDet : Expr ((E ~> T) ~> S E) := lex "some" (fun p => [0,1,2,3].filter p)
 def someoneC : Expr (C^T T E) := lex "someone" ([0,1,2,3].any ·)
 def someone2 : Expr (S (W^E E)) := lex "someone2" [(20,20),(21,21)]
+def someone3 : Expr (S E) := lex "someone3" [0,1,2,3]
+def everyone : Expr (C^T T E) := lex "everyone" ([0,1,2,3].all ·)
+def everyone2 : Expr (C^T T (W^E E)) := lex "everyone2" (fun k => [(0,0),(1,1),(2,2),(3,3)].all k)
+def tr : Expr (R^E E) := lex "tr" id
 def andC : Expr (T ~> T ~> T) := lex "and" (fun p q => p && q)
 def butC : Expr (T ~> T ~> T) := lex "but" (fun p q => p && q)
+def andE : Expr (E ~> E ~> E) := lex "andE" (fun x _ => x)
+def withAdv : Expr (E ~> (E ~> T) ~> E ~> T) := lex "with" (fun y p x => p x && (x == y || x + 1 == y))
+def eclo : Expr (S T ~> T) := lex "eclo" (fun xs => xs.any id)
+def maryaling : Expr (W^T E) := lex "maryaling" (true, 12)
+def sassyacat : Expr (W^T E) := lex "sassyacat" (true, 14)
 
 def demoLex :=
 {[
@@ -90,15 +106,22 @@ def demoLex :=
   (DV  , gaveV),
   (DP  , she),
   (DP  , it1),
+  (DP  , it2),
   (Gen , herGen),
   (DP  , herDP),
   (DP  , she2),
   (Gen , her2Gen),
   (DP  , her2DP),
+  (Gen , her2GenRelW),
+  (Gen , her2GenRelRW),
   (TN  , mom),
   (TN  , paycheck),
   (Det , theDet),
+  (Det , theC),
   (Deg , very),
+  (Det , everyDet),
+  (Det , everyP),
+  (Det , everyC),
   (NP  , dog),
   (NP  , catN),
   (AdjP, big),
@@ -107,8 +130,18 @@ def demoLex :=
   (Det , someDet),
   (DP  , someoneC),
   (DP  , someone2),
+  (DP  , someone3),
+  (DP  , everyone),
+  (DP  , everyone2),
+  (DP  , tr),
   (Cor , andC),
-  (Cor , butC)
+  (Cor , butC),
+  (Cor , andE),
+  (TAdv, withAdv),
+  (Cmp , eclo),
+  (Dmp , eclo),
+  (DP  , maryaling),
+  (DP  , sassyacat)
 ]}
 
 def d1 := "the very big cat left"
@@ -197,7 +230,7 @@ def demoInterpretAs (t : Ty) (u : String) : Interps t := demoDerive u |>.filterM
 #eval demoDerive d3
 #eval demoDerive d4
 #eval demoDerive d5
-#eval demoDerive d6
+#eval (demoDerive d6).length
 
 
 def main : IO Unit :=

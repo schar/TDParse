@@ -49,15 +49,17 @@ def functor : (f : FX) -> Option (Functor f.dom)
 
 def applicative : (f : FX) -> Option (Applicative f.dom)
   | .spawn | .query _ => some (inferInstanceAs _)
+  | .store o => if h : o = T then by subst h; exact some (inferInstanceAs _)
+                 else none
   | .scope r a => if h : r = a then by subst h; exact some (inferInstanceAs _)
                  else none
-  | _ => none
 
 def monad : (f : FX) -> Option (Monad f.dom)
   | .spawn | .query _ => some (inferInstanceAs _)
+  | .store o => if h : o = T then by subst h; exact some (inferInstanceAs _)
+                 else none
   | .scope r a => if h : r = a then by subst h; exact some (inferInstanceAs _)
                  else none
-  | _ => none
 
 def adjoint : (f g : FX) -> Option ((_ : Functor f.dom) × (_ : Functor g.dom) × Adjoint f.dom g.dom)
   | .store o, .query e =>

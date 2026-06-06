@@ -18,6 +18,17 @@ instance : Alternative List where
 instance : Functor (Prod o) where
   map := fun f (o, a) => (o, f a)
 
+instance : Applicative (Prod Bool) where
+  pure x := (true, x)
+  seq mf mx :=
+    let x := mx ()
+    (mf.1 && x.1, mf.2 x.2)
+
+instance : Monad (Prod Bool) where
+  bind x f :=
+    let y := f x.2
+    (x.1 && y.1, y.2)
+
 def Cont (r : Type) (a : Type) := (a -> r) -> r
 
 instance : Functor (Cont r) where
