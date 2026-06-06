@@ -6,14 +6,14 @@ inductive FX where
   | spawn
   | store (out : Ty)
   | scope (ret : Ty) (ans : Ty)   -- generalized: ret may differ from ans
-deriving BEq, DecidableEq
+deriving BEq, DecidableEq, Hashable
 
 inductive Ty where
   | nat
   | bool
   | fn (a r : Ty)
   | comp (f : FX) (a : Ty)
-deriving BEq, DecidableEq
+deriving BEq, DecidableEq, Hashable
 end
 
 @[match_pattern] abbrev E := Ty.nat

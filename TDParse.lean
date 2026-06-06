@@ -29,15 +29,20 @@ def stripClitics (w : String) : List String :=
   | none   => [w]
 
 def parse (cfg : CFG) (lex : HDict ts) : Parser :=
-  let parseRaw : Parser := memoFix go
-  fun wds => parseRaw (wds.flatMap stripClitics)
-  where go parse
-  | [ ] => []
-  | [w] => lex.lookupAll w <&> Function.uncurry .leaf
-  | wds => do
-      let (ls,rs) <- List.range' 1 (wds.length - 1) <&> wds.splitAt
-      let lt <- parse ls
-      let rt <- parse rs
+  fun wds =>
+    let toks := (wds.flatMap stripClitics).toArray
+    let parseSpan : Nat -> Nat -> List (Tree Cat TypedExpr) := memoFix2 (go toks)
+    parseSpan 0 toks.size
+  where go toks parse lo hi :=
+    if hi <= lo then []
+    else if hi = lo + 1 then
+      match toks[lo]? with
+      | some w => lex.lookupAll w <&> Function.uncurry .leaf
+      | none   => []
+    else do
+      let mid <- List.range' (lo + 1) (hi - lo - 1)
+      let lt <- parse lo mid
+      let rt <- parse mid hi
       let nt <- cfg lt.root rt.root
       -- CP nodes are scope islands: quantifiers cannot scope out of them
       let mk := if nt == Cat.CP then Tree.island else Tree.node
