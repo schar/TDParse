@@ -28,25 +28,43 @@ def stripClitics (w : String) : List String :=
   | some c => [w.dropRight c.length, c]
   | none   => [w]
 
-def parse (cfg : CFG) (lex : HDict ts) : Parser :=
+partial def parse (cfg : CFG) (lex : HDict ts) : Parser :=
   fun wds =>
     let toks := (wds.flatMap stripClitics).toArray
-    let parseSpan : Nat -> Nat -> List (Tree Cat TypedExpr) := memoFix2 (go toks)
-    parseSpan 0 toks.size
-  where go toks parse lo hi :=
-    if hi <= lo then []
-    else if hi = lo + 1 then
-      match toks[lo]? with
-      | some w => lex.lookupAll w <&> Function.uncurry .leaf
-      | none   => []
-    else do
-      let mid <- List.range' (lo + 1) (hi - lo - 1)
-      let lt <- parse lo mid
-      let rt <- parse mid hi
-      let nt <- cfg lt.root rt.root
-      -- CP nodes are scope islands: quantifiers cannot scope out of them
-      let mk := if nt == Cat.CP then Tree.island else Tree.node
-      pure (mk nt lt rt)
+    let cache : Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr)) := ∅
+    (go toks 0 toks.size cache).1
+  where
+    go (toks : Array String) (lo hi : Nat)
+        (cache : Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr))) :
+        List (Tree Cat TypedExpr) × Std.HashMap (Nat × Nat) (List (Tree Cat TypedExpr)) :=
+      match cache[(lo, hi)]? with
+      | some result => (result, cache)
+      | none =>
+          let (result, cache) :=
+            if hi <= lo then ([], cache)
+            else if hi = lo + 1 then
+              let result :=
+                match toks[lo]? with
+                | some w => lex.lookupAll w <&> Function.uncurry .leaf
+                | none   => []
+              (result, cache)
+            else
+              Id.run do
+                let mut result := []
+                let mut cache := cache
+                for mid in List.range' (lo + 1) (hi - lo - 1) do
+                  let (lts, cache') := go toks lo mid cache
+                  cache := cache'
+                  let (rts, cache') := go toks mid hi cache
+                  cache := cache'
+                  for lt in lts do
+                    for rt in rts do
+                      for nt in cfg lt.root rt.root do
+                        -- CP nodes are scope islands: quantifiers cannot scope out of them
+                        let mk := if nt == Cat.CP then Tree.island else Tree.node
+                        result := mk nt lt rt :: result
+                (result.reverse, cache)
+          (result, cache.insert (lo, hi) result)
 
 open Cat Expr
 #eval
