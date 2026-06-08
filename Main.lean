@@ -85,8 +85,8 @@ def butC : Expr (T ~> T ~> T) := andBool "but"
 def andE : Expr (E ~> E ~> E) := firstEntity "andE"
 def withAdv : Expr (E ~> (E ~> T) ~> E ~> T) := fun3 "with"
 def eclo : Expr (S T ~> T) := fun1 "eclo"
-def maryaling : Expr (W^T E) := storeBoolEntity "maryaling"
-def sassyacat : Expr (W^T E) := storeBoolEntity "sassyacat"
+def maryaling : Expr (W^T E) := storeBoolEntity "maryaling" "ling" "mary"
+def sassyacat : Expr (W^T E) := storeBoolEntity "sassyacat" "cat" "sassy"
 
 def demoLex :=
 {[
@@ -216,8 +216,8 @@ def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
 #eval englishPrettyDeriveAs T "marianne's mom saw her"
 #eval englishPrettyDeriveAs (S T) "someone2 left and she whistled"
 #eval englishPrettyDeriveAs (S T) "the cat near someone2 saw her"
-#eval (englishPrettyDeriveAs T "marianne saved her2 paycheck but marianne's mom spent it").take 10
-#eval (englishDerive "marianne saved her2 paycheck but marianne's mom spent it").length
+#eval englishPrettyDeriveAs (W^T T) "maryaling saw sassyacat"
+#eval (englishPrettyDeriveAs T "marianne saved her2 paycheck but everyone2 spent it").take 10
 
 
 def main : IO Unit :=

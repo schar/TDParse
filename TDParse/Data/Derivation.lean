@@ -171,7 +171,7 @@ inductive LexOp : Ty -> Type where
   | prim3 (name : String) : LexOp (a ~> b ~> c ~> d)
   -- Effectful lexical recipes
   | storeEntity (name : String) : LexOp (W^E E)
-  | storeBoolEntity (name : String) : LexOp (W^T E)
+  | storeBoolEntity (predName entityName : String) : LexOp (W^T E)
   | ask (name : String) : LexOp (.comp (.query a) a)
   | askStore (name : String) : LexOp (.comp (.query a) (.comp (.store a) a))
   | askStoreRel (name : String) : LexOp ((E ~> E) ~> R^E (W^E E))
@@ -227,10 +227,12 @@ def LexOp.sem {t : Ty} (op : LexOp t) : TDParse.SemTerm t :=
         TDParse.Semantics.storePair
           (TDParse.Semantics.prim name)
           (TDParse.Semantics.prim name)
-    | .storeBoolEntity name =>
+    | .storeBoolEntity predName entityName =>
         TDParse.Semantics.storePair
-          (TDParse.Semantics.bool true)
-          (TDParse.Semantics.prim name)
+          (TDParse.Semantics.app
+            (TDParse.Semantics.prim (t := E ~> T) predName)
+            (TDParse.Semantics.prim (t := E) entityName))
+          (TDParse.Semantics.prim (t := E) entityName)
     | .ask _ => TDParse.Semantics.ask
     | .askStore _ =>
         let inst := inferInstanceAs (Functor (FX.query _).dom)
@@ -262,12 +264,12 @@ def LexOp.sem {t : Ty} (op : LexOp t) : TDParse.SemTerm t :=
           TDParse.Semantics.lam fun rel =>
             TDParse.Semantics.storePair x (TDParse.Semantics.app rel x)
     | .andBool _ =>
-        TDParse.Semantics.lam fun p =>
-          TDParse.Semantics.lam fun q =>
-            TDParse.Semantics.conj p q
+        TDParse.Semantics.lam fun right =>
+          TDParse.Semantics.lam fun left =>
+            TDParse.Semantics.conj left right
     | .firstEntity _ =>
-        TDParse.Semantics.lam fun x =>
-          TDParse.Semantics.lam fun _ => x
+        TDParse.Semantics.lam fun _right =>
+          TDParse.Semantics.lam fun left => left
     | .push _ =>
         TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x
     | .listNat _ xs =>
@@ -375,8 +377,8 @@ def askStoreRelFn (name : String) : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) :=
 def storeEntity (name : String) : Expr (W^E E) :=
   lexWith name (.storeEntity name)
 
-def storeBoolEntity (name : String) : Expr (W^T E) :=
-  lexWith name (.storeBoolEntity name)
+def storeBoolEntity (name predName entityName : String) : Expr (W^T E) :=
+  lexWith name (.storeBoolEntity predName entityName)
 
 def possessive : Expr (E ~> (E ~> E) ~> E) :=
   lexWith "'s" (.poss "'s")
