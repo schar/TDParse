@@ -2,15 +2,16 @@ import TDParse.Combine
 import TDParse.Data.Derivation
 import TDParse.Display
 import TDParse.Memoize
+import TDParse.Semantics
 
 -- Dictionary lookup
 -- ------------------------------------------------------------------------
 
 def HDict.lookupAll (k : String) : HDict ts → List (Cat × (t : Ty) × Expr t)
   | .nil                        => []
-  | .cons (c, e@(.lex k' _)) xs =>
+  | .cons (c, e@(.lexeme l)) xs =>
       let rest := xs.lookupAll k
-      if k' = k then ⟨c, _, e⟩ :: rest else rest
+      if l.name = k then ⟨c, _, e⟩ :: rest else rest
   | .cons _ xs                  => xs.lookupAll k
 
 def HDict.lookup (k : String) (d : HDict ts) := d.lookupAll k |>.head?
@@ -61,11 +62,11 @@ open Cat Expr
           | Det,NP => [DP]
           | _  ,_  => [  ]
   let lex :=
-    {[ (Det, @lex T "this" true),
-       (NP , @lex T "string" true),
-       (TV , @lex T "has" true),
-       (Det, @lex T "five" true),
-       (NP , @lex T "letters" true) ]}
+    {[ (Det, @Expr.lex T "this"),
+       (NP , @Expr.lex T "string"),
+       (TV , @Expr.lex T "has"),
+       (Det, @Expr.lex T "five"),
+       (NP , @Expr.lex T "letters") ]}
   parse cfg lex "this string has five letters".splitOn
 
 
@@ -93,5 +94,17 @@ def synsem : Tree c TypedExpr -> List TypedExpr
 def run : TypedExpr -> ((t : Ty) × Expr t × t.dom)
   | ⟨t,e⟩ => ⟨t, e, e.den⟩
 
+def runIn (m : TDParse.Model) : TypedExpr -> ((t : Ty) × Expr t × t.dom)
+  | ⟨t,e⟩ => ⟨t, e, e.eval m⟩
+
+def runPretty : TypedExpr -> ((t : Ty) × Expr t × String)
+  | ⟨t,e⟩ => ⟨t, e, e.pretty⟩
+
 def runAs : (s : Ty) -> TypedExpr -> Option (Expr s × s.dom)
   | s, ⟨t,e⟩ => if h : t = s then by subst h; exact some (e, e.den) else none
+
+def runAsIn (m : TDParse.Model) : (s : Ty) -> TypedExpr -> Option (Expr s × s.dom)
+  | s, ⟨t,e⟩ => if h : t = s then by subst h; exact some (e, e.eval m) else none
+
+def runPrettyAs : (s : Ty) -> TypedExpr -> Option (Expr s × String)
+  | s, ⟨t,e⟩ => if h : t = s then by subst h; exact some (e, e.pretty) else none

@@ -7,18 +7,18 @@ open Cat
 -- Lexicon
 -- ------------------------------------------------------------------------
 
-def one : Expr E := lex "one" 1
-def two : Expr E := lex "two" 2
-def pro : Expr (R^E E) := lex "pro" id
-def its : Expr (R^E E) := lex "its" id
-def who : Expr (S E) := lex "whichnum" (.range' 1 5)
-def nxt : Expr (E ~> E) := lex "successor" (·+1)
-def prv : Expr (E ~> E) := lex "predecessor" (·-1)
-def exc : Expr (E ~> E ~> T) := lex "exceeds" (·<·)
-def scc : Expr (E ~> E ~> T) := lex "succeeds" (fun x y => y = x + 1)
-def evn : Expr (C^T T E) := lex "everyprime" ([2,3,5].all ·)
-def smn : Expr (C^T T E) := lex "somenum" (who.den.any ·)
-def psh : Expr (E ~> W^E E) := lex "push" (fun x => (x,x))
+def one : Expr E := litNat "one" 1
+def two : Expr E := litNat "two" 2
+def pro : Expr (R^E E) := Expr.ask "pro"
+def its : Expr (R^E E) := Expr.ask "its"
+def who : Expr (S E) := choose "whichnum" "number"
+def nxt : Expr (E ~> E) := fun1 "successor"
+def prv : Expr (E ~> E) := fun1 "predecessor"
+def exc : Expr (E ~> E ~> T) := fun2 "exceeds"
+def scc : Expr (E ~> E ~> T) := fun2 "succeeds"
+def evn : Expr (C^T T E) := Expr.forallE "everyprime" "prime"
+def smn : Expr (C^T T E) := Expr.existsE "somenum" "number"
+def psh : Expr (E ~> W^E E) := push
 
 def myLex :=
 {[
@@ -36,57 +36,57 @@ def myLex :=
   (Dmp , psh)
 ]}
 
-def ann : Expr E := lex "ann" 11
-def maryW : Expr (W^E E) := lex "mary" (12, 12)
-def marianne : Expr E := lex "marianne" 13
-def marianneW : Expr (W^E E) := lex "marianne" (13, 13)
-def poss : Expr (E ~> (E ~> E) ~> E) := lex "'s" (fun x rel => rel x)
-def possW : Expr (E ~> (E ~> E) ~> W^E E) := lex "'s" (fun x rel => (x, rel x))
-def leftV : Expr (E ~> T) := lex "left" (fun x => x % 2 == 1)
-def whistled : Expr (E ~> T) := lex "whistled" (fun x => x % 3 == 1)
-def sawV : Expr (E ~> E ~> T) := lex "saw" (fun x y => x != y)
-def savedV : Expr (E ~> E ~> T) := lex "saved" (fun x y => x <= y)
-def spentV : Expr (E ~> E ~> T) := lex "spent" (fun x y => x >= y)
-def chasedV : Expr (E ~> E ~> T) := lex "chased" (fun x y => x + 1 == y)
-def saidV : Expr (T ~> E ~> T) := lex "said" (fun p _ => p)
-def gaveV : Expr (E ~> E ~> E ~> T) := lex "gave" (fun x y z => x + y == z)
-def she : Expr (R^E E) := lex "she" id
-def it1 : Expr (R^E E) := lex "it" id
-def it2 : Expr (R^(R^E E) (R^E E)) := lex "it" id
-def herGen : Expr (R^E E) := lex "her" id
-def herDP : Expr (R^E E) := lex "her" id
-def she2 : Expr (R^E (W^E E)) := lex "she2" (fun x => (x, x))
-def her2Gen : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
-def her2DP : Expr (R^E (W^E E)) := lex "her2" (fun x => (x, x))
-def her2GenRelW : Expr ((E ~> E) ~> R^E (W^E E)) := lex "her2" (fun rel x => (x, rel x))
-def her2GenRelRW : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) := lex "her2" (fun rel x => (rel, rel x))
-def mom : Expr (E ~> E) := lex "mom" (fun x => x + 100)
-def paycheck : Expr (E ~> E) := lex "paycheck" (fun x => x + 1000)
-def theDet : Expr ((E ~> T) ~> E) := lex "the" (fun p => if p 0 then 0 else 1)
-def theC : Expr (C^E T E) := lex "theC" (fun k => if k 0 then 0 else 1)
-def very : Expr ((E ~> T) ~> E ~> T) := lex "very" (fun adj x => adj x)
-def everyDet : Expr ((E ~> T) ~> C^T T E) := lex "every" (fun restrict k => [0,1,2,3].filter restrict |>.all k)
-def everyP : Expr ((E ~> T) ~> (E ~> T) ~> T) := lex "everyP" (fun restrict scope => [0,1,2,3].filter restrict |>.all scope)
-def everyC : Expr (C^(C^T T E) T E) := lex "everyC" (fun k restrict => [0,1,2,3].filter restrict |>.all k)
-def dog : Expr (E ~> T) := lex "dog" (fun x => x % 2 == 0)
-def catN : Expr (E ~> T) := lex "cat" (fun x => x % 2 == 1)
-def big : Expr (E ~> T) := lex "big" (fun x => x > 10)
-def happy : Expr (E ~> T) := lex "happy" (fun x => x < 20)
-def near : Expr (E ~> E ~> T) := lex "near" (fun x y => x == y || x + 1 == y)
-def someDet : Expr ((E ~> T) ~> S E) := lex "some" (fun p => [0,1,2,3].filter p)
-def someoneC : Expr (C^T T E) := lex "someone" ([0,1,2,3].any ·)
-def someone2 : Expr (S (W^E E)) := lex "someone2" [(20,20),(21,21)]
-def someone3 : Expr (S E) := lex "someone3" [0,1,2,3]
-def everyone : Expr (C^T T E) := lex "everyone" ([0,1,2,3].all ·)
-def everyone2 : Expr (C^T T (W^E E)) := lex "everyone2" (fun k => [(0,0),(1,1),(2,2),(3,3)].all k)
-def tr : Expr (R^E E) := lex "tr" id
-def andC : Expr (T ~> T ~> T) := lex "and" (fun p q => p && q)
-def butC : Expr (T ~> T ~> T) := lex "but" (fun p q => p && q)
-def andE : Expr (E ~> E ~> E) := lex "andE" (fun x _ => x)
-def withAdv : Expr (E ~> (E ~> T) ~> E ~> T) := lex "with" (fun y p x => p x && (x == y || x + 1 == y))
-def eclo : Expr (S T ~> T) := lex "eclo" (fun xs => xs.any id)
-def maryaling : Expr (W^T E) := lex "maryaling" (true, 12)
-def sassyacat : Expr (W^T E) := lex "sassyacat" (true, 14)
+def ann : Expr E := entity "ann"
+def maryW : Expr (W^E E) := storeEntity "mary"
+def marianne : Expr E := entity "marianne"
+def marianneW : Expr (W^E E) := storeEntity "marianne"
+def poss : Expr (E ~> (E ~> E) ~> E) := possessive
+def possW : Expr (E ~> (E ~> E) ~> W^E E) := possessiveStore
+def leftV : Expr (E ~> T) := fun1 "left"
+def whistled : Expr (E ~> T) := fun1 "whistled"
+def sawV : Expr (E ~> E ~> T) := fun2 "saw"
+def savedV : Expr (E ~> E ~> T) := fun2 "saved"
+def spentV : Expr (E ~> E ~> T) := fun2 "spent"
+def chasedV : Expr (E ~> E ~> T) := fun2 "chased"
+def saidV : Expr (T ~> E ~> T) := fun2 "said"
+def gaveV : Expr (E ~> E ~> E ~> T) := fun3 "gave"
+def she : Expr (R^E E) := Expr.ask "she"
+def it1 : Expr (R^E E) := Expr.ask "it"
+def it2 : Expr (R^(R^E E) (R^E E)) := Expr.ask "it"
+def herGen : Expr (R^E E) := Expr.ask "her"
+def herDP : Expr (R^E E) := Expr.ask "her"
+def she2 : Expr (R^E (W^E E)) := Expr.askStore "she2"
+def her2Gen : Expr (R^E (W^E E)) := Expr.askStore "her2"
+def her2DP : Expr (R^E (W^E E)) := Expr.askStore "her2"
+def her2GenRelW : Expr ((E ~> E) ~> R^E (W^E E)) := Expr.askStoreRel "her2"
+def her2GenRelRW : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) := Expr.askStoreRelFn "her2"
+def mom : Expr (E ~> E) := fun1 "mom"
+def paycheck : Expr (E ~> E) := fun1 "paycheck"
+def theDet : Expr ((E ~> T) ~> E) := fun1 "the"
+def theC : Expr (C^E T E) := definite "theC"
+def very : Expr ((E ~> T) ~> E ~> T) := fun2 "very"
+def everyDet : Expr ((E ~> T) ~> C^T T E) := Expr.everyDet "every"
+def everyP : Expr ((E ~> T) ~> (E ~> T) ~> T) := Expr.everyPred "everyP"
+def everyC : Expr (C^(C^T T E) T E) := Expr.everyCont "everyC"
+def dog : Expr (E ~> T) := fun1 "dog"
+def catN : Expr (E ~> T) := fun1 "cat"
+def big : Expr (E ~> T) := fun1 "big"
+def happy : Expr (E ~> T) := fun1 "happy"
+def near : Expr (E ~> E ~> T) := fun2 "near"
+def someDet : Expr ((E ~> T) ~> S E) := Expr.someDet "some"
+def someoneC : Expr (C^T T E) := Expr.existsE "someone" "person"
+def someone2 : Expr (S (W^E E)) := chooseStore "someone2" "person"
+def someone3 : Expr (S E) := choose "someone3" "person"
+def everyone : Expr (C^T T E) := Expr.forallE "everyone" "person"
+def everyone2 : Expr (C^T T (W^E E)) := forallStore "everyone2" "person"
+def tr : Expr (R^E E) := Expr.ask "tr"
+def andC : Expr (T ~> T ~> T) := andBool "and"
+def butC : Expr (T ~> T ~> T) := andBool "but"
+def andE : Expr (E ~> E ~> E) := firstEntity "andE"
+def withAdv : Expr (E ~> (E ~> T) ~> E ~> T) := fun3 "with"
+def eclo : Expr (S T ~> T) := fun1 "eclo"
+def maryaling : Expr (W^T E) := storeBoolEntity "maryaling"
+def sassyacat : Expr (W^T E) := storeBoolEntity "sassyacat"
 
 def demoLex :=
 {[
@@ -144,18 +144,6 @@ def demoLex :=
   (DP  , sassyacat)
 ]}
 
-def d1 := "the very big cat left"
-def d2 := "she saw her mom"
-def d3 := "ann's mom saw her"
-def d4 := "someone left and she2 whistled"
-def d5 := "the cat near someone2 saw her"
-def d6 := "marianne saved her2 paycheck but marianne's mom spent it"
-
-#eval myLex.lookup "one"
-#eval myLex.lookup "exceeds"
-#eval myLex.lookup "successor"
-
-
 -- Grammar
 -- ------------------------------------------------------------------------
 
@@ -192,45 +180,44 @@ def tree0 :=
 -- Example derivations
 -- ------------------------------------------------------------------------
 
-def derive (u : String) : Exprs := parse myCFG myLex u.splitOn >>= synsem
-def interpret (u : String) := derive u <&> run -- can't display this hlist (yet)
-def interpretAs (t : Ty) (u : String) : Interps t := derive u |>.filterMap (runAs t)
+def numberDerive (u : String) : Exprs := parse myCFG myLex u.splitOn >>= synsem
+def numberInterpret (u : String) := numberDerive u <&> runIn TDParse.numberModel -- can't display this hlist (yet)
+def numberInterpretAs (t : Ty) (u : String) : Interps t :=
+  numberDerive u |>.filterMap (runAsIn TDParse.numberModel t)
 
-def demoDerive (u : String) : Exprs := parse demoCFG demoLex u.splitOn >>= synsem
-def demoInterpretAs (t : Ty) (u : String) : Interps t := demoDerive u |>.filterMap (runAs t)
+def englishDerive (u : String) : Exprs := parse demoCFG demoLex u.splitOn >>= synsem
+def englishInterpretAs (t : Ty) (u : String) : Interps t :=
+  englishDerive u |>.filterMap (runAsIn TDParse.englishModel t)
 
-#eval derive "two exceeds one"
-#eval interpretAs T "two exceeds one"
+def numberPrettyDerive (u : String) : List String :=
+  numberDerive u |>.map (fun ⟨_, e⟩ => e.pretty)
 
-#eval derive "whichnum exceeds two"
-#eval interpretAs (S T) "whichnum exceeds two"
-#eval derive "whichnum exceeds whichnum"
-#eval interpretAs (S T) "whichnum exceeds whichnum"
+def numberPrettyDeriveAs (t : Ty) (u : String) : List String :=
+  numberDerive u |>.filterMap (runPrettyAs t) |>.map (fun (_, s) => s)
 
-#eval derive "everyprime exceeds pro"
-#eval interpretAs (R^E T) "everyprime exceeds pro" >>= λ(e,v) => [(e, v 1), (e, v 3)]
+def englishPrettyDerive (u : String) : List String :=
+  englishDerive u |>.map (fun ⟨_, e⟩ => e.pretty)
 
-#eval derive "push two exceeds one"
-#eval interpretAs (W^E T) "push two exceeds one"
+def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
+  englishDerive u |>.filterMap (runPrettyAs t) |>.map (fun (_, s) => s)
 
-#eval derive "push two exceeds its predecessor"
-#eval interpretAs T "push two exceeds its predecessor"
-#eval derive "push two exceeds its successor"
-#eval interpretAs T "push two exceeds its successor"
+#eval numberPrettyDeriveAs T "two exceeds one"
+#eval numberPrettyDeriveAs (S T) "whichnum exceeds two"
+#eval numberPrettyDeriveAs (S T) "whichnum exceeds whichnum"
+#eval numberPrettyDeriveAs (R^E T) "everyprime exceeds pro"
+#eval numberPrettyDeriveAs (W^E T) "push two exceeds one"
+#eval numberPrettyDeriveAs T "push two exceeds its predecessor"
+#eval numberPrettyDeriveAs T "push two exceeds its successor"
+#eval numberPrettyDeriveAs T "everyprime succeeds somenum"
+#eval numberPrettyDeriveAs T "push everyprime succeeds its predecessor"
 
-#eval derive "everyprime succeeds somenum"
-#eval interpretAs T "everyprime succeeds somenum"
-
-#eval derive "push everyprime succeeds its predecessor"
-#eval interpretAs T "push everyprime succeeds its predecessor"
-
-#eval parse demoCFG demoLex d1.splitOn
-#eval demoDerive d1
-#eval demoDerive d2
-#eval demoDerive d3
-#eval demoDerive d4
-#eval demoDerive d5
-#eval (demoDerive d6).length
+#eval englishPrettyDeriveAs T "the very big cat left"
+#eval englishPrettyDeriveAs (R^E T) "she saw her mom"
+#eval englishPrettyDeriveAs T "marianne's mom saw her"
+#eval englishPrettyDeriveAs (S T) "someone2 left and she whistled"
+#eval englishPrettyDeriveAs (S T) "the cat near someone2 saw her"
+#eval (englishPrettyDeriveAs T "marianne saved her2 paycheck but marianne's mom spent it").take 10
+#eval (englishDerive "marianne saved her2 paycheck but marianne's mom spent it").length
 
 
 def main : IO Unit :=

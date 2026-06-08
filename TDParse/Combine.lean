@@ -8,40 +8,83 @@ import TDParse.Memoize
 
 section
 open ModeLabel
-variable {α α' β β' γ : Type}
+variable {a a' b b' c : Ty}
 
 -- Basic modes
-def Mode.fa : Mode (α → β) α β := ⟨FA, (·<|·)⟩
-def Mode.ba : Mode α (α → β) β := ⟨BA, (·|>·)⟩
-def Mode.pm : Mode (α → Bool) (α → Bool) (α → Bool) := ⟨PM, fun p q x => p x && q x⟩
-def Mode.fc : Mode (β → γ) (α → β) (α → γ) := ⟨FC, (· ∘ ·)⟩
+def Mode.fa : Mode (a ~> b) a b :=
+  ⟨FA, (·<|·), .fa⟩
+
+def Mode.ba : Mode a (a ~> b) b :=
+  ⟨BA, (·|>·), .ba⟩
+
+def Mode.pm : Mode (a ~> T) (a ~> T) (a ~> T) :=
+  ⟨PM,
+    fun p q x => p x && q x,
+    .pm⟩
+
+def Mode.fc : Mode (b ~> c) (a ~> b) (a ~> c) :=
+  ⟨FC, (· ∘ ·), .fc⟩
 
 -- Meta-modes
-variable {f g : Type -> Type}
+def Mode.ml (f : FX) (inst : Functor f.dom) (ok : (functor f).isSome = true)
+    (m : Mode a b c) : Mode (.comp f a) b (.comp f c) :=
+  ⟨ML f m.mode,
+    (letI : Functor f.dom := inst
+     fun xs y => xs <&> (fun x => m.op x y)),
+    .ml f ok m.recipe⟩
 
-def Mode.ml (fx : FX) [Functor f] (m : Mode α β γ) : Mode (f α) β (f γ) :=
-  ⟨ML fx m.mode, fun xs y  => xs <&> (fun a => m.op a y)⟩
+def Mode.mr (f : FX) (inst : Functor f.dom) (ok : (functor f).isSome = true)
+    (m : Mode a b c) : Mode a (.comp f b) (.comp f c) :=
+  ⟨MR f m.mode,
+    (letI : Functor f.dom := inst
+     fun x ys => (fun y => m.op x y) <$> ys),
+    .mr f ok m.recipe⟩
 
-def Mode.mr (fx : FX) [Functor f] (m : Mode α β γ) : Mode α (f β) (f γ) :=
-  ⟨MR fx m.mode, fun x ys  => (fun b => m.op x b) <$> ys⟩
+def Mode.ap (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+    (m : Mode a b c) : Mode (.comp f a) (.comp f b) (.comp f c) :=
+  ⟨AP f m.mode,
+    (letI : Applicative f.dom := inst
+     fun xs ys => m.op <$> xs <*> ys),
+    .ap f ok m.recipe⟩
 
-def Mode.ap (fx : FX) [Applicative f] (m : Mode α β γ) : Mode (f α) (f β) (f γ) :=
-  ⟨AP fx m.mode, fun xs ys => m.op <$> xs <*> ys⟩
+def Mode.ul (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+    (m : Mode a (b ~> b') c) :
+    Mode a (.comp f b ~> b') c :=
+  ⟨UL f m.mode,
+    (letI : Applicative f.dom := inst
+     fun x y => m.op x (fun b => y (pure b))),
+    .ul f ok m.recipe⟩
 
-def Mode.ul (fx : FX) [Applicative f] (m : Mode α (β → β') γ) : Mode α (f β → β') γ :=
-  ⟨UL fx m.mode, fun x y => m.op x (fun b => y (pure b))⟩
+def Mode.ur (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+    (m : Mode (a ~> a') b c) :
+    Mode (.comp f a ~> a') b c :=
+  ⟨UR f m.mode,
+    (letI : Applicative f.dom := inst
+     fun x y => m.op (fun a => x (pure a)) y),
+    .ur f ok m.recipe⟩
 
-def Mode.ur (fx : FX) [Applicative f] (m : Mode (α → α') β γ) : Mode (f α → α') β γ :=
-  ⟨UR fx m.mode, fun x y => m.op (fun a => x (pure a)) y⟩
+def Mode.cu (lf rf : FX) (instF : Functor lf.dom) (instG : Functor rf.dom)
+    (adj : @Adjoint lf.dom rf.dom instF instG) (ok : (adjoint lf rf).isSome = true)
+    (m : Mode a b c) :
+    Mode (.comp lf a) (.comp rf b) c :=
+  ⟨CU lf rf m.mode,
+    (letI : Functor lf.dom := instF
+     letI : Functor rf.dom := instG
+     letI : Adjoint lf.dom rf.dom := adj
+     fun xs ys => Adjoint.counit ((fun a => m.op a <$> ys) <$> xs)),
+    .cu lf rf ok m.recipe⟩
 
-def Mode.cu (lf rf : FX) [Functor f] [Functor g] [Adjoint f g] (m : Mode α β γ) : Mode (f α) (g β) γ :=
-  ⟨CU lf rf m.mode, fun xs ys => Adjoint.counit ((fun a => m.op a <$> ys) <$> xs)⟩
+def Mode.jn (f : FX) (inst : Monad f.dom) (ok : (monad f).isSome = true)
+    (m : Mode a b (.comp f (.comp f c))) : Mode a b (.comp f c) :=
+  ⟨JN f m.mode,
+    (letI : Monad f.dom := inst
+     fun x y => m.op x y >>= id),
+    .jn f ok m.recipe⟩
 
-def Mode.jn (fx : FX) [Monad f] (m : Mode α β (f (f γ))) : Mode α β (f γ) :=
-  ⟨JN fx m.mode, fun x y => m.op x y >>= id⟩
-
-def Mode.dn (m : Mode α β (Cont2 γ δ δ)) : Mode α β γ :=
-  ⟨DN m.mode, fun x y => m.op x y id⟩
+def Mode.dn (m : Mode a b (.comp (.scope c b') b')) : Mode a b c :=
+  ⟨DN m.mode,
+    fun x y => m.op x y id,
+    .dn m.recipe⟩
 
 end
 
@@ -52,21 +95,21 @@ end
 structure AppCompat (f g : FX) where
   out : FX
   lift : (a b c : Ty) ->
-    Mode a.dom b.dom c.dom ->
-    Mode (f.dom a.dom) (g.dom b.dom) (out.dom c.dom)
+    Mode a b c ->
+    Mode (.comp f a) (.comp g b) (.comp out c)
 
 structure JoinCompat (f g : FX) where
   out : FX
   lift : (a b c : Ty) ->
-    Mode a.dom b.dom (f.dom (g.dom c.dom)) ->
-    Mode a.dom b.dom (out.dom c.dom)
+    Mode a b (.comp f (.comp g c)) ->
+    Mode a b (.comp out c)
 
 private def appCompatSame (f g : FX) : List (AppCompat f g) :=
   if h : f = g then
     by
       subst h
-      match applicative f with
-      | some _ => exact [{ out := f, lift := fun _ _ _ m => .ap f m }]
+      match hApp : applicative f with
+      | some inst => exact [{ out := f, lift := fun _ _ _ m => .ap f inst (by simp [hApp]) m }]
       | none   => exact []
   else []
 
@@ -79,7 +122,8 @@ def appCompat : (f g : FX) -> List (AppCompat f g)
             [{ out := .scope ret ans
              , lift := fun _ _ _ m =>
                  ⟨.AP (.scope ret ans) m.mode,
-                   fun xs ys k => xs fun a => ys fun b => k (m.op a b)⟩ }]
+                   fun xs ys k => xs fun a => ys fun b => k (m.op a b),
+                   .scopeAp m.recipe⟩ }]
       else []
   | f, g => appCompatSame f g
 
@@ -87,8 +131,8 @@ private def joinCompatSame (f g : FX) : List (JoinCompat f g) :=
   if h : f = g then
     by
       subst h
-      match monad f with
-      | some _ => exact [{ out := f, lift := fun _ _ _ m => .jn f m }]
+      match hMon : monad f with
+      | some inst => exact [{ out := f, lift := fun _ _ _ m => .jn f inst (by simp [hMon]) m }]
       | none   => exact []
   else []
 
@@ -101,7 +145,8 @@ def joinCompat : (f g : FX) -> List (JoinCompat f g)
             [{ out := .scope ret ans
              , lift := fun _ _ _ m =>
                  ⟨.JN (.scope ret ans) m.mode,
-                   fun x y k => m.op x y fun z => z k⟩ }]
+                   fun x y k => m.op x y fun z => z k,
+                   .scopeJn m.recipe⟩ }]
       else []
   | f, g => joinCompatSame f g
 
@@ -109,13 +154,13 @@ def joinCompat : (f g : FX) -> List (JoinCompat f g)
 -- Primitive, deterministic combination
 -- ------------------------------------------------------------------------
 
-def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u.dom v.dom w.dom)
+def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u v w)
   | a ~> T, b ~> T => if h : a = b then by subst h; exact [⟨a ~> T, .pm⟩] else []
   | a ~> b, c      => if h : a = c then by subst h; exact [⟨b     , .fa⟩] else []
   | a     , b ~> c => if h : a = b then by subst h; exact [⟨c     , .ba⟩] else []
   | _     , _      => []
 
-#eval List.map (fun ⟨w, m, _⟩ => (w, m)) (prims (E ~> T) E)
+#eval List.map (fun ⟨w, m⟩ => (w, m.mode)) (prims (E ~> T) E)
 
 
 -- Normalization
@@ -176,7 +221,7 @@ private def normLab : ModeLabel -> Bool
 
   | _ => true
 
-def norm {u v w : Ty} (md : Mode u.dom v.dom w.dom) : Bool :=
+def norm {u v w : Ty} (md : Mode u v w) : Bool :=
   normLab md.mode
 
 
@@ -184,7 +229,7 @@ def norm {u v w : Ty} (md : Mode u.dom v.dom w.dom) : Bool :=
 -- Recursive, nondeterministic combination
 -- ------------------------------------------------------------------------
 
-abbrev Combo (u : Ty) (v : Ty) := ((w : Ty) × Mode u.dom v.dom w.dom)
+abbrev Combo (u : Ty) (v : Ty) := ((w : Ty) × Mode u v w)
 
 def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
@@ -192,14 +237,16 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
     let addML : List (Combo u v) := do
           let .comp f a := u | []
-          let some _ := functor f | []
-          combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml f m⟩
+          let some inst := functor f | []
+          have ok : (functor f).isSome = true := by cases f <;> simp [functor]
+          combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml f inst ok m⟩
 
     let addMR : List (Combo u v) := do
           let .comp f b := v | []
-          let some _ := functor f | []
+          let some inst := functor f | []
+          have ok : (functor f).isSome = true := by cases f <;> simp [functor]
           let ⟨w, m⟩ <- combine u b
-          let m' := .mr f m
+          let m' := .mr f inst ok m
           guard (invertOk m.mode f)
           pure ⟨.comp f w, m'⟩
 
@@ -209,30 +256,43 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
           let seq <- appCompat f g
           combine a b <&> λ⟨w,m⟩ => ⟨.comp seq.out w, seq.lift a b w m⟩
 
-    let addUL : List (Combo u v) := do
-          let .comp f b ~> b' := v | []
-          let some _ := applicative f | []
-          let ⟨w,m⟩ <- combine u (b ~> b')
-          let m' := .ul f m; guard (norm m') *> pure ⟨w, m'⟩
+    let addUL : List (Combo u v) :=
+        match v with
+        | .fn (.comp f b) b' =>
+          match hApp : applicative f with
+          | some inst => do
+              let ⟨w,m⟩ <- combine u (b ~> b')
+              let m' := .ul f inst (by simp [hApp]) m
+              guard (norm m') *> pure ⟨w, m'⟩
+          | none => []
+        | _ => []
 
-    let addUR : List (Combo u v) := do
-          let .comp f a ~> a' := u | []
-          let some _ := applicative f | []
-          let ⟨w,m⟩ <- combine (a ~> a') v
-          let m' := .ur f m; guard (norm m') *> pure ⟨w, m'⟩
+    let addUR : List (Combo u v) :=
+        match u with
+        | .fn (.comp f a) a' =>
+          match hApp : applicative f with
+          | some inst => do
+              let ⟨w,m⟩ <- combine (a ~> a') v
+              let m' := .ur f inst (by simp [hApp]) m
+              guard (norm m') *> pure ⟨w, m'⟩
+          | none => []
+        | _ => []
 
     let addCU : List (Combo u v) :=
         match u, v with
         | .comp f a, .comp g b =>
-          match adjoint f g, comonad f with
-          | some ⟨_,_,_⟩, some inst => do
+          match hAdj : adjoint f g, hCom : comonad f with
+          | some ⟨instF, instG, adj⟩, some inst => do
               let ⟨w, m⟩ <- combine a b
-              let mcu : Mode (Ty.dom (.comp f a)) (Ty.dom (.comp g b)) w.dom := .cu f g m
+              let adjOk : (adjoint f g).isSome = true := by simp [hAdj]
+              let comOk : (comonad f).isSome = true := by simp [hCom]
+              let mcu : Mode (.comp f a) (.comp g b) w := .cu f g instF instG adj adjOk m
               let base : Combo (.comp f a) (.comp g b) := ⟨w, mcu⟩
-              let mxl : Mode (Ty.dom (.comp f a)) (Ty.dom (.comp g b)) (Ty.dom (.comp f w)) :=
+              let mxl : Mode (.comp f a) (.comp g b) (.comp f w) :=
                 ⟨XL f mcu.mode,
                   fun (xs : Ty.dom (.comp f a)) (ys : Ty.dom (.comp g b)) =>
-                    inst.extend (fun xs' => mcu.op xs' ys) xs⟩
+                    inst.extend (fun xs' => mcu.op xs' ys) xs,
+                  .xl f comOk mcu.recipe⟩
               let ext : Combo (.comp f a) (.comp g b) := ⟨.comp f w, mxl⟩
               [base, ext]
           | _, _ => []
@@ -242,8 +302,10 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
         match u with
         | .fn a (.comp (.query i) b) => do
             let ⟨w, m⟩ <- combine (.comp (.query i) (.fn a b)) v
-            let m' : Mode (Ty.dom (.fn a (.comp (.query i) b))) v.dom w.dom :=
-              ⟨EL (.query i) m.mode, fun x y => m.op (fun env a' => x a' env) y⟩
+            let m' : Mode (.fn a (.comp (.query i) b)) v w :=
+              ⟨EL (.query i) m.mode,
+                fun x y => m.op (fun env a' => x a' env) y,
+                .el i m.recipe⟩
             guard (norm m') *> pure ⟨w, m'⟩
         | _ => []
 
@@ -251,15 +313,17 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
         match v with
         | .fn a (.comp (.query i) b) => do
             let ⟨w, m⟩ <- combine u (.comp (.query i) (.fn a b))
-            let m' : Mode u.dom (Ty.dom (.fn a (.comp (.query i) b))) w.dom :=
-              ⟨ER (.query i) m.mode, fun x y => m.op x (fun env a' => y a' env)⟩
+            let m' : Mode u (.fn a (.comp (.query i) b)) w :=
+              ⟨ER (.query i) m.mode,
+                fun x y => m.op x (fun env a' => y a' env),
+                .er i m.recipe⟩
             guard (norm m') *> pure ⟨w, m'⟩
         | _ => []
 
     let addJN (e : Combo u v) : List (Combo u v) := do
           let ⟨.comp f (.comp g c), m⟩ := e | []
           let seq <- joinCompat f g
-          let m' : Mode u.dom v.dom (Ty.dom (.comp seq.out c)) := seq.lift u v c m
+          let m' : Mode u v (.comp seq.out c) := seq.lift u v c m
           guard (norm m')
           pure ⟨.comp seq.out c, m'⟩
 
@@ -275,5 +339,5 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
     bins >>= uns
 
-#eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m, _⟩ => (w, m)
-#eval combine (E ~> S T) (S E) <&> fun ⟨w, m, _⟩ => (w, m)
+#eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)
+#eval combine (E ~> S T) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)

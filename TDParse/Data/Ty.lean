@@ -1,5 +1,37 @@
 import TDParse.Data.Algebra
 
+inductive Entity where
+  | num : Nat -> Entity
+  | name : String -> Entity
+  | rel : String -> Entity -> Entity
+deriving BEq, DecidableEq, Hashable
+
+namespace Entity
+
+def default : Entity := .num 0
+
+def asNat? : Entity -> Option Nat
+  | .num n => some n
+  | _ => none
+
+def mapNat (f : Nat -> Nat) (x : Entity) : Entity :=
+  match x.asNat? with
+  | some n => .num (f n)
+  | none => x
+
+partial def toString : Entity -> String
+  | .num n => s!"{n}"
+  | .name s => s
+  | .rel r x => r ++ "(" ++ x.toString ++ ")"
+
+instance : ToString Entity where
+  toString := Entity.toString
+
+instance : Repr Entity where
+  reprPrec x _ := Std.Format.text x.toString
+
+end Entity
+
 mutual
 inductive FX where
   | query (env : Ty)
@@ -38,7 +70,7 @@ def FX.dom : FX -> Type -> Type
 
 @[reducible]
 def Ty.dom : Ty -> Type
-  | .nat      => Nat
+  | .nat      => Entity
   | .bool     => Bool
   | .fn a r   => a.dom -> r.dom
   | .comp f a => f.dom a.dom

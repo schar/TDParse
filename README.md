@@ -122,13 +122,23 @@ inductive Ty where
 
 The usual notations are:
 
-- `E`: entities/numbers, interpreted as `Nat`,
+- `E`: entities/numbers, interpreted as `Entity`,
 - `T`: truth values, interpreted as `Bool`,
 - `a ~> b`: functions,
 - `S a`: nondeterministic values, interpreted as `List a.dom`,
 - `R^e a`: reader/query values, interpreted as `Reader e.dom a.dom`,
 - `W^o a`: stored-output values, interpreted as `o.dom × a.dom`,
 - `C^r s a`: continuation/scope values, interpreted as `(a.dom -> s.dom) -> r.dom`.
+
+`Entity` is the small domain used by the toy models. It can represent numeric
+entities, named entities, and relational entities:
+
+```lean
+inductive Entity where
+  | num : Nat -> Entity
+  | name : String -> Entity
+  | rel : String -> Entity -> Entity
+```
 
 The interpretation function is:
 
@@ -139,11 +149,11 @@ def Ty.dom : Ty -> Type
 For example:
 
 ```lean
-E ~> T      -- Nat -> Bool
-S E         -- List Nat
-R^E T       -- Nat -> Bool
-W^E T       -- Nat × Bool
-C^T T E     -- (Nat -> Bool) -> Bool
+E ~> T      -- Entity -> Bool
+S E         -- List Entity
+R^E T       -- Entity -> Bool
+W^E T       -- Entity × Bool
+C^T T E     -- (Entity -> Bool) -> Bool
 ```
 
 The effect constructors live in `FX`: `spawn`, `query`, `store`, and `scope`.
@@ -179,11 +189,14 @@ Semantic expressions are also indexed by type:
 
 ```lean
 inductive Expr : Ty -> Type where
-  | lex : String -> a.dom -> Expr a
-  | moc : Mode a.dom b.dom c.dom -> Expr a -> Expr b -> Expr c
+  | lexeme : Lexeme a -> Expr a
+  | moc : Mode a b c -> Expr a -> Expr b -> Expr c
 ```
 
-`Expr.den` evaluates an expression to its Lean denotation.
+Lexical entries are usually built with the surface constructors in the
+`Expr` namespace, such as `Expr.lex`, `Expr.lexWith`, `Expr.litNat`,
+`Expr.entity`, `Expr.fun1`, and `Expr.ask`. `Expr.den` evaluates an expression
+to its Lean denotation, while `Expr.eval` evaluates it in a supplied model.
 
 ## Parsing
 
@@ -231,13 +244,14 @@ def combine : (u v : Ty) -> List (Combo u v)
 
 Given a left type `u` and right type `v`, `combine` returns every composition
 mode licensed by the relevant pure and effectful structure, packaged with the
-resulting type. A `Mode α β γ` contains both a printable label and the actual
-semantic operation:
+resulting type. A `Mode a b c` contains a printable label, the actual semantic
+operation, and a first-order recipe used by the tagless-final interpreters:
 
 ```lean
-structure Mode (α β γ : Type) where
+structure Mode (a : Ty) (b : Ty) (c : Ty) where
   mode : ModeLabel
-  op : α -> β -> γ
+  op : a.dom -> b.dom -> c.dom
+  recipe : ModeOp a b c
 ```
 
 The primitive modes are:
