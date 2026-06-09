@@ -215,9 +215,36 @@ def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
 #eval englishPrettyDeriveAs (R^E T) "she saw her mom"
 #eval englishPrettyDeriveAs T "marianne's mom saw her"
 #eval englishPrettyDeriveAs (S T) "someone2 left and she whistled"
+#eval englishPrettyDeriveAs (S T) "someone3 left and someone3 left and someone3 whistled"
 #eval englishPrettyDeriveAs (S T) "the cat near someone2 saw her"
 #eval englishPrettyDeriveAs (W^T T) "maryaling saw sassyacat"
 #eval (englishPrettyDeriveAs T "marianne saved her2 paycheck but everyone2 spent it").take 10
+
+-- Pretty-output regression checks for the typed NBE renderer.
+#guard numberPrettyDeriveAs T "two exceeds one" ==
+  ["exceeds 1 2"]
+
+#guard numberPrettyDeriveAs (S T) "whichnum exceeds whichnum" ==
+  ["[exceeds x1 x0 | number x0, number x1]"]
+
+#guard numberPrettyDeriveAs T "everyprime succeeds somenum" ==
+  [ "∃x0[number x0]. ∀x1[prime x1]. succeeds x0 x1"
+  , "∀x0[prime x0]. ∃x1[number x1]. succeeds x1 x0"
+  ]
+
+#guard englishPrettyDeriveAs (S T) "someone2 left and she whistled" ==
+  ["[left x0 ∧ whistled x0 | person x0]"]
+
+#guard englishPrettyDeriveAs (S T) "someone3 left and someone3 left and someone3 whistled" ==
+  [ "[left x0 ∧ left x1 ∧ whistled x2 | person x0, person x1, person x2]"
+  , "[(left x0 ∧ left x1) ∧ whistled x2 | person x0, person x1, person x2]"
+  ]
+
+#guard englishPrettyDeriveAs (S T) "the cat near someone2 saw her" ==
+  ["[saw x0 (the (λx1. cat x1 ∧ near x0 x1)) | person x0]"]
+
+#guard englishPrettyDeriveAs T "marianne saved her2 paycheck but everyone2 spent it" ==
+  ["saved (paycheck marianne) marianne ∧ (∀x0[person x0]. spent (paycheck x0) x0)"]
 
 
 def main : IO Unit :=

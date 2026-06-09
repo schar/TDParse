@@ -127,7 +127,7 @@ def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u v w)
 #eval List.map (fun ⟨w, m⟩ => (w, m.mode)) (prims (E ~> T) E)
 
 
--- Normalization
+-- Derivational normalization
 -- ------------------------------------------------------------------------
 open ModeLabel
 

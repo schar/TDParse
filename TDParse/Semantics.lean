@@ -1,4 +1,4 @@
-import TDParse.Data.Ty
+import TDParse.NBE
 
 /-!
 Tagless-final semantic interpretations.
@@ -311,259 +311,80 @@ def SemTerm.eval (m : Model) {t : Ty} (e : SemTerm t) : t.dom :=
 def SemTerm.den {t : Ty} (e : SemTerm t) : t.dom :=
   e.eval defaultModel
 
-inductive PExpr where
-  | atom : String -> PExpr
-  | var : String -> PExpr
-  | app : PExpr -> PExpr -> PExpr
-  | lam : String -> PExpr -> PExpr
-  | bool : Bool -> PExpr
-  | nat : Nat -> PExpr
-  | listNat : List Nat -> PExpr
-  | list : List PExpr -> PExpr
-  | pair : PExpr -> PExpr -> PExpr
-  | fst : PExpr -> PExpr
-  | snd : PExpr -> PExpr
-  | conj : PExpr -> PExpr -> PExpr
-  | imp : PExpr -> PExpr -> PExpr
-  | neg : PExpr -> PExpr
-  | eqNat : PExpr -> PExpr -> PExpr
-  | quant : String -> List Nat -> String -> PExpr -> PExpr
-  | quantIn : String -> String -> PExpr -> PExpr -> PExpr
-  | selectWhere : String -> PExpr -> PExpr
-  | comp : String -> PExpr -> PExpr -> PExpr
-  | comp2 : String -> PExpr -> String -> PExpr -> PExpr -> PExpr
-  | op : String -> List PExpr -> PExpr
-
-namespace PExpr
-
-def subst (x : String) (v : PExpr) : PExpr -> PExpr
-  | .atom s => .atom s
-  | .var y => if y == x then v else .var y
-  | .app f a => .app (subst x v f) (subst x v a)
-  | .lam y body => if y == x then .lam y body else .lam y (subst x v body)
-  | .bool b => .bool b
-  | .nat n => .nat n
-  | .listNat xs => .listNat xs
-  | .list xs => .list (xs.map (subst x v))
-  | .pair a b => .pair (subst x v a) (subst x v b)
-  | .fst p => .fst (subst x v p)
-  | .snd p => .snd (subst x v p)
-  | .conj p q => .conj (subst x v p) (subst x v q)
-  | .imp p q => .imp (subst x v p) (subst x v q)
-  | .neg p => .neg (subst x v p)
-  | .eqNat p q => .eqNat (subst x v p) (subst x v q)
-  | .quant q xs y body => if y == x then .quant q xs y body else .quant q xs y (subst x v body)
-  | .quantIn q y restrict body =>
-      if y == x then .quantIn q y restrict body
-      else .quantIn q y (subst x v restrict) (subst x v body)
-  | .selectWhere y body => if y == x then .selectWhere y body else .selectWhere y (subst x v body)
-  | .comp y restrict body =>
-      if y == x then .comp y restrict body
-      else .comp y (subst x v restrict) (subst x v body)
-  | .comp2 y restrict z restrict' body =>
-      let restrict := if y == x then restrict else subst x v restrict
-      let restrict' := if z == x then restrict' else subst x v restrict'
-      let body := if y == x || z == x then body else subst x v body
-      .comp2 y restrict z restrict' body
-  | .op name args => .op name (args.map (subst x v))
-
-partial def normalize : PExpr -> PExpr
-  | .app f a =>
-      let nf := normalize f
-      let na := normalize a
-      match nf with
-      | .lam x body => normalize (subst x na body)
-      | _ => .app nf na
-  | .lam x body => .lam x (normalize body)
-  | .pair a b => .pair (normalize a) (normalize b)
-  | .list xs => .list (xs.map normalize)
-  | .fst p =>
-      match normalize p with
-      | .pair a _ => normalize a
-      | p => .fst p
-  | .snd p =>
-      match normalize p with
-      | .pair _ b => normalize b
-      | p => .snd p
-  | .conj p q => .conj (normalize p) (normalize q)
-  | .imp p q => .imp (normalize p) (normalize q)
-  | .neg p => .neg (normalize p)
-  | .eqNat p q => .eqNat (normalize p) (normalize q)
-  | .quant q xs x body => .quant q xs x (normalize body)
-  | .quantIn q x restrict body => .quantIn q x (normalize restrict) (normalize body)
-  | .selectWhere x body => .selectWhere x (normalize body)
-  | .comp x restrict body => .comp x (normalize restrict) (normalize body)
-  | .comp2 x restrict y restrict' body =>
-      .comp2 x (normalize restrict) y (normalize restrict') (normalize body)
-  | .op name args => .op name (args.map normalize)
-  | e => e
-
-def paren (b : Bool) (s : String) : String :=
-  if b then "(" ++ s ++ ")" else s
-
-mutual
-partial def renderNatList : List Nat -> String
-  | [] => ""
-  | [x] => toString x
-  | x :: xs => toString x ++ "," ++ renderNatList xs
-
-partial def renderList : List PExpr -> String
-  | [] => ""
-  | [x] => x.render 0
-  | x :: xs => x.render 0 ++ ", " ++ renderList xs
-
-partial def renderArgs : List PExpr -> String
-  | [] => ""
-  | e :: es => " " ++ e.render 11 ++ renderArgs es
-
-partial def render : PExpr -> Nat -> String
-  | .atom s, _ => s
-  | .var s, _ => s
-  | .bool b, _ => if b then "true" else "false"
-  | .nat n, _ => toString n
-  | .listNat xs, _ => "[" ++ renderNatList xs ++ "]"
-  | .list xs, _ => "[" ++ renderList xs ++ "]"
-  | .pair a b, _ => "⟨" ++ a.render 0 ++ ", " ++ b.render 0 ++ "⟩"
-  | .fst p, prec => paren (prec > 10) ("fst " ++ p.render 11)
-  | .snd p, prec => paren (prec > 10) ("snd " ++ p.render 11)
-  | .app f x, p => paren (p > 10) (f.render 10 ++ " " ++ x.render 11)
-  | .lam x body, p => paren (p > 0) ("λ" ++ x ++ ". " ++ body.render 0)
-  | .conj p q, prec => paren (prec > 3) (p.render 4 ++ " ∧ " ++ q.render 3)
-  | .imp p q, prec => paren (prec > 2) (p.render 3 ++ " → " ++ q.render 2)
-  | .neg p, prec => paren (prec > 10) ("¬" ++ p.render 11)
-  | .eqNat x y, prec => paren (prec > 4) (x.render 5 ++ " = " ++ y.render 5)
-  | .quant q xs x body, prec =>
-      paren (prec > 0) (q ++ x ++ "∈{" ++ renderNatList xs ++ "}. " ++ body.render 0)
-  | .quantIn q x restrict body, prec =>
-      paren (prec > 0) (q ++ x ++ "[" ++ restrict.render 0 ++ "]. " ++ body.render 0)
-  | .selectWhere x body, prec =>
-      paren (prec > 0) ("ι" ++ x ++ "[" ++ body.render 0 ++ "]")
-  | .comp _ restrict body, _ =>
-      "[" ++ body.render 0 ++ " | " ++ restrict.render 0 ++ "]"
-  | .comp2 _ restrict _ restrict' body, _ =>
-      "[" ++ body.render 0 ++ " | " ++ restrict.render 0 ++ ", " ++ restrict'.render 0 ++ "]"
-  | .op name args, p => paren (p > 10) (name ++ renderArgs args)
-end
-
-def asList? : PExpr -> Option (List PExpr)
-  | .list xs => some xs
-  | .listNat xs => some (xs.map PExpr.nat)
-  | _ => none
-
-end PExpr
-
-/- Printable interpretation -/
-
 structure Pretty (t : Ty) where
-  build : Nat -> PExpr × Nat
+  val : NVal t
 
 namespace Pretty
+
+def build (p : Pretty t) : PBuild :=
+  reify t p.val
 
 def expr (p : Pretty t) : PExpr :=
   (p.build 0).1
 
 def renderTop (p : Pretty t) : String :=
-  PExpr.render (PExpr.normalize p.expr) 0
+  PExpr.render p.expr 0
+
+def ofBuild {t : Ty} (build : PBuild) : Pretty t :=
+  ⟨reflect t build⟩
 
 def atom (s : String) : Pretty t :=
-  ⟨fun n => (PExpr.atom s, n)⟩
+  ofBuild (PBuild.atom s)
 
 def var (s : String) : Pretty t :=
-  ⟨fun n => (PExpr.var s, n)⟩
+  ofBuild (PBuild.var s)
 
-def ofExpr (e : PExpr) : Pretty t :=
-  ⟨fun n => (e, n)⟩
+def op1 (name : String) (x : Pretty a) : Pretty b :=
+  ofBuild (PBuild.op name [x.build])
 
-def unary (name : String) (x : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    (PExpr.op name [xe], n)⟩
-
-def binary (name : String) (x : Pretty a) (y : Pretty b) : Pretty c :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    let (ye, n) := y.build n
-    (PExpr.op name [xe, ye], n)⟩
-
-def ternary (name : String) (x : Pretty a) (y : Pretty b) (z : Pretty c) : Pretty d :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    let (ye, n) := y.build n
-    let (ze, n) := z.build n
-    (PExpr.op name [xe, ye, ze], n)⟩
+def op2 (name : String) (x : Pretty a) (y : Pretty b) : Pretty c :=
+  ofBuild (PBuild.op name [x.build, y.build])
 
 def app (f : Pretty (a ~> b)) (x : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (fe, n) := f.build n
-    let (xe, n) := x.build n
-    (PExpr.app fe xe, n)⟩
-
-def appRaw (f : Pretty a) (x : Pretty b) : Pretty c :=
-  ⟨fun n =>
-    let (fe, n) := f.build n
-    let (xe, n) := x.build n
-    (PExpr.app fe xe, n)⟩
-
-def pairRaw (x : Pretty a) (y : Pretty b) : Pretty c :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    let (ye, n) := y.build n
-    (PExpr.pair xe ye, n)⟩
-
-def fstRaw (x : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    (PExpr.fst xe, n)⟩
-
-def sndRaw (x : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    (PExpr.snd xe, n)⟩
+  ⟨NVal.app f.val x.val⟩
 
 def lam {a b : Ty} (body : Pretty a -> Pretty b) : Pretty (a ~> b) :=
-  ⟨fun n =>
-    let v := "x" ++ toString n
-    let (be, n) := (body (var v)).build (n + 1)
-    (PExpr.lam v be, n)⟩
+  ⟨.inr fun x => (body ⟨x⟩).val⟩
 
-def lamRaw (body : Pretty a -> Pretty b) : Pretty c :=
-  ⟨fun n =>
-    let v := "x" ++ toString n
-    let (be, n) := (body (var v)).build (n + 1)
-    (PExpr.lam v be, n)⟩
+def bool (b : Bool) : Pretty T :=
+  ⟨⟨PBuild.bool b, some b⟩⟩
 
-def idLam : Pretty (a ~> a) :=
-  lam fun x => x
+def conj (p q : Pretty T) : Pretty T :=
+  match p.val.known?, q.val.known? with
+  | some true, _ => q
+  | _, some true => p
+  | some false, _ => bool false
+  | _, some false => bool false
+  | _, _ => ⟨⟨PBuild.conj p.val.build q.val.build, none⟩⟩
 
-def op1 := @unary
-def op2 := @binary
-def op3 := @ternary
+def imp (p q : Pretty T) : Pretty T :=
+  match p.val.known?, q.val.known? with
+  | some false, _ => bool true
+  | some true, _ => q
+  | _, some true => bool true
+  | _, _ => ⟨⟨PBuild.imp p.val.build q.val.build, none⟩⟩
 
-def conjRaw (p q : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (pe, n) := p.build n
-    let (qe, n) := q.build n
-    (PExpr.conj pe qe, n)⟩
+def neg (p : Pretty T) : Pretty T :=
+  match p.val.known? with
+  | some b => bool (!b)
+  | none => ⟨⟨PBuild.neg p.val.build, none⟩⟩
 
-def impRaw (p q : Pretty a) : Pretty b :=
-  ⟨fun n =>
-    let (pe, n) := p.build n
-    let (qe, n) := q.build n
-    (PExpr.imp pe qe, n)⟩
+def eqNatPretty (p q : Pretty E) : Pretty T :=
+  ⟨⟨PBuild.eqNat p.val q.val, none⟩⟩
 
 def quantNat (q : String) (xs : List Nat) (body : Pretty E -> Pretty T) : Pretty T :=
-  ⟨fun n =>
+  ⟨⟨(fun n =>
     let v := "x" ++ toString n
     let (be, n) := (body (var v)).build (n + 1)
-    (PExpr.quant q xs v be, n)⟩
+    (PExpr.quant q xs v be, n)), none⟩⟩
 
 def quantIn (q : String) (restrict : Pretty (E ~> T)) (body : Pretty E -> Pretty T) : Pretty T :=
-  ⟨fun n =>
+  ⟨⟨(fun n =>
     let v := "x" ++ toString n
     let xv : Pretty E := var v
     let (re, n) := (app restrict xv).build (n + 1)
     let (be, n) := (body xv).build n
-    (PExpr.quantIn q v re be, n)⟩
+    (PExpr.quantIn q v re be, n)), none⟩⟩
 
 def selectWhere (body : Pretty E -> Pretty T) : Pretty E :=
   ⟨fun n =>
@@ -572,191 +393,171 @@ def selectWhere (body : Pretty E -> Pretty T) : Pretty E :=
     (PExpr.selectWhere v be, n)⟩
 
 def chooseIn (restrict : Pretty (E ~> T)) : Pretty (S E) :=
-  ⟨fun n =>
-    let v := "x" ++ toString n
-    let xv : Pretty E := var v
-    let (re, n) := (app restrict xv).build (n + 1)
-    (PExpr.comp v re (PExpr.var v), n)⟩
+  ⟨NSpawn.comp (fun x => NVal.app restrict.val x) id⟩
 
 def chooseStoreIn (restrict : Pretty (E ~> T)) : Pretty (S (W^E E)) :=
-  ⟨fun n =>
-    let v := "x" ++ toString n
-    let xv : Pretty E := var v
-    let (re, n) := (app restrict xv).build (n + 1)
-    (PExpr.comp v re (PExpr.pair (PExpr.var v) (PExpr.var v)), n)⟩
+  ⟨NSpawn.comp (fun x => NVal.app restrict.val x) (fun x => .inr (x, x))⟩
 
 def listStoreNat (xs : List Nat) : Pretty (S (W^E E)) :=
-  let entries := xs.map fun x => PExpr.pair (PExpr.nat x) (PExpr.nat x)
-  ofExpr (PExpr.list entries)
+  ⟨NSpawn.known (xs.map fun x => .inr (PBuild.nat x, PBuild.nat x))⟩
 
 def spawnMap {a b : Ty} (g : Pretty (a ~> b)) (x : Pretty (S a)) : Pretty (S b) :=
-  ⟨fun n =>
-    let (ge, n) := g.build n
-    let (xe, n) := x.build n
-    match PExpr.asList? (PExpr.normalize xe) with
-    | some xs => (PExpr.list (xs.map fun x => PExpr.app ge x), n)
-    | none =>
-        match PExpr.normalize xe with
-        | .comp v restrict body =>
-            (PExpr.comp v restrict (PExpr.app ge body), n)
-        | xe => (PExpr.op "map" [ge, xe], n)⟩
+  ⟨match x.val with
+    | .known xs =>
+        NSpawn.known (xs.map (NVal.app g.val))
+    | .comp c =>
+        NSpawn.compVal (NSpawn.mapComp g.val c)
+    | .neutral xb =>
+        NSpawn.neutral (PBuild.op "map" [g.build, xb])⟩
 
 def spawnPure {a : Ty} (x : Pretty a) : Pretty (S a) :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    (PExpr.list [xe], n)⟩
+  ⟨NSpawn.known [x.val]⟩
 
 def spawnAp {a b : Ty} (f : Pretty (S (a ~> b))) (x : Pretty (S a)) : Pretty (S b) :=
-  ⟨fun n =>
-    let (fe, n) := f.build n
-    let (xe, n) := x.build n
-    match PExpr.asList? (PExpr.normalize fe), PExpr.asList? (PExpr.normalize xe) with
-    | some fs, some xs => (PExpr.list (fs.flatMap fun f => xs.map fun x => PExpr.app f x), n)
+  ⟨match f.val, x.val with
+    | .known fs, .known xs =>
+        NSpawn.known (fs.flatMap fun f => xs.map (NVal.app f))
+    | .known [g], .comp x =>
+        NSpawn.compVal (NSpawn.mapComp g x)
+    | .comp f, .known [y] =>
+        NSpawn.compVal (NSpawn.mapComp (.inr fun g => NVal.app g y) f)
+    | .comp f, .comp x =>
+        NSpawn.compVal (NSpawn.apComp f x)
     | _, _ =>
-        match PExpr.normalize fe, PExpr.normalize xe with
-        | .comp fv frestrict fbody, .comp xv xrestrict xbody =>
-            (PExpr.comp2 fv frestrict xv xrestrict (PExpr.app fbody xbody), n)
-        | fe, xe => (PExpr.op "ap[S]" [fe, xe], n)⟩
+        NSpawn.neutral (PBuild.op "ap[S]" [f.build, x.build])⟩
 
 def spawnJoin {a : Ty} (x : Pretty (S (S a))) : Pretty (S a) :=
-  ⟨fun n =>
-    let (xe, n) := x.build n
-    match PExpr.asList? (PExpr.normalize xe) with
-    | some xs =>
-        let ys := xs.filterMap fun x => PExpr.asList? (PExpr.normalize x)
-        if ys.length == xs.length then (PExpr.list ys.flatten, n)
-        else (PExpr.op "concat" [xe], n)
-    | none => (PExpr.op "concat" [xe], n)⟩
+  ⟨match x.val with
+    | .known xs =>
+        let ys := xs.filterMap fun
+          | .known ys => some ys
+          | .neutral _ => none
+          | .comp _ => none
+        if ys.length == xs.length then NSpawn.known ys.flatten
+        else NSpawn.neutral (PBuild.op "concat" [x.build])
+    | _ => NSpawn.neutral (PBuild.op "concat" [x.build])⟩
 
 def readerMap {env a b : Ty}
     (g : Pretty (a ~> b)) (x : Pretty (.comp (.query env) a)) :
     Pretty (.comp (.query env) b) :=
-  lamRaw (a := env) (b := b) fun e =>
-    app g (appRaw (a := .comp (.query env) a) (b := env) (c := a) x e)
+  ⟨.inr fun e => NVal.app g.val (NVal.queryApp x.val e)⟩
 
 def readerPure {env a : Ty} (x : Pretty a) : Pretty (.comp (.query env) a) :=
-  lamRaw (a := env) (b := a) fun _ => x
+  ⟨.inr fun _ => x.val⟩
 
 def readerAp {env a b : Ty}
     (f : Pretty (.comp (.query env) (a ~> b))) (x : Pretty (.comp (.query env) a)) :
     Pretty (.comp (.query env) b) :=
-  lamRaw (a := env) (b := b) fun e =>
-    appRaw
-      (a := a ~> b) (b := a) (c := b)
-      (appRaw (a := .comp (.query env) (a ~> b)) (b := env) (c := a ~> b) f e)
-      (appRaw (a := .comp (.query env) a) (b := env) (c := a) x e)
+  ⟨.inr fun e => NVal.app (NVal.queryApp f.val e) (NVal.queryApp x.val e)⟩
 
 def readerJoin {env a : Ty}
     (x : Pretty (.comp (.query env) (.comp (.query env) a))) :
     Pretty (.comp (.query env) a) :=
-  lamRaw (a := env) (b := a) fun e =>
-    appRaw
-      (a := .comp (.query env) a) (b := env) (c := a)
-      (appRaw (a := .comp (.query env) (.comp (.query env) a)) (b := env)
-        (c := .comp (.query env) a) x e)
-      e
+  ⟨.inr fun e => NVal.queryApp (NVal.queryApp x.val e) e⟩
 
 def readerEject {env a b : Ty}
     (x : Pretty (a ~> .comp (.query env) b)) :
     Pretty (.comp (.query env) (a ~> b)) :=
-  lamRaw (a := env) (b := a ~> b) fun e =>
-    lam fun y =>
-      appRaw (a := .comp (.query env) b) (b := env) (c := b) (app x y) e
+  ⟨.inr fun e => .inr fun y => NVal.queryApp (NVal.app x.val y) e⟩
 
 def storeMap {out a b : Ty}
     (g : Pretty (a ~> b)) (x : Pretty (.comp (.store out) a)) :
     Pretty (.comp (.store out) b) :=
-  pairRaw (c := .comp (.store out) b)
-    (fstRaw (b := out) x)
-    (app g (sndRaw (b := a) x))
+  let xv := NVal.storeView x.val
+  ⟨.inr (xv.1, NVal.app g.val xv.2)⟩
+
+def storeUnit : (out : Ty) -> NVal out
+  | .bool => ⟨PBuild.bool true, some true⟩
+  | out => reflect out (PBuild.op "unit[W]" [])
+
+def storeSeq : (out : Ty) -> String -> NVal out -> NVal out -> NVal out
+  | .bool, _, x, y => (conj ⟨x⟩ ⟨y⟩).val
+  | out, name, x, y => reflect out (PBuild.op name [reify out x, reify out y])
 
 def storePure {out a : Ty} (x : Pretty a) : Pretty (.comp (.store out) a) :=
-  pairRaw (c := .comp (.store out) a)
-    (ofExpr (PExpr.bool true) : Pretty T)
-    x
+  ⟨.inr (storeUnit out, x.val)⟩
 
 def storeAp {out a b : Ty}
     (f : Pretty (.comp (.store out) (a ~> b))) (x : Pretty (.comp (.store out) a)) :
     Pretty (.comp (.store out) b) :=
-  pairRaw (c := .comp (.store out) b)
-    (conjRaw (fstRaw (b := T) f) (fstRaw (b := T) x) : Pretty T)
-    (appRaw (a := a ~> b) (b := a) (c := b) (sndRaw (b := a ~> b) f) (sndRaw (b := a) x))
+  let fv := NVal.storeView f.val
+  let xv := NVal.storeView x.val
+  ⟨.inr (storeSeq out "ap[W]" fv.1 xv.1, NVal.app fv.2 xv.2)⟩
 
 def storeJoin {out a : Ty}
     (x : Pretty (.comp (.store out) (.comp (.store out) a))) :
     Pretty (.comp (.store out) a) :=
-  let inner : Pretty (.comp (.store out) a) := sndRaw (b := .comp (.store out) a) x
-  pairRaw (c := .comp (.store out) a)
-    (conjRaw (fstRaw (b := T) x) (fstRaw (b := T) inner) : Pretty T)
-    (sndRaw (b := a) inner)
+  let xv := NVal.storeView x.val
+  let inner := NVal.storeView xv.2
+  ⟨.inr (storeSeq out "join[W]" xv.1 inner.1, inner.2)⟩
 
 def storeCounit {out env a : Ty}
     (x : Pretty (.comp (.store out) (.comp (.query env) a))) : Pretty a :=
-  appRaw (a := .comp (.query env) a) (b := out) (c := a)
-    (sndRaw (b := .comp (.query env) a) x)
-    (fstRaw (b := out) x)
+  if h : out = env then
+    by
+      subst h
+      let xv := NVal.storeView x.val
+      exact ⟨NVal.queryApp xv.2 xv.1⟩
+  else
+    ofBuild (PBuild.op "counit[W,R]" [x.build])
 
 def storeExtend {out a b : Ty}
     (x : Pretty (.comp (.store out) a))
     (k : Pretty (.comp (.store out) a) -> Pretty b) :
     Pretty (.comp (.store out) b) :=
-  pairRaw (c := .comp (.store out) b)
-    (fstRaw (b := out) x)
-    (k x)
+  let xv := NVal.storeView x.val
+  ⟨.inr (xv.1, (k x).val)⟩
 
 def scopeMap {ret ans a b : Ty}
     (g : Pretty (a ~> b)) (x : Pretty (.comp (.scope ret ans) a)) :
     Pretty (.comp (.scope ret ans) b) :=
-  lamRaw (a := b ~> ans) (b := ret) fun k =>
-    appRaw (a := .comp (.scope ret ans) a) (b := a ~> ans) (c := ret) x
-      (lam fun y => appRaw (a := b ~> ans) (b := b) (c := ans) k (app g y))
+  ⟨.inr fun k => NVal.scopeRun x.val (fun a => k (NVal.app g.val a))⟩
 
 def scopePure {ret ans a : Ty} (x : Pretty a) : Pretty (.comp (.scope ret ans) a) :=
-  lamRaw (a := a ~> ans) (b := ans) fun k =>
-    appRaw (a := a ~> ans) (b := a) (c := ans) k x
+  if h : ret = ans then
+    by subst h; exact ⟨.inr fun k => k x.val⟩
+  else
+    ⟨.inr fun _ => reflect ret (PBuild.op "pure[C]" [x.build])⟩
 
 def scopeApEff {ret ans a b : Ty}
     (f : Pretty (.comp (.scope ret ans) (a ~> b)))
     (x : Pretty (.comp (.scope ret ans) a)) :
     Pretty (.comp (.scope ret ans) b) :=
-  lamRaw (a := b ~> ans) (b := ans) fun k =>
-    appRaw (a := .comp (.scope ret ans) (a ~> b)) (b := (a ~> b) ~> ans) (c := ans) f
-      (lam fun g =>
-        appRaw (a := .comp (.scope ret ans) a) (b := a ~> ans) (c := ans) x
-          (lam fun y => appRaw (a := b ~> ans) (b := b) (c := ans) k (app g y)))
+  if h : ret = ans then
+    by
+      subst h
+      exact ⟨.inr fun k =>
+        NVal.scopeRun f.val fun g =>
+          NVal.scopeRun x.val fun a =>
+            k (NVal.app g a)⟩
+  else
+    ⟨.inr fun _ => reflect ret (PBuild.op "ap[C]" [f.build, x.build])⟩
 
 def scopeJoinEff {ret ans a : Ty}
     (x : Pretty (.comp (.scope ret ans) (.comp (.scope ret ans) a))) :
     Pretty (.comp (.scope ret ans) a) :=
-  lamRaw (a := a ~> ans) (b := ans) fun k =>
-    appRaw (a := .comp (.scope ret ans) (.comp (.scope ret ans) a))
-      (b := .comp (.scope ret ans) a ~> ans) (c := ans) x
-      (lam fun y =>
-        appRaw (a := .comp (.scope ret ans) a) (b := a ~> ans) (c := ans) y k)
+  if h : ret = ans then
+    by subst h; exact ⟨.inr fun k => NVal.scopeRun x.val (fun y => NVal.scopeRun y k)⟩
+  else
+    ⟨.inr fun _ => reflect ret (PBuild.op "join[C]" [x.build])⟩
 
 def scopeLower {r a : Ty} (x : Pretty (.comp (.scope r a) a)) : Pretty r :=
-  appRaw (a := .comp (.scope r a) a) (b := a ~> a) (c := r) x idLam
+  ⟨NVal.scopeRun x.val id⟩
 
 def scopeMap2Pretty {r s q a b c : Ty}
     (h : Pretty (a ~> b ~> c))
     (x : Pretty (.comp (.scope r s) a))
     (y : Pretty (.comp (.scope s q) b)) :
     Pretty (.comp (.scope r q) c) :=
-  lamRaw (a := c ~> q) (b := r) fun k =>
-    appRaw (a := .comp (.scope r s) a) (b := a ~> s) (c := r) x
-      (lam fun av =>
-        appRaw (a := .comp (.scope s q) b) (b := b ~> q) (c := s) y
-          (lam fun bv =>
-            appRaw (a := c ~> q) (b := c) (c := q) k (app (app h av) bv)))
+  ⟨.inr fun k =>
+    NVal.scopeRun x.val fun av =>
+      NVal.scopeRun y.val fun bv =>
+        k (NVal.app (NVal.app h.val av) bv)⟩
 
 def scopeJoinPretty {r s q a : Ty}
     (x : Pretty (.comp (.scope r s) (.comp (.scope s q) a))) :
     Pretty (.comp (.scope r q) a) :=
-  lamRaw (a := a ~> q) (b := r) fun k =>
-    appRaw (a := .comp (.scope r s) (.comp (.scope s q) a))
-      (b := .comp (.scope s q) a ~> s) (c := r) x
-      (lam fun z =>
-        appRaw (a := .comp (.scope s q) a) (b := a ~> q) (c := s) z k)
+  ⟨.inr fun k => NVal.scopeRun x.val (fun z => NVal.scopeRun z k)⟩
 
 end Pretty
 
@@ -772,23 +573,12 @@ instance : Semantics Pretty where
   app f x := Pretty.app f x
   lam body := Pretty.lam body
 
-  bool b := Pretty.ofExpr (PExpr.bool b)
-  nat n := Pretty.ofExpr (PExpr.nat n)
-  conj p q := ⟨fun n =>
-    let (pe, n) := p.build n
-    let (qe, n) := q.build n
-    (PExpr.conj pe qe, n)⟩
-  imp p q := ⟨fun n =>
-    let (pe, n) := p.build n
-    let (qe, n) := q.build n
-    (PExpr.imp pe qe, n)⟩
-  neg p := ⟨fun n =>
-    let (pe, n) := p.build n
-    (PExpr.neg pe, n)⟩
-  eqNat x y := ⟨fun n =>
-    let (xe, n) := x.build n
-    let (ye, n) := y.build n
-    (PExpr.eqNat xe ye, n)⟩
+  bool b := Pretty.bool b
+  nat n := ⟨PBuild.nat n⟩
+  conj p q := Pretty.conj p q
+  imp p q := Pretty.imp p q
+  neg p := Pretty.neg p
+  eqNat x y := Pretty.eqNatPretty x y
   forallNat xs p := Pretty.quantNat "∀" xs p
   existsNat xs p := Pretty.quantNat "∃" xs p
   selectNat xs p := Pretty.op1 ("ι{" ++ PExpr.renderNatList xs ++ "}") (Pretty.lam p)
@@ -798,21 +588,19 @@ instance : Semantics Pretty where
   chooseIn restrict := Pretty.chooseIn restrict
   chooseStoreIn restrict := Pretty.chooseStoreIn restrict
   forallStoreIn restrict p := Pretty.quantIn "∀" restrict fun x =>
-    p (Pretty.pairRaw x x)
-  listNat xs := Pretty.ofExpr (PExpr.listNat xs)
+    p ⟨.inr (x.val, x.val)⟩
+  listNat xs := ⟨NSpawn.known (xs.map PBuild.nat)⟩
   listStoreNat xs := Pretty.listStoreNat xs
   forallStoreNat xs p := Pretty.quantNat "∀" xs fun x =>
-    p (Pretty.pairRaw x x)
+    p ⟨.inr (x.val, x.val)⟩
   filterNat xs p := Pretty.op1 ("filter[" ++ PExpr.render (PExpr.listNat xs) 0 ++ "]") (Pretty.lam p)
 
-  ask {a} := Pretty.lamRaw (a := a) (b := a) fun x => x
-  storePair o x := Pretty.pairRaw o x
-  cont {r} {a} body :=
-    Pretty.lamRaw (a := a ~> r) (b := r) fun k =>
-      body fun x => Pretty.appRaw (a := a ~> r) (b := a) (c := r) k x
-  cont2 {r} {s} {a} body :=
-    Pretty.lamRaw (a := a ~> s) (b := r) fun k =>
-      body fun x => Pretty.appRaw (a := a ~> s) (b := a) (c := s) k x
+  ask := ⟨.inr fun x => x⟩
+  storePair o x := ⟨.inr (o.val, x.val)⟩
+  cont body :=
+    ⟨.inr fun k => (body fun x => ⟨NVal.app (.inr k) x.val⟩).val⟩
+  cont2 body :=
+    ⟨.inr fun k => (body fun x => ⟨NVal.app (.inr k) x.val⟩).val⟩
 
   mapEff
     | .query _, _, g, x =>

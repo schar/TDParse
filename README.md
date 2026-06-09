@@ -14,7 +14,8 @@ Given a binary CFG and a typed lexicon, the demo pipeline:
 
 1. builds all CFG-licensed binary parse trees,
 2. computes all effect-compatible semantic derivations for each tree,
-3. evaluates those derivations as ordinary Lean values.
+3. evaluates those derivations as ordinary Lean values or renders them as
+   normalized, inspectable expressions.
 
 The intended reader is a formal semanticist who is comfortable with typed
 functional programming, applicatives/monads, and algebraic data types, but may
@@ -46,6 +47,10 @@ is declared in [lakefile.toml](lakefile.toml).
 - [TDParse/Data/Ty.lean](TDParse/Data/Ty.lean): object-language semantic types,
   effect constructors, their Lean denotations, and predicates such as
   `functor`, `applicative`, `monad`, and `adjoint`.
+- [TDParse/Data/PExpr.lean](TDParse/Data/PExpr.lean): printable semantic
+  expressions and name-supplying builders used by the pretty interpreter.
+- [TDParse/NBE.lean](TDParse/NBE.lean): normalization-by-evaluation values,
+  reflection/reification, and spawn-comprehension normalization.
 - [TDParse/Semantics.lean](TDParse/Semantics.lean): the tagless-final
   `Semantics` interface plus concrete evaluation and pretty-printing
   interpreters.
@@ -73,12 +78,13 @@ List String
   -> List ((t : Ty) × Expr t × t.dom)
 ```
 
-The three main functions are:
+The core entry points are:
 
 - `parse`: token strings to syntactic trees with typed lexical entries at the
   leaves.
 - `synsem`: trees to typed semantic derivations.
 - `run` / `runAs`: semantic derivations to Lean denotations.
+- `runPrettyAs`: semantic derivations to normalized printable meanings.
 
 The important design choice is that effectful interpretation is part of the
 semantic type. A DP might denote a plain entity, a set of alternatives, a
@@ -202,7 +208,12 @@ Lexical entries are usually built with the surface constructors in the
 tagless-final `SemTerm`, so lexical meanings are written once against the
 `Semantics` interface and can then be evaluated or rendered by different
 interpreters. `Expr.den` evaluates an expression to its Lean denotation, while
-`Expr.eval` evaluates it in a supplied model.
+`Expr.eval` evaluates it in a supplied model. The pretty interpreter keeps
+known functions, booleans, pairs, and lists alongside their printable rendering,
+so common redexes are reduced during interpretation instead of by a final
+syntax-normalization pass. Spawn comprehensions accumulate their binders in the
+NBE value, so independent indefinites render as one comprehension rather than as
+nested opaque applicative terms.
 
 ## Parsing
 
@@ -293,7 +304,7 @@ The algorithm is recursive because each lifted rule asks how to interpret the
 payload types. For example, to combine `S (E ~> T)` with `S E`, `combine` first
 asks how to combine `E ~> T` with `E`, then lifts the answer back through `S`.
 
-## Normalization
+## Derivational Normalization
 
 Effect lifting generates many derivations that differ only in bookkeeping.
 `norm` rejects a hand-written set of equivalent or uninformative mode histories.
