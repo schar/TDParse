@@ -14,7 +14,7 @@ deriving Repr, BEq, DecidableEq
 
 abbrev CFG := Cat -> Cat -> List Cat
 
-inductive Tree (c : Type) (a : Type): Type where
+inductive Tree (c : Type) (a : Type u): Type u where
   | leaf   : c -> a -> Tree c a
   | node   : c -> Tree c a → Tree c a → Tree c a
   | island : c -> Tree c a → Tree c a → Tree c a  -- scope-island: filters unresolved C
@@ -75,6 +75,25 @@ inductive ModeOp : Ty -> Ty -> Ty -> Type where
       ModeOp (a ~> .comp (.query i) b) c d
   | er (i : Ty) : ModeOp a (.comp (.query i) (b ~> c)) d ->
       ModeOp a (b ~> .comp (.query i) c) d
+
+def ModeOp.label {a b c : Ty} : ModeOp a b c -> ModeLabel
+  | .fa => .FA
+  | .ba => .BA
+  | .pm => .PM
+  | .fc => .FC
+  | .ml f _ m => .ML f m.label
+  | .mr f _ m => .MR f m.label
+  | .ap f _ m => .AP f m.label
+  | .ul f _ m => .UL f m.label
+  | .ur f _ m => .UR f m.label
+  | .cu f g _ m => .CU f g m.label
+  | .jn f _ m => .JN f m.label
+  | .dn m => .DN m.label
+  | .scopeAp (r := r) (q := q) m => .AP (.scope r q) m.label
+  | .scopeJn (r := r) (q := q) m => .JN (.scope r q) m.label
+  | .xl f _ m => .XL f m.label
+  | .el i m => .EL (.query i) m.label
+  | .er i m => .ER (.query i) m.label
 
 def ModeOp.sem {a b c : Ty} (op : ModeOp a b c)
     {repr : Ty -> Type} [TDParse.Semantics repr] :
@@ -153,186 +172,16 @@ def ModeOp.sem {a b c : Ty} (op : ModeOp a b c)
   | .er _ m => fun x y => m.sem x (TDParse.Semantics.eject y)
 
 structure Mode (a : Ty) (b : Ty) (c : Ty) where
-  mode : ModeLabel
-  op : a.dom → b.dom → c.dom
   recipe : ModeOp a b c
 
--- Parser-facing lexical storage.  This stays first-order so chart entries
--- remain small; the public constructors in `namespace Expr` below are the
--- tagless-final surface used by lexicons.
-inductive LexOp : Ty -> Type where
-  -- General lexical symbols
-  | opaque (name : String) : LexOp t
-  | bool (b : Bool) : LexOp T
-  | nat (n : Nat) : LexOp E
-  | entity (name : String) : LexOp E
-  | prim1 (name : String) : LexOp (a ~> b)
-  | prim2 (name : String) : LexOp (a ~> b ~> c)
-  | prim3 (name : String) : LexOp (a ~> b ~> c ~> d)
-  -- Effectful lexical recipes
-  | storeEntity (name : String) : LexOp (W^E E)
-  | storeBoolEntity (predName entityName : String) : LexOp (W^T E)
-  | ask (name : String) : LexOp (.comp (.query a) a)
-  | askStore (name : String) : LexOp (.comp (.query a) (.comp (.store a) a))
-  | askStoreRel (name : String) : LexOp ((E ~> E) ~> R^E (W^E E))
-  | askStoreRelFn (name : String) : LexOp ((E ~> E) ~> R^E (W^(R^E E) E))
-  | poss (name : String) : LexOp (E ~> (E ~> E) ~> E)
-  | possStore (name : String) : LexOp (E ~> (E ~> E) ~> W^E E)
-  | andBool (name : String) : LexOp (T ~> T ~> T)
-  | firstEntity (name : String) : LexOp (E ~> E ~> E)
-  | push (name : String) : LexOp (E ~> W^E E)
-  -- Finite-domain recipes used by toy numeric examples
-  | listNat (name : String) (xs : List Nat) : LexOp (S E)
-  | listStoreNat (name : String) (xs : List Nat) : LexOp (S (W^E E))
-  | filterNat (name : String) (xs : List Nat) : LexOp ((E ~> T) ~> S E)
-  | allNat (name : String) (xs : List Nat) : LexOp (C^T T E)
-  | anyNat (name : String) (xs : List Nat) : LexOp (C^T T E)
-  | allStoreNat (name : String) (xs : List Nat) : LexOp (C^T T (W^E E))
-  | definiteNat (name : String) (xs : List Nat) : LexOp (C^E T E)
-  | everyCont (name : String) (xs : List Nat) : LexOp (C^(C^T T E) T E)
-  -- Abstract restricted quantification and choice
-  | choosePred (name restrict : String) : LexOp (S E)
-  | chooseStorePred (name restrict : String) : LexOp (S (W^E E))
-  | allPred (name restrict : String) : LexOp (C^T T E)
-  | anyPred (name restrict : String) : LexOp (C^T T E)
-  | allStorePred (name restrict : String) : LexOp (C^T T (W^E E))
-  | definite (name : String) : LexOp (C^E T E)
-  | everyContPred (name : String) : LexOp (C^(C^T T E) T E)
-  | everyDet (name : String) : LexOp ((E ~> T) ~> C^T T E)
-  | everyPred (name : String) : LexOp ((E ~> T) ~> (E ~> T) ~> T)
-  | someDet (name : String) : LexOp ((E ~> T) ~> S E)
-
-def LexOp.sem {t : Ty} (op : LexOp t) : TDParse.SemTerm t :=
-  fun {repr} [TDParse.Semantics repr] =>
-    match op with
-    | .opaque name => TDParse.Semantics.prim name
-    | .bool b => TDParse.Semantics.bool b
-    | .nat n => TDParse.Semantics.nat n
-    | .entity name => TDParse.Semantics.prim name
-    | .prim1 name =>
-        let f := TDParse.Semantics.prim name
-        TDParse.Semantics.lam fun x => TDParse.Semantics.app f x
-    | .prim2 name =>
-        let f := TDParse.Semantics.prim name
-        TDParse.Semantics.lam fun x =>
-          TDParse.Semantics.lam fun y =>
-            TDParse.Semantics.app (TDParse.Semantics.app f x) y
-    | .prim3 name =>
-        let f := TDParse.Semantics.prim name
-        TDParse.Semantics.lam fun x =>
-          TDParse.Semantics.lam fun y =>
-            TDParse.Semantics.lam fun z =>
-              TDParse.Semantics.app (TDParse.Semantics.app (TDParse.Semantics.app f x) y) z
-    | .storeEntity name =>
-        TDParse.Semantics.storePair
-          (TDParse.Semantics.prim name)
-          (TDParse.Semantics.prim name)
-    | .storeBoolEntity predName entityName =>
-        TDParse.Semantics.storePair
-          (TDParse.Semantics.app
-            (TDParse.Semantics.prim (t := E ~> T) predName)
-            (TDParse.Semantics.prim (t := E) entityName))
-          (TDParse.Semantics.prim (t := E) entityName)
-    | .ask _ => TDParse.Semantics.ask
-    | .askStore _ =>
-        let inst := inferInstanceAs (Functor (FX.query _).dom)
-        TDParse.Semantics.mapEff (FX.query _) inst
-          (TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
-          TDParse.Semantics.ask
-    | .askStoreRel _ =>
-        TDParse.Semantics.lam fun rel =>
-          let inst := inferInstanceAs (Functor (FX.query E).dom)
-          TDParse.Semantics.mapEff (FX.query E) inst
-            (TDParse.Semantics.lam fun x =>
-              TDParse.Semantics.storePair x (TDParse.Semantics.app rel x))
-            TDParse.Semantics.ask
-    | .askStoreRelFn _ =>
-        TDParse.Semantics.lam fun rel =>
-          let inst := inferInstanceAs (Functor (FX.query E).dom)
-          let relReader :=
-            TDParse.Semantics.mapEff (FX.query E) inst rel TDParse.Semantics.ask
-          TDParse.Semantics.mapEff (FX.query E) inst
-            (TDParse.Semantics.lam fun x =>
-              TDParse.Semantics.storePair relReader (TDParse.Semantics.app rel x))
-            TDParse.Semantics.ask
-    | .poss _ =>
-        TDParse.Semantics.lam fun x =>
-          TDParse.Semantics.lam fun rel =>
-            TDParse.Semantics.app rel x
-    | .possStore _ =>
-        TDParse.Semantics.lam fun x =>
-          TDParse.Semantics.lam fun rel =>
-            TDParse.Semantics.storePair x (TDParse.Semantics.app rel x)
-    | .andBool _ =>
-        TDParse.Semantics.lam fun right =>
-          TDParse.Semantics.lam fun left =>
-            TDParse.Semantics.conj left right
-    | .firstEntity _ =>
-        TDParse.Semantics.lam fun _right =>
-          TDParse.Semantics.lam fun left => left
-    | .push _ =>
-        TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x
-    | .listNat _ xs =>
-        TDParse.Semantics.listNat xs
-    | .listStoreNat _ xs =>
-        TDParse.Semantics.listStoreNat xs
-    | .filterNat _ xs =>
-        TDParse.Semantics.lam fun p => TDParse.Semantics.filterNat xs fun x =>
-          TDParse.Semantics.app p x
-    | .allNat _ xs =>
-        TDParse.Semantics.cont fun k => TDParse.Semantics.forallNat xs k
-    | .anyNat _ xs =>
-        TDParse.Semantics.cont fun k => TDParse.Semantics.existsNat xs k
-    | .allStoreNat _ xs =>
-        TDParse.Semantics.cont fun k => TDParse.Semantics.forallStoreNat xs k
-    | .definiteNat _ xs =>
-        TDParse.Semantics.cont2 fun k => TDParse.Semantics.selectNat xs k
-    | .everyCont _ xs =>
-        TDParse.Semantics.cont2 fun k =>
-          TDParse.Semantics.cont fun restrict =>
-            TDParse.Semantics.forallNat xs fun x =>
-              TDParse.Semantics.imp
-                (restrict x)
-                (k x)
-    | .choosePred _ restrict =>
-        TDParse.Semantics.chooseIn (TDParse.Semantics.prim restrict)
-    | .chooseStorePred _ restrict =>
-        TDParse.Semantics.chooseStoreIn (TDParse.Semantics.prim restrict)
-    | .allPred _ restrict =>
-        TDParse.Semantics.cont fun k =>
-          TDParse.Semantics.forallIn (TDParse.Semantics.prim restrict) k
-    | .anyPred _ restrict =>
-        TDParse.Semantics.cont fun k =>
-          TDParse.Semantics.existsIn (TDParse.Semantics.prim restrict) k
-    | .allStorePred _ restrict =>
-        TDParse.Semantics.cont fun k =>
-          TDParse.Semantics.forallStoreIn (TDParse.Semantics.prim restrict) k
-    | .definite _ =>
-        TDParse.Semantics.cont2 fun k => TDParse.Semantics.selectWhere k
-    | .everyContPred _ =>
-        TDParse.Semantics.cont2 fun k =>
-          TDParse.Semantics.cont fun restrict =>
-            TDParse.Semantics.forallIn (TDParse.Semantics.lam restrict) k
-    | .everyDet _ =>
-        TDParse.Semantics.lam fun restrict =>
-          TDParse.Semantics.cont fun k => TDParse.Semantics.forallIn restrict k
-    | .everyPred _ =>
-        TDParse.Semantics.lam fun restrict =>
-          TDParse.Semantics.lam fun scope =>
-            TDParse.Semantics.forallIn restrict fun x =>
-              TDParse.Semantics.app scope x
-    | .someDet _ =>
-        TDParse.Semantics.lam fun restrict =>
-          TDParse.Semantics.chooseIn restrict
+def Mode.mode (m : Mode a b c) : ModeLabel :=
+  m.recipe.label
 
 structure Lexeme (t : Ty) where
   name : String
-  recipe : LexOp t
+  sem : TDParse.SemTerm t
 
-def Lexeme.sem (l : Lexeme t) : TDParse.SemTerm t :=
-  l.recipe.sem
-
-inductive Expr : Ty → Type where
+inductive Expr : Ty → Type 1 where
   | lexeme : Lexeme a → Expr a
   | moc : Mode a b c → Expr a → Expr b → Expr c
 
@@ -341,89 +190,162 @@ namespace Expr
 -- Surface constructors for lexical entries.  These are meant to be used like
 -- tagless-final lexical definitions: the lexicon names abstract meanings, and
 -- concrete model values are supplied only by an interpreter.
-def lex (name : String) : Expr a :=
-  .lexeme ⟨name, .opaque name⟩
+def lexWith {a : Ty} (name : String) (sem : TDParse.SemTerm a) : Expr a :=
+  .lexeme ⟨name, sem⟩
 
-def lexWith (name : String) (recipe : LexOp a) : Expr a :=
-  .lexeme ⟨name, recipe⟩
+def lex {a : Ty} (name : String) : Expr a :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.prim name)
 
 def litNat (name : String) (n : Nat) : Expr E :=
-  lexWith name (.nat n)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.nat n)
 
 def entity (name : String) : Expr E :=
-  lexWith name (.entity name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.prim name)
 
-def fun1 (name : String) : Expr (a ~> b) :=
-  lexWith name (.prim1 name)
+def fun1 {a b : Ty} (name : String) : Expr (a ~> b) :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    let f := TDParse.Semantics.prim (t := a ~> b) name
+    TDParse.Semantics.lam fun x => TDParse.Semantics.app f x)
 
-def fun2 (name : String) : Expr (a ~> b ~> c) :=
-  lexWith name (.prim2 name)
+def fun2 {a b c : Ty} (name : String) : Expr (a ~> b ~> c) :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    let f := TDParse.Semantics.prim (t := a ~> b ~> c) name
+    TDParse.Semantics.lam fun x =>
+      TDParse.Semantics.lam fun y =>
+        TDParse.Semantics.app (TDParse.Semantics.app f x) y)
 
-def fun3 (name : String) : Expr (a ~> b ~> c ~> d) :=
-  lexWith name (.prim3 name)
+def fun3 {a b c d : Ty} (name : String) : Expr (a ~> b ~> c ~> d) :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    let f := TDParse.Semantics.prim (t := a ~> b ~> c ~> d) name
+    TDParse.Semantics.lam fun x =>
+      TDParse.Semantics.lam fun y =>
+        TDParse.Semantics.lam fun z =>
+          TDParse.Semantics.app (TDParse.Semantics.app (TDParse.Semantics.app f x) y) z)
 
-def ask (name : String) : Expr (R^a a) :=
-  lexWith name (.ask name)
+def ask {a : Ty} (name : String) : Expr (R^a a) :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.ask (a := a))
 
-def askStore (name : String) : Expr (R^a (W^a a)) :=
-  lexWith name (.askStore name)
+def askStore {a : Ty} (name : String) : Expr (R^a (W^a a)) :=
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    let inst := inferInstanceAs (Functor (FX.query a).dom)
+    TDParse.Semantics.mapEff (FX.query a) inst
+      (TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
+      (TDParse.Semantics.ask (a := a)))
 
 def askStoreRel (name : String) : Expr ((E ~> E) ~> R^E (W^E E)) :=
-  lexWith name (.askStoreRel name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun rel =>
+      let inst := inferInstanceAs (Functor (FX.query E).dom)
+      TDParse.Semantics.mapEff (FX.query E) inst
+        (TDParse.Semantics.lam fun x =>
+          TDParse.Semantics.storePair x (TDParse.Semantics.app rel x))
+        TDParse.Semantics.ask)
 
 def askStoreRelFn (name : String) : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) :=
-  lexWith name (.askStoreRelFn name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun rel =>
+      let inst := inferInstanceAs (Functor (FX.query E).dom)
+      let relReader :=
+        TDParse.Semantics.mapEff (FX.query E) inst rel TDParse.Semantics.ask
+      TDParse.Semantics.mapEff (FX.query E) inst
+        (TDParse.Semantics.lam fun x =>
+          TDParse.Semantics.storePair relReader (TDParse.Semantics.app rel x))
+        TDParse.Semantics.ask)
 
 def storeEntity (name : String) : Expr (W^E E) :=
-  lexWith name (.storeEntity name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.storePair
+      (TDParse.Semantics.prim (t := E) name)
+      (TDParse.Semantics.prim (t := E) name))
 
 def storeBoolEntity (name predName entityName : String) : Expr (W^T E) :=
-  lexWith name (.storeBoolEntity predName entityName)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.storePair
+      (TDParse.Semantics.app
+        (TDParse.Semantics.prim (t := E ~> T) predName)
+        (TDParse.Semantics.prim (t := E) entityName))
+      (TDParse.Semantics.prim (t := E) entityName))
 
 def possessive : Expr (E ~> (E ~> E) ~> E) :=
-  lexWith "'s" (.poss "'s")
+  lexWith "'s" (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun x =>
+      TDParse.Semantics.lam fun rel =>
+        TDParse.Semantics.app rel x)
 
 def possessiveStore : Expr (E ~> (E ~> E) ~> W^E E) :=
-  lexWith "'s" (.possStore "'s")
+  lexWith "'s" (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun x =>
+      TDParse.Semantics.lam fun rel =>
+        TDParse.Semantics.storePair x (TDParse.Semantics.app rel x))
 
 def push : Expr (E ~> W^E E) :=
-  lexWith "push" (.push "push")
+  lexWith "push" (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
 
 def choose (name restrict : String) : Expr (S E) :=
-  lexWith name (.choosePred name restrict)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.chooseIn (TDParse.Semantics.prim restrict))
 
 def chooseStore (name restrict : String) : Expr (S (W^E E)) :=
-  lexWith name (.chooseStorePred name restrict)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.chooseStoreIn (TDParse.Semantics.prim restrict))
 
 def existsE (name restrict : String) : Expr (C^T T E) :=
-  lexWith name (.anyPred name restrict)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.cont fun k =>
+      TDParse.Semantics.existsIn (TDParse.Semantics.prim restrict) k)
 
 def forallE (name restrict : String) : Expr (C^T T E) :=
-  lexWith name (.allPred name restrict)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.cont fun k =>
+      TDParse.Semantics.forallIn (TDParse.Semantics.prim restrict) k)
 
 def forallStore (name restrict : String) : Expr (C^T T (W^E E)) :=
-  lexWith name (.allStorePred name restrict)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.cont fun k =>
+      TDParse.Semantics.forallStoreIn (TDParse.Semantics.prim restrict) k)
 
 def someDet (name : String) : Expr ((E ~> T) ~> S E) :=
-  lexWith name (.someDet name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun restrict =>
+      TDParse.Semantics.chooseIn restrict)
 
 def everyDet (name : String) : Expr ((E ~> T) ~> C^T T E) :=
-  lexWith name (.everyDet name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun restrict =>
+      TDParse.Semantics.cont fun k => TDParse.Semantics.forallIn restrict k)
 
 def everyPred (name : String) : Expr ((E ~> T) ~> (E ~> T) ~> T) :=
-  lexWith name (.everyPred name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun restrict =>
+      TDParse.Semantics.lam fun scope =>
+        TDParse.Semantics.forallIn restrict fun x =>
+          TDParse.Semantics.app scope x)
 
 def andBool (name : String) : Expr (T ~> T ~> T) :=
-  lexWith name (.andBool name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun right =>
+      TDParse.Semantics.lam fun left =>
+        TDParse.Semantics.conj left right)
 
 def firstEntity (name : String) : Expr (E ~> E ~> E) :=
-  lexWith name (.firstEntity name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.lam fun _right =>
+      TDParse.Semantics.lam fun left => left)
 
 def definite (name : String) : Expr (C^E T E) :=
-  lexWith name (.definite name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.cont2 fun k => TDParse.Semantics.selectWhere k)
 
 def everyCont (name : String) : Expr (C^(C^T T E) T E) :=
-  lexWith name (.everyContPred name)
+  lexWith name (fun {repr} [TDParse.Semantics repr] =>
+    TDParse.Semantics.cont2 fun k =>
+      TDParse.Semantics.cont fun restrict =>
+        TDParse.Semantics.forallIn (TDParse.Semantics.lam restrict) k)
 
 end Expr
 
@@ -451,9 +373,9 @@ def exprTest (x y : Nat) : Expr T :=
         obj : Expr E := .litNat "obj" y
         exc : Expr (E~>E~>T) := .fun2 "exceeds"
         fa : Mode (E~>E~>T) E (E~>T) :=
-          ⟨.FA, (·<|·), .fa⟩
+          ⟨.fa⟩
         ba : Mode E (E~>T) T :=
-          ⟨.BA, (·|>·), .ba⟩
+          ⟨.ba⟩
 
 #eval exprTest 5 2 |>.den
 #eval exprTest 2 5 |>.den
@@ -467,7 +389,7 @@ def Interps (t : Ty) := List (Expr t × t.dom)
 -- Lexicon
 -- ------------------------------------------------------------------------
 
-inductive HDict : List Ty -> Type
+inductive HDict : List Ty -> Type 1
   | nil : HDict []
   | cons : (Cat × Expr t) → HDict ts → HDict (t::ts)
 

@@ -46,13 +46,16 @@ is declared in [lakefile.toml](lakefile.toml).
 - [TDParse/Data/Ty.lean](TDParse/Data/Ty.lean): object-language semantic types,
   effect constructors, their Lean denotations, and predicates such as
   `functor`, `applicative`, `monad`, and `adjoint`.
+- [TDParse/Semantics.lean](TDParse/Semantics.lean): the tagless-final
+  `Semantics` interface plus concrete evaluation and pretty-printing
+  interpreters.
 - [TDParse/Data/Derivation.lean](TDParse/Data/Derivation.lean): syntactic
-  categories, parse trees, mode labels, typed semantic expressions, and
-  heterogeneous lexicons.
+  categories, parse trees, mode recipes, derived mode labels, typed semantic
+  expressions, and heterogeneous lexicons.
 - [TDParse/Combine.lean](TDParse/Combine.lean): the effect-driven composition
   search.
 - [TDParse/Memoize.lean](TDParse/Memoize.lean): structurally keyed memoized
-  fixed points.
+  fixed points and local array-backed span memoization.
 - [TDParse/Display.lean](TDParse/Display.lean): pretty-printers for types,
   modes, expressions, and interpretations.
 - [TDParse.lean](TDParse.lean): lexicon lookup, parsing, semantic derivation,
@@ -176,7 +179,7 @@ category, return all possible mother categories.
 Lexical entries are stored in a heterogeneous dictionary:
 
 ```lean
-inductive HDict : List Ty -> Type
+inductive HDict : List Ty -> Type 1
   | nil : HDict []
   | cons : (Cat × Expr t) -> HDict ts -> HDict (t :: ts)
 ```
@@ -188,15 +191,18 @@ semantic type together with an expression of exactly that type.
 Semantic expressions are also indexed by type:
 
 ```lean
-inductive Expr : Ty -> Type where
+inductive Expr : Ty -> Type 1 where
   | lexeme : Lexeme a -> Expr a
   | moc : Mode a b c -> Expr a -> Expr b -> Expr c
 ```
 
 Lexical entries are usually built with the surface constructors in the
 `Expr` namespace, such as `Expr.lex`, `Expr.lexWith`, `Expr.litNat`,
-`Expr.entity`, `Expr.fun1`, and `Expr.ask`. `Expr.den` evaluates an expression
-to its Lean denotation, while `Expr.eval` evaluates it in a supplied model.
+`Expr.entity`, `Expr.fun1`, and `Expr.ask`. Internally, a lexeme stores a
+tagless-final `SemTerm`, so lexical meanings are written once against the
+`Semantics` interface and can then be evaluated or rendered by different
+interpreters. `Expr.den` evaluates an expression to its Lean denotation, while
+`Expr.eval` evaluates it in a supplied model.
 
 ## Parsing
 
@@ -244,15 +250,16 @@ def combine : (u v : Ty) -> List (Combo u v)
 
 Given a left type `u` and right type `v`, `combine` returns every composition
 mode licensed by the relevant pure and effectful structure, packaged with the
-resulting type. A `Mode a b c` contains a printable label, the actual semantic
-operation, and a first-order recipe used by the tagless-final interpreters:
+resulting type. A `Mode a b c` contains a first-order recipe used by the
+tagless-final interpreters:
 
 ```lean
 structure Mode (a : Ty) (b : Ty) (c : Ty) where
-  mode : ModeLabel
-  op : a.dom -> b.dom -> c.dom
   recipe : ModeOp a b c
 ```
+
+Mode labels are derived from `ModeOp`, rather than stored independently, so
+display and normalization cannot drift away from the recipe being interpreted.
 
 The primitive modes are:
 
@@ -304,8 +311,8 @@ patterns such as:
 | .JN f (.MR g (.MR h _)) => not (f == g && g == h)
 ```
 
-That is why the labels record not just `MR`, `ML`, `JN`, etc., but also the
-effect involved.
+That is why the derived labels record not just `MR`, `ML`, `JN`, etc., but also
+the effect involved.
 
 ## Memoization
 
@@ -319,14 +326,16 @@ Both main searches have overlapping subproblems:
 ```lean
 memoFix       : structurally keyed unary memoized fixed point
 memoFix2      : structurally keyed binary memoized fixed point
-memoFix2State : binary memoized fixed point with an explicit state cache
+memoFix2State : array-backed binary memoized fixed point for local Nat charts
 ```
 
-The cache is a `Std.HashMap`. `combine` uses the persistent structural helpers
-and is memoized by `Ty` pairs. `parse` uses `memoFix2State` and memoizes only
-the `(Nat, Nat)` span, with the chart cache supplied by the parse call itself.
-This is the same convention as the Haskell implementation, where `(lo, hi)` is
-sufficient because the chart cache is local to one input string.
+`combine` uses the persistent structural helpers and is memoized by `Ty` pairs.
+`parse` uses `memoFix2State`, which stores local `(Nat, Nat)` span results in a
+dense array chart indexed by `lo * width + hi`. This is the same convention as
+the Haskell implementation, where `(lo, hi)` is sufficient because the chart
+cache is local to one input string. The array chart also supports parser
+results that live in higher universes, which matters because lexical entries
+store tagless-final semantic closures.
 
 The persistent dependent helpers use a small internal `unsafeCast` because the
 result type of a memoized dependent function depends on the key. The public API
@@ -402,7 +411,7 @@ To add a new effect or composition principle:
 2. Add any required algebraic instances in
    [TDParse/Data/Algebra.lean](TDParse/Data/Algebra.lean).
 3. Update the effect predicates in [TDParse/Data/Ty.lean](TDParse/Data/Ty.lean).
-4. Add mode labels and search rules in [TDParse/Combine.lean](TDParse/Combine.lean).
+4. Add mode recipes and search rules in [TDParse/Combine.lean](TDParse/Combine.lean).
 5. Add display cases in [TDParse/Display.lean](TDParse/Display.lean).
 
 Because expressions are indexed by semantic type, many mistakes in new

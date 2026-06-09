@@ -47,8 +47,8 @@ instance : Repr Ty where
 open Std.Format
 def Expr.rp : Expr t -> Std.Format
   | .lexeme l      => l.name
-  | .moc ⟨m,_,_⟩ l r =>
-      repr m ++ nest 2 (align true ++ l.rp ++ align true ++ r.rp)
+  | .moc m l r =>
+      repr m.mode ++ nest 2 (align true ++ l.rp ++ align true ++ r.rp)
 
 instance : Repr (Expr t) where
   reprPrec e _ := Expr.rp e

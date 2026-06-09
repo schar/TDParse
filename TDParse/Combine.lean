@@ -6,87 +6,55 @@ import TDParse.Memoize
 -- Modes of combination
 -- ------------------------------------------------------------------------
 
-section
-open ModeLabel
 variable {a a' b b' c : Ty}
 
 -- Basic modes
 def Mode.fa : Mode (a ~> b) a b :=
-  ⟨FA, (·<|·), .fa⟩
+  ⟨.fa⟩
 
 def Mode.ba : Mode a (a ~> b) b :=
-  ⟨BA, (·|>·), .ba⟩
+  ⟨.ba⟩
 
 def Mode.pm : Mode (a ~> T) (a ~> T) (a ~> T) :=
-  ⟨PM,
-    fun p q x => p x && q x,
-    .pm⟩
+  ⟨.pm⟩
 
 def Mode.fc : Mode (b ~> c) (a ~> b) (a ~> c) :=
-  ⟨FC, (· ∘ ·), .fc⟩
+  ⟨.fc⟩
 
 -- Meta-modes
-def Mode.ml (f : FX) (inst : Functor f.dom) (ok : (functor f).isSome = true)
+def Mode.ml (f : FX) (ok : (functor f).isSome = true)
     (m : Mode a b c) : Mode (.comp f a) b (.comp f c) :=
-  ⟨ML f m.mode,
-    (letI : Functor f.dom := inst
-     fun xs y => xs <&> (fun x => m.op x y)),
-    .ml f ok m.recipe⟩
+  ⟨.ml f ok m.recipe⟩
 
-def Mode.mr (f : FX) (inst : Functor f.dom) (ok : (functor f).isSome = true)
+def Mode.mr (f : FX) (ok : (functor f).isSome = true)
     (m : Mode a b c) : Mode a (.comp f b) (.comp f c) :=
-  ⟨MR f m.mode,
-    (letI : Functor f.dom := inst
-     fun x ys => (fun y => m.op x y) <$> ys),
-    .mr f ok m.recipe⟩
+  ⟨.mr f ok m.recipe⟩
 
-def Mode.ap (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+def Mode.ap (f : FX) (ok : (applicative f).isSome = true)
     (m : Mode a b c) : Mode (.comp f a) (.comp f b) (.comp f c) :=
-  ⟨AP f m.mode,
-    (letI : Applicative f.dom := inst
-     fun xs ys => m.op <$> xs <*> ys),
-    .ap f ok m.recipe⟩
+  ⟨.ap f ok m.recipe⟩
 
-def Mode.ul (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+def Mode.ul (f : FX) (ok : (applicative f).isSome = true)
     (m : Mode a (b ~> b') c) :
     Mode a (.comp f b ~> b') c :=
-  ⟨UL f m.mode,
-    (letI : Applicative f.dom := inst
-     fun x y => m.op x (fun b => y (pure b))),
-    .ul f ok m.recipe⟩
+  ⟨.ul f ok m.recipe⟩
 
-def Mode.ur (f : FX) (inst : Applicative f.dom) (ok : (applicative f).isSome = true)
+def Mode.ur (f : FX) (ok : (applicative f).isSome = true)
     (m : Mode (a ~> a') b c) :
     Mode (.comp f a ~> a') b c :=
-  ⟨UR f m.mode,
-    (letI : Applicative f.dom := inst
-     fun x y => m.op (fun a => x (pure a)) y),
-    .ur f ok m.recipe⟩
+  ⟨.ur f ok m.recipe⟩
 
-def Mode.cu (lf rf : FX) (instF : Functor lf.dom) (instG : Functor rf.dom)
-    (adj : @Adjoint lf.dom rf.dom instF instG) (ok : (adjoint lf rf).isSome = true)
+def Mode.cu (lf rf : FX) (ok : (adjoint lf rf).isSome = true)
     (m : Mode a b c) :
     Mode (.comp lf a) (.comp rf b) c :=
-  ⟨CU lf rf m.mode,
-    (letI : Functor lf.dom := instF
-     letI : Functor rf.dom := instG
-     letI : Adjoint lf.dom rf.dom := adj
-     fun xs ys => Adjoint.counit ((fun a => m.op a <$> ys) <$> xs)),
-    .cu lf rf ok m.recipe⟩
+  ⟨.cu lf rf ok m.recipe⟩
 
-def Mode.jn (f : FX) (inst : Monad f.dom) (ok : (monad f).isSome = true)
+def Mode.jn (f : FX) (ok : (monad f).isSome = true)
     (m : Mode a b (.comp f (.comp f c))) : Mode a b (.comp f c) :=
-  ⟨JN f m.mode,
-    (letI : Monad f.dom := inst
-     fun x y => m.op x y >>= id),
-    .jn f ok m.recipe⟩
+  ⟨.jn f ok m.recipe⟩
 
 def Mode.dn (m : Mode a b (.comp (.scope c b') b')) : Mode a b c :=
-  ⟨DN m.mode,
-    fun x y => m.op x y id,
-    .dn m.recipe⟩
-
-end
+  ⟨.dn m.recipe⟩
 
 
 -- Compatible effect sequencing
@@ -109,7 +77,7 @@ private def appCompatSame (f g : FX) : List (AppCompat f g) :=
     by
       subst h
       match hApp : applicative f with
-      | some inst => exact [{ out := f, lift := fun _ _ _ m => .ap f inst (by simp [hApp]) m }]
+      | some _ => exact [{ out := f, lift := fun _ _ _ m => .ap f (by simp [hApp]) m }]
       | none   => exact []
   else []
 
@@ -121,9 +89,7 @@ def appCompat : (f g : FX) -> List (AppCompat f g)
           exact
             [{ out := .scope ret ans
              , lift := fun _ _ _ m =>
-                 ⟨.AP (.scope ret ans) m.mode,
-                   fun xs ys k => xs fun a => ys fun b => k (m.op a b),
-                   .scopeAp m.recipe⟩ }]
+                 ⟨.scopeAp m.recipe⟩ }]
       else []
   | f, g => appCompatSame f g
 
@@ -132,7 +98,7 @@ private def joinCompatSame (f g : FX) : List (JoinCompat f g) :=
     by
       subst h
       match hMon : monad f with
-      | some inst => exact [{ out := f, lift := fun _ _ _ m => .jn f inst (by simp [hMon]) m }]
+      | some _ => exact [{ out := f, lift := fun _ _ _ m => .jn f (by simp [hMon]) m }]
       | none   => exact []
   else []
 
@@ -144,9 +110,7 @@ def joinCompat : (f g : FX) -> List (JoinCompat f g)
           exact
             [{ out := .scope ret ans
              , lift := fun _ _ _ m =>
-                 ⟨.JN (.scope ret ans) m.mode,
-                   fun x y k => m.op x y fun z => z k,
-                   .scopeJn m.recipe⟩ }]
+                 ⟨.scopeJn m.recipe⟩ }]
       else []
   | f, g => joinCompatSame f g
 
@@ -237,32 +201,32 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
 
     let addML : List (Combo u v) := do
           let .comp f a := u | []
-          let some inst := functor f | []
+          let some _ := functor f | []
           have ok : (functor f).isSome = true := by cases f <;> simp [functor]
-          combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml f inst ok m⟩
+          combine a v <&> λ⟨w,m⟩ => ⟨.comp f w, .ml f ok m⟩
 
     let addMR : List (Combo u v) := do
           let .comp f b := v | []
-          let some inst := functor f | []
+          let some _ := functor f | []
           have ok : (functor f).isSome = true := by cases f <;> simp [functor]
-          let ⟨w, m⟩ <- combine u b
-          let m' := .mr f inst ok m
+          let ⟨w, m⟩ ← combine u b
+          let m' := .mr f ok m
           guard (invertOk m.mode f)
           pure ⟨.comp f w, m'⟩
 
     let addAP : List (Combo u v) := do
           let .comp f a := u | []
           let .comp g b := v | []
-          let seq <- appCompat f g
+          let seq ← appCompat f g
           combine a b <&> λ⟨w,m⟩ => ⟨.comp seq.out w, seq.lift a b w m⟩
 
     let addUL : List (Combo u v) :=
         match v with
         | .fn (.comp f b) b' =>
           match hApp : applicative f with
-          | some inst => do
-              let ⟨w,m⟩ <- combine u (b ~> b')
-              let m' := .ul f inst (by simp [hApp]) m
+          | some _ => do
+              let ⟨w,m⟩ ← combine u (b ~> b')
+              let m' := .ul f (by simp [hApp]) m
               guard (norm m') *> pure ⟨w, m'⟩
           | none => []
         | _ => []
@@ -271,9 +235,9 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
         match u with
         | .fn (.comp f a) a' =>
           match hApp : applicative f with
-          | some inst => do
-              let ⟨w,m⟩ <- combine (a ~> a') v
-              let m' := .ur f inst (by simp [hApp]) m
+          | some _ => do
+              let ⟨w,m⟩ ← combine (a ~> a') v
+              let m' := .ur f (by simp [hApp]) m
               guard (norm m') *> pure ⟨w, m'⟩
           | none => []
         | _ => []
@@ -282,17 +246,14 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
         match u, v with
         | .comp f a, .comp g b =>
           match hAdj : adjoint f g, hCom : comonad f with
-          | some ⟨instF, instG, adj⟩, some inst => do
-              let ⟨w, m⟩ <- combine a b
+          | some _, some _ => do
+              let ⟨w, m⟩ ← combine a b
               let adjOk : (adjoint f g).isSome = true := by simp [hAdj]
               let comOk : (comonad f).isSome = true := by simp [hCom]
-              let mcu : Mode (.comp f a) (.comp g b) w := .cu f g instF instG adj adjOk m
+              let mcu : Mode (.comp f a) (.comp g b) w := .cu f g adjOk m
               let base : Combo (.comp f a) (.comp g b) := ⟨w, mcu⟩
               let mxl : Mode (.comp f a) (.comp g b) (.comp f w) :=
-                ⟨XL f mcu.mode,
-                  fun (xs : Ty.dom (.comp f a)) (ys : Ty.dom (.comp g b)) =>
-                    inst.extend (fun xs' => mcu.op xs' ys) xs,
-                  .xl f comOk mcu.recipe⟩
+                ⟨.xl f comOk mcu.recipe⟩
               let ext : Combo (.comp f a) (.comp g b) := ⟨.comp f w, mxl⟩
               [base, ext]
           | _, _ => []
@@ -301,28 +262,24 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
     let addEL : List (Combo u v) :=
         match u with
         | .fn a (.comp (.query i) b) => do
-            let ⟨w, m⟩ <- combine (.comp (.query i) (.fn a b)) v
+            let ⟨w, m⟩ ← combine (.comp (.query i) (.fn a b)) v
             let m' : Mode (.fn a (.comp (.query i) b)) v w :=
-              ⟨EL (.query i) m.mode,
-                fun x y => m.op (fun env a' => x a' env) y,
-                .el i m.recipe⟩
+              ⟨.el i m.recipe⟩
             guard (norm m') *> pure ⟨w, m'⟩
         | _ => []
 
     let addER : List (Combo u v) :=
         match v with
         | .fn a (.comp (.query i) b) => do
-            let ⟨w, m⟩ <- combine u (.comp (.query i) (.fn a b))
+            let ⟨w, m⟩ ← combine u (.comp (.query i) (.fn a b))
             let m' : Mode u (.fn a (.comp (.query i) b)) w :=
-              ⟨ER (.query i) m.mode,
-                fun x y => m.op x (fun env a' => y a' env),
-                .er i m.recipe⟩
+              ⟨.er i m.recipe⟩
             guard (norm m') *> pure ⟨w, m'⟩
         | _ => []
 
     let addJN (e : Combo u v) : List (Combo u v) := do
           let ⟨.comp f (.comp g c), m⟩ := e | []
-          let seq <- joinCompat f g
+          let seq ← joinCompat f g
           let m' : Mode u v (.comp seq.out c) := seq.lift u v c m
           guard (norm m')
           pure ⟨.comp seq.out c, m'⟩
