@@ -75,10 +75,8 @@ def happy : Expr (E ~> T) := fun1 "happy"
 def near : Expr (E ~> E ~> T) := fun2 "near"
 def someDet : Expr ((E ~> T) ~> S E) := Expr.someDet "some"
 def someoneC : Expr (C^T T E) := Expr.existsE "someone" "person"
-def someone2 : Expr (S (W^E E)) := chooseStore "someone2" "person"
-def someone3 : Expr (S E) := choose "someone3" "person"
+def someoneS : Expr (S E) := choose "someoneS" "person"
 def everyone : Expr (C^T T E) := Expr.forallE "everyone" "person"
-def everyone2 : Expr (C^T T (W^E E)) := forallStore "everyone2" "person"
 def tr : Expr (R^E E) := Expr.ask "tr"
 def andC : Expr (T ~> T ~> T) := andBool "and"
 def butC : Expr (T ~> T ~> T) := andBool "but"
@@ -129,10 +127,8 @@ def demoLex :=
   (TAdj, near),
   (Det , someDet),
   (DP  , someoneC),
-  (DP  , someone2),
-  (DP  , someone3),
+  (DP  , someoneS),
   (DP  , everyone),
-  (DP  , everyone2),
   (DP  , tr),
   (Cor , andC),
   (Cor , butC),
@@ -140,6 +136,7 @@ def demoLex :=
   (TAdv, withAdv),
   (Cmp , eclo),
   (Dmp , eclo),
+  (Dmp , psh),
   (DP  , maryaling),
   (DP  , sassyacat)
 ]}
@@ -227,24 +224,18 @@ def englishPrettyDerive (u : String) : List String :=
 def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
   englishDerive u |>.filterMap (runPrettyAs t) |>.map (fun (_, s) => s)
 
-#eval numberPrettyDeriveAs T "two exceeds one"
+-- Interactive examples not otherwise covered by regression guards.
 #eval numberPrettyDeriveAs (S T) "whichnum exceeds two"
-#eval numberPrettyDeriveAs (S T) "whichnum exceeds whichnum"
 #eval numberPrettyDeriveAs (R^E T) "everyprime exceeds pro"
 #eval numberPrettyDeriveAs (W^E T) "push two exceeds one"
 #eval numberPrettyDeriveAs T "push two exceeds its predecessor"
 #eval numberPrettyDeriveAs T "push two exceeds its successor"
-#eval numberPrettyDeriveAs T "everyprime succeeds somenum"
 #eval numberPrettyDeriveAs T "push everyprime succeeds its predecessor"
 
 #eval englishPrettyDeriveAs T "the very big cat left"
 #eval englishPrettyDeriveAs (R^E T) "she saw her mom"
 #eval englishPrettyDeriveAs T "marianne's mom saw her"
-#eval englishPrettyDeriveAs (S T) "someone2 left and she whistled"
-#eval englishPrettyDeriveAs (S T) "someone3 left and someone3 left and someone3 whistled"
-#eval englishPrettyDeriveAs (S T) "the cat near someone2 saw her"
 #eval englishPrettyDeriveAs (W^T T) "maryaling saw sassyacat"
-#eval (englishPrettyDeriveAs T "marianne saved her2 paycheck but everyone2 spent it").take 10
 
 -- Pretty-output regression checks for the typed NBE renderer.
 #guard numberPrettyDeriveAs T "two exceeds one" ==
@@ -258,21 +249,29 @@ def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
   , "∀x0[prime x0]. ∃x1[number x1]. succeeds x1 x0"
   ]
 
-#guard englishPrettyDeriveAs (S T) "someone2 left and she whistled" ==
+#guard englishPrettyDeriveAs (S T) "push someoneS left and she whistled" ==
   ["[left x0 ∧ whistled x0 | person x0]"]
+
+#guard englishPrettyDeriveAs T "eclo push someoneS left and she whistled" ==
+  ["∃x0[person x0]. left x0 ∧ whistled x0"]
+
+#guard englishPrettyDeriveAs T "eclo someoneS left and someoneS left and someoneS whistled" ==
+  [ "∃x0[person x0]. ∃x1[person x1]. ∃x2[person x2]. left x0 ∧ left x1 ∧ whistled x2"
+  , "∃x0[person x0]. ∃x1[person x1]. ∃x2[person x2]. (left x0 ∧ left x1) ∧ whistled x2"
+  ]
 
 #guard englishPrettyDeriveAs (R^E (W^E T)) "someone left and she2 whistled" ==
   ["λx0. ⟨x0, (∃x1[person x1]. left x1) ∧ whistled x0⟩"]
 
-#guard englishPrettyDeriveAs (S T) "someone3 left and someone3 left and someone3 whistled" ==
+#guard englishPrettyDeriveAs (S T) "someoneS left and someoneS left and someoneS whistled" ==
   [ "[left x0 ∧ left x1 ∧ whistled x2 | person x0, person x1, person x2]"
   , "[(left x0 ∧ left x1) ∧ whistled x2 | person x0, person x1, person x2]"
   ]
 
-#guard englishPrettyDeriveAs (S T) "the cat near someone2 saw her" ==
+#guard englishPrettyDeriveAs (S T) "the cat near push someoneS saw her" ==
   ["[saw x0 (the (λx1. cat x1 ∧ near x0 x1)) | person x0]"]
 
-#guard englishPrettyDeriveAs T "marianne saved her2 paycheck but everyone2 spent it" ==
+#guard englishPrettyDeriveAs T "marianne saved her2 paycheck but push everyone spent it" ==
   ["saved (paycheck marianne) marianne ∧ (∀x0[person x0]. spent (paycheck x0) x0)"]
 
 

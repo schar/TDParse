@@ -263,12 +263,6 @@ def choose (name restrict : String) : Expr (S E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.chooseIn (TDParse.Semantics.prim restrict))
 
-def chooseStore (name restrict : String) : Expr (S (W^E E)) :=
-  lexWith name (fun {repr} [TDParse.Semantics repr] =>
-    TDParse.Semantics.mapEff .spawn FX.spawn.functorOk
-      (TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
-      (TDParse.Semantics.chooseIn (TDParse.Semantics.prim restrict)))
-
 def existsE (name restrict : String) : Expr (C^T T E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.cont fun k =>
@@ -278,12 +272,6 @@ def forallE (name restrict : String) : Expr (C^T T E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.cont fun k =>
       TDParse.Semantics.forallIn (TDParse.Semantics.prim restrict) k)
-
-def forallStore (name restrict : String) : Expr (C^T T (W^E E)) :=
-  lexWith name (fun {repr} [TDParse.Semantics repr] =>
-    TDParse.Semantics.cont fun k =>
-      TDParse.Semantics.forallIn (TDParse.Semantics.prim restrict) fun x =>
-        k (TDParse.Semantics.storePair x x))
 
 def someDet (name : String) : Expr ((E ~> T) ~> S E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>

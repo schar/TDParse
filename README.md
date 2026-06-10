@@ -220,11 +220,13 @@ syntax-normalization pass. Spawn comprehensions accumulate their binders in the
 NBE value, so independent indefinites render as one comprehension rather than as
 nested applicative syntax.
 
-Lexical helpers for composed effects are ordinary tagless-final definitions.
-For instance, `chooseStore` is not a primitive semantic operation; it maps
-`storePair x x` over `chooseIn restrict`.  This keeps the `Semantics` interface
-focused on primitive denotational structure rather than on every useful
-combination of effects.
+Composed effects arise by ordinary derivation rather than by special semantic
+operations. For instance, the demo word `push` has type `E ~> W^E E`; combining
+it with `someoneS : S E` maps `push` through the `S` effect and yields
+`S (W^E E)`. Combining the same word with `everyone : C^T T E` maps it through
+the scope effect and yields `C^T T (W^E E)`. This keeps the `Semantics`
+interface focused on primitive denotational structure rather than on every
+useful combination of effects.
 
 ## Parsing
 

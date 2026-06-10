@@ -373,6 +373,17 @@ def neg (p : Pretty T) : Pretty T :=
   | some b => bool (!b)
   | none => ⟨⟨PBuild.neg p.val.build, none⟩⟩
 
+def knownAny : List NBool -> Option Bool
+  | [] => some false
+  | x :: xs =>
+      match x.known? with
+      | some true => some true
+      | some false => knownAny xs
+      | none =>
+          match knownAny xs with
+          | some true => some true
+          | _ => none
+
 def eqNatPretty (p q : Pretty E) : Pretty T :=
   ⟨⟨PBuild.eqNat p.val q.val, none⟩⟩
 
@@ -398,6 +409,25 @@ def selectWhere (body : Pretty E -> Pretty T) : Pretty E :=
 
 def chooseIn (restrict : Pretty (E ~> T)) : Pretty (S E) :=
   ⟨NSpawn.comp (fun x => NVal.app restrict.val x) id⟩
+
+def existsBinds (binds : List (String × PExpr)) (body : PExpr) : PExpr :=
+  binds.foldr (fun (x, restrict) body => PExpr.quantIn "∃" x restrict body) body
+
+def eclo (x : Pretty (S T)) : Pretty T :=
+  match x.val with
+  | .known xs =>
+      match knownAny xs with
+      | some b => bool b
+      | none => op1 "eclo" x
+  | .comp c =>
+      ⟨⟨fun n =>
+        let (binds, body, n) := c.run n
+        let (body, n) := reify T body n
+        (existsBinds binds.reverse body, n), none⟩⟩
+  | .neutral _ => op1 "eclo" x
+
+def ecloFun : Pretty (S T ~> T) :=
+  ⟨.inr fun x => (eclo ⟨x⟩).val⟩
 
 def spawnMap {a b : Ty} (g : Pretty (a ~> b)) (x : Pretty (S a)) : Pretty (S b) :=
   ⟨match x.val with
@@ -560,7 +590,10 @@ def scopeJoinPretty {r s q a : Ty}
 end Pretty
 
 instance : Semantics Pretty where
-  prim name := Pretty.atom name
+  prim {t} name :=
+    match t, name with
+    | .fn (.comp .spawn .bool) .bool, "eclo" => Pretty.ecloFun
+    | _, _ => Pretty.atom name
 
   app f x := Pretty.app f x
   lam body := Pretty.lam body
