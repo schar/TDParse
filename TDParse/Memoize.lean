@@ -39,25 +39,32 @@ def memoFix2 {α : Type} {β : Type} {γ : α → β → Type}
 
   curry $ memoFix (uncurry ∘ f ∘ curry)
 
--- Binary memoized fixed point with an explicit state cache.
--- Use this when keys are only meaningful inside one caller-provided scope.
-abbrev MemoCache (α : Type) (β : Type) (γ : Type)
-    [BEq (α × β)] [Hashable (α × β)] :=
-  Std.HashMap (α × β) γ
+-- Array-backed binary memoized fixed point for local Nat-indexed charts.
+-- Parser spans are dense `(lo, hi)` keys, so an array avoids hash overhead and
+-- still supports higher-universe values such as tagless-final parser results.
+abbrev MemoCache (γ : Type u) :=
+  Array (Option γ)
 
-abbrev MemoM (α : Type) (β : Type) (γ : Type)
-    [BEq (α × β)] [Hashable (α × β)] :=
-  StateM (MemoCache α β γ)
+abbrev MemoM (γ : Type u) (δ : Type v) :=
+  MemoCache γ -> δ × MemoCache γ
 
-partial def memoFix2State {α : Type} {β : Type} {γ : Type}
-    [BEq (α × β)] [Hashable (α × β)] [Nonempty γ]
-    (f : (α -> β -> MemoM α β γ γ) -> α -> β -> MemoM α β γ γ) :
-    α -> β -> MemoM α β γ γ :=
-  fun a b => do
-    let key := (a,b)
-    if let some result := (← get)[key]? then
-      pure result
-    else
-      let result ← f (memoFix2State f) a b
-      modify (·.insert key result)
-      pure result
+instance : Monad (MemoM γ) where
+  pure x := fun cache => (x, cache)
+  bind x f := fun cache =>
+    let (result, cache) := x cache
+    f result cache
+
+partial def memoFix2State {γ : Type u} [Nonempty γ]
+    (width : Nat)
+    (f : (Nat -> Nat -> MemoM γ γ) -> Nat -> Nat -> MemoM γ γ) :
+    Nat -> Nat -> MemoM γ γ :=
+  fun a b cache =>
+    let key := a * width + b
+    match cache[key]? with
+    | some (some result) => (result, cache)
+    | _ =>
+      let (result, cache) := f (memoFix2State width f) a b cache
+      (result, cache.set! key (some result))
+
+def MemoCache.empty (width : Nat) (height : Nat) : MemoCache γ :=
+  Array.replicate (width * height) none

@@ -14,7 +14,8 @@ Given a binary CFG and a typed lexicon, the demo pipeline:
 
 1. builds all CFG-licensed binary parse trees,
 2. computes all effect-compatible semantic derivations for each tree,
-3. evaluates those derivations as ordinary Lean values.
+3. evaluates those derivations as ordinary Lean values or renders them as
+   normalized, inspectable expressions.
 
 The intended reader is a formal semanticist who is comfortable with typed
 functional programming, applicatives/monads, and algebraic data types, but may
@@ -46,13 +47,20 @@ is declared in [lakefile.toml](lakefile.toml).
 - [TDParse/Data/Ty.lean](TDParse/Data/Ty.lean): object-language semantic types,
   effect constructors, their Lean denotations, and predicates such as
   `functor`, `applicative`, `monad`, and `adjoint`.
+- [TDParse/Data/PExpr.lean](TDParse/Data/PExpr.lean): printable semantic
+  expressions and name-supplying builders used by the pretty interpreter.
+- [TDParse/NBE.lean](TDParse/NBE.lean): normalization-by-evaluation values,
+  reflection/reification, and spawn-comprehension normalization.
+- [TDParse/Semantics.lean](TDParse/Semantics.lean): the tagless-final
+  `Semantics` interface plus concrete evaluation and pretty-printing
+  interpreters.
 - [TDParse/Data/Derivation.lean](TDParse/Data/Derivation.lean): syntactic
-  categories, parse trees, mode labels, typed semantic expressions, and
-  heterogeneous lexicons.
+  categories, parse trees, mode recipes, derived mode labels, typed semantic
+  expressions, and heterogeneous lexicons.
 - [TDParse/Combine.lean](TDParse/Combine.lean): the effect-driven composition
   search.
 - [TDParse/Memoize.lean](TDParse/Memoize.lean): structurally keyed memoized
-  fixed points.
+  fixed points and local array-backed span memoization.
 - [TDParse/Display.lean](TDParse/Display.lean): pretty-printers for types,
   modes, expressions, and interpretations.
 - [TDParse.lean](TDParse.lean): lexicon lookup, parsing, semantic derivation,
@@ -70,12 +78,13 @@ List String
   -> List ((t : Ty) × Expr t × t.dom)
 ```
 
-The three main functions are:
+The core entry points are:
 
 - `parse`: token strings to syntactic trees with typed lexical entries at the
   leaves.
 - `synsem`: trees to typed semantic derivations.
 - `run` / `runAs`: semantic derivations to Lean denotations.
+- `runPrettyAs`: semantic derivations to normalized printable meanings.
 
 The important design choice is that effectful interpretation is part of the
 semantic type. A DP might denote a plain entity, a set of alternatives, a
@@ -122,13 +131,23 @@ inductive Ty where
 
 The usual notations are:
 
-- `E`: entities/numbers, interpreted as `Nat`,
+- `E`: entities/numbers, interpreted as `Entity`,
 - `T`: truth values, interpreted as `Bool`,
 - `a ~> b`: functions,
 - `S a`: nondeterministic values, interpreted as `List a.dom`,
 - `R^e a`: reader/query values, interpreted as `Reader e.dom a.dom`,
 - `W^o a`: stored-output values, interpreted as `o.dom × a.dom`,
 - `C^r s a`: continuation/scope values, interpreted as `(a.dom -> s.dom) -> r.dom`.
+
+`Entity` is the small domain used by the toy models. It can represent numeric
+entities, named entities, and relational entities:
+
+```lean
+inductive Entity where
+  | num : Nat -> Entity
+  | name : String -> Entity
+  | rel : String -> Entity -> Entity
+```
 
 The interpretation function is:
 
@@ -139,11 +158,11 @@ def Ty.dom : Ty -> Type
 For example:
 
 ```lean
-E ~> T      -- Nat -> Bool
-S E         -- List Nat
-R^E T       -- Nat -> Bool
-W^E T       -- Nat × Bool
-C^T T E     -- (Nat -> Bool) -> Bool
+E ~> T      -- Entity -> Bool
+S E         -- List Entity
+R^E T       -- Entity -> Bool
+W^E T       -- Entity × Bool
+C^T T E     -- (Entity -> Bool) -> Bool
 ```
 
 The effect constructors live in `FX`: `spawn`, `query`, `store`, and `scope`.
@@ -166,7 +185,7 @@ category, return all possible mother categories.
 Lexical entries are stored in a heterogeneous dictionary:
 
 ```lean
-inductive HDict : List Ty -> Type
+inductive HDict : List Ty -> Type 1
   | nil : HDict []
   | cons : (Cat × Expr t) -> HDict ts -> HDict (t :: ts)
 ```
@@ -178,12 +197,36 @@ semantic type together with an expression of exactly that type.
 Semantic expressions are also indexed by type:
 
 ```lean
-inductive Expr : Ty -> Type where
-  | lex : String -> a.dom -> Expr a
-  | moc : Mode a.dom b.dom c.dom -> Expr a -> Expr b -> Expr c
+inductive Expr : Ty -> Type 1 where
+  | lexeme : Lexeme a -> Expr a
+  | moc : Mode a b c -> Expr a -> Expr b -> Expr c
 ```
 
-`Expr.den` evaluates an expression to its Lean denotation.
+Lexical entries are usually built with the surface constructors in the
+`Expr` namespace, such as `Expr.lex`, `Expr.lexWith`, `Expr.litNat`,
+`Expr.entity`, `Expr.fun1`, and `Expr.ask`. Internally, a lexeme stores a
+tagless-final `SemTerm`, so lexical meanings are written once against the
+`Semantics` interface and can then be evaluated or rendered by different
+interpreters. This follows the usual tagless-final pattern: `Semantics` is the
+object-language signature, `Eval` is the metacircular interpreter into Lean
+values, and `Pretty`/`NVal` are the inspectable interpreter that keeps known
+host-language values alongside printable neutral syntax.
+
+`Expr.den` evaluates an expression to its Lean denotation, while `Expr.eval`
+evaluates it in a supplied model. The pretty interpreter keeps known functions,
+booleans, pairs, and lists alongside their printable rendering, so common
+redexes are reduced during interpretation instead of by a final
+syntax-normalization pass. Spawn comprehensions accumulate their binders in the
+NBE value, so independent indefinites render as one comprehension rather than as
+nested applicative syntax.
+
+Composed effects arise by ordinary derivation rather than by special semantic
+operations. For instance, the demo word `push` has type `E ~> W^E E`; combining
+it with `someoneS : S E` maps `push` through the `S` effect and yields
+`S (W^E E)`. Combining the same word with `everyone : C^T T E` maps it through
+the scope effect and yields `C^T T (W^E E)`. This keeps the `Semantics`
+interface focused on primitive denotational structure rather than on every
+useful combination of effects.
 
 ## Parsing
 
@@ -231,14 +274,16 @@ def combine : (u v : Ty) -> List (Combo u v)
 
 Given a left type `u` and right type `v`, `combine` returns every composition
 mode licensed by the relevant pure and effectful structure, packaged with the
-resulting type. A `Mode α β γ` contains both a printable label and the actual
-semantic operation:
+resulting type. A `Mode a b c` contains a first-order recipe used by the
+tagless-final interpreters:
 
 ```lean
-structure Mode (α β γ : Type) where
-  mode : ModeLabel
-  op : α -> β -> γ
+structure Mode (a : Ty) (b : Ty) (c : Ty) where
+  recipe : ModeOp a b c
 ```
+
+Mode labels are derived from `ModeOp`, rather than stored independently, so
+display and normalization cannot drift away from the recipe being interpreted.
 
 The primitive modes are:
 
@@ -272,7 +317,7 @@ The algorithm is recursive because each lifted rule asks how to interpret the
 payload types. For example, to combine `S (E ~> T)` with `S E`, `combine` first
 asks how to combine `E ~> T` with `E`, then lifts the answer back through `S`.
 
-## Normalization
+## Derivational Normalization
 
 Effect lifting generates many derivations that differ only in bookkeeping.
 `norm` rejects a hand-written set of equivalent or uninformative mode histories.
@@ -290,8 +335,8 @@ patterns such as:
 | .JN f (.MR g (.MR h _)) => not (f == g && g == h)
 ```
 
-That is why the labels record not just `MR`, `ML`, `JN`, etc., but also the
-effect involved.
+That is why the derived labels record not just `MR`, `ML`, `JN`, etc., but also
+the effect involved.
 
 ## Memoization
 
@@ -305,14 +350,16 @@ Both main searches have overlapping subproblems:
 ```lean
 memoFix       : structurally keyed unary memoized fixed point
 memoFix2      : structurally keyed binary memoized fixed point
-memoFix2State : binary memoized fixed point with an explicit state cache
+memoFix2State : array-backed binary memoized fixed point for local Nat charts
 ```
 
-The cache is a `Std.HashMap`. `combine` uses the persistent structural helpers
-and is memoized by `Ty` pairs. `parse` uses `memoFix2State` and memoizes only
-the `(Nat, Nat)` span, with the chart cache supplied by the parse call itself.
-This is the same convention as the Haskell implementation, where `(lo, hi)` is
-sufficient because the chart cache is local to one input string.
+`combine` uses the persistent structural helpers and is memoized by `Ty` pairs.
+`parse` uses `memoFix2State`, which stores local `(Nat, Nat)` span results in a
+dense array chart indexed by `lo * width + hi`. This is the same convention as
+the Haskell implementation, where `(lo, hi)` is sufficient because the chart
+cache is local to one input string. The array chart also supports parser
+results that live in higher universes, which matters because lexical entries
+store tagless-final semantic closures.
 
 The persistent dependent helpers use a small internal `unsafeCast` because the
 result type of a memoized dependent function depends on the key. The public API
@@ -369,9 +416,12 @@ use an equality proof to rewrite the local typing context. This is how symbolic
 type equality, such as `a = b`, becomes an actual type equality that Lean can
 use to build a semantic operator.
 
-Square-bracket arguments such as `[Functor f]` are typeclass arguments, much as
-in Haskell. The functions in `TDParse/Combine.lean` use them to build lifted
-composition modes only when the relevant algebraic structure is available.
+Square-bracket arguments such as `[Semantics repr]` are typeclass arguments,
+much as in Haskell.  The effect operations in the `Semantics` interface take
+proofs that the object-language predicates `functor`, `applicative`, `monad`,
+`adjoint`, or `comonad` have licensed the requested structure.  This prevents an
+interpreter from accepting arbitrary host-language instances that the
+type-driven composition search would never generate.
 
 ## Extending the Project
 
@@ -388,7 +438,7 @@ To add a new effect or composition principle:
 2. Add any required algebraic instances in
    [TDParse/Data/Algebra.lean](TDParse/Data/Algebra.lean).
 3. Update the effect predicates in [TDParse/Data/Ty.lean](TDParse/Data/Ty.lean).
-4. Add mode labels and search rules in [TDParse/Combine.lean](TDParse/Combine.lean).
+4. Add mode recipes and search rules in [TDParse/Combine.lean](TDParse/Combine.lean).
 5. Add display cases in [TDParse/Display.lean](TDParse/Display.lean).
 
 Because expressions are indexed by semantic type, many mistakes in new
