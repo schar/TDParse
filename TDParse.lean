@@ -63,21 +63,6 @@ def parse (cfg : CFG) (lex : HDict ts) : Parser :=
             pure (here ++ rest)
       collect (List.range' (lo + 1) (hi - lo - 1))
 
-open Cat Expr
-#eval
-  let cfg | DP, VP => [CP]
-          | TV, DP => [VP]
-          | Det,NP => [DP]
-          | _  ,_  => [  ]
-  let lex :=
-    {[ (Det, @Expr.lex T "this"),
-       (NP , @Expr.lex T "string"),
-       (TV , @Expr.lex T "has"),
-       (Det, @Expr.lex T "five"),
-       (NP , @Expr.lex T "letters") ]}
-  parse cfg lex "this string has five letters".splitOn
-
-
 -- Semantic parser from trees to combinatoric expressions
 -- ------------------------------------------------------------------------
 

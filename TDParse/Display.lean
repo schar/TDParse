@@ -42,8 +42,6 @@ instance : Repr FX where
 instance : Repr Ty where
   reprPrec := Ty.rp
 
-#eval (S ((S (E ~> T)) ~> (S E)) ~> (T))
-
 open Std.Format
 def Expr.rp : Expr t -> Std.Format
   | .lexeme l      => l.name
@@ -73,12 +71,3 @@ def Interps.rp {t :Ty} [Repr t.dom] : Interps t -> Std.Format
 
 instance {t : Ty} [Repr t.dom] : Repr (Interps t) where
   reprPrec l _ := Interps.rp l
-
--- def RInterps := List ((t : Ty) × Repr t.dom × Expr t × t.dom)
--- def RInterps.rp : RInterps -> Std.Format
---   | []                => nil
---   | (⟨t,_,e,d⟩ :: es) =>
---     TypedExpr.rp ⟨t,e⟩ ++ line ++ "〚〛= " ++ repr d ++ line ++ line ++ rp es
-
--- instance : Repr RInterps where
---   reprPrec l _ := RInterps.rp l

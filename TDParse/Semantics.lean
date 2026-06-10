@@ -31,11 +31,7 @@ class Semantics (repr : Ty -> Type) where
   existsIn : repr (E ~> T) -> (repr E -> repr T) -> repr T
   selectWhere : (repr E -> repr T) -> repr E
   chooseIn : repr (E ~> T) -> repr (S E)
-  chooseStoreIn : repr (E ~> T) -> repr (S (W^E E))
-  forallStoreIn : repr (E ~> T) -> (repr (W^E E) -> repr T) -> repr T
   listNat : List Nat -> repr (S E)
-  listStoreNat : List Nat -> repr (S (W^E E))
-  forallStoreNat : List Nat -> (repr (W^E E) -> repr T) -> repr T
   filterNat : List Nat -> (repr E -> repr T) -> repr (S E)
 
   ask : {a : Ty} -> repr (.comp (.query a) a)
@@ -43,13 +39,13 @@ class Semantics (repr : Ty -> Type) where
   cont : {r a : Ty} -> ((repr a -> repr r) -> repr r) -> repr (.comp (.scope r r) a)
   cont2 : {r s a : Ty} -> ((repr a -> repr s) -> repr r) -> repr (.comp (.scope r s) a)
 
-  mapEff : {a b : Ty} -> (f : FX) -> (inst : Functor f.dom) ->
+  mapEff : {a b : Ty} -> (f : FX) -> (ok : (functor f).isSome = true) ->
     repr (a ~> b) -> repr (.comp f a) -> repr (.comp f b)
-  pureEff : {a : Ty} -> (f : FX) -> (inst : Applicative f.dom) ->
+  pureEff : {a : Ty} -> (f : FX) -> (ok : (applicative f).isSome = true) ->
     repr a -> repr (.comp f a)
-  apEff : {a b : Ty} -> (f : FX) -> (inst : Applicative f.dom) ->
+  apEff : {a b : Ty} -> (f : FX) -> (ok : (applicative f).isSome = true) ->
     repr (.comp f (a ~> b)) -> repr (.comp f a) -> repr (.comp f b)
-  joinEff : {a : Ty} -> (f : FX) -> (inst : Monad f.dom) ->
+  joinEff : {a : Ty} -> (f : FX) -> (ok : (monad f).isSome = true) ->
     repr (.comp f (.comp f a)) -> repr (.comp f a)
   lower : {r a : Ty} ->
     repr (.comp (.scope r a) a) -> repr r
@@ -61,10 +57,9 @@ class Semantics (repr : Ty -> Type) where
   joinScope : {r s q a : Ty} ->
     repr (.comp (.scope r s) (.comp (.scope s q) a)) ->
     repr (.comp (.scope r q) a)
-  counit : {a : Ty} -> (f g : FX) -> (instF : Functor f.dom) -> (instG : Functor g.dom) ->
-    @Adjoint f.dom g.dom instF instG ->
+  counit : {a : Ty} -> (f g : FX) -> (ok : (adjoint f g).isSome = true) ->
     repr (.comp f (.comp g a)) -> repr a
-  extend : {a b : Ty} -> (f : FX) -> (inst : Comonad f.dom) ->
+  extend : {a b : Ty} -> (f : FX) -> (ok : (comonad f).isSome = true) ->
     repr (.comp f a) -> (repr (.comp f a) -> repr b) -> repr (.comp f b)
   eject : {a b i : Ty} ->
     repr (a ~> .comp (.query i) b) -> repr (.comp (.query i) (a ~> b))
@@ -266,13 +261,7 @@ instance (m : Model) : Semantics (Eval m) where
     ⟨selectFirstEntity m.domain fun x => (p ⟨x⟩).val⟩
   chooseIn restrict :=
     ⟨m.domain.filter restrict.val⟩
-  chooseStoreIn restrict :=
-    ⟨m.domain.filter restrict.val |>.map fun x => (x, x)⟩
-  forallStoreIn restrict scope :=
-    ⟨m.domain.all fun x => !restrict.val x || (scope ⟨(x, x)⟩).val⟩
   listNat xs := ⟨xs.map Entity.num⟩
-  listStoreNat xs := ⟨xs.map fun x => (.num x, .num x)⟩
-  forallStoreNat xs p := ⟨xs.all fun x => (p ⟨(.num x, .num x)⟩).val⟩
   filterNat xs p := ⟨xs.filter (fun x => (p ⟨.num x⟩).val) |>.map Entity.num⟩
 
   ask := ⟨id⟩
@@ -280,29 +269,47 @@ instance (m : Model) : Semantics (Eval m) where
   cont body := ⟨fun k => (body fun x => ⟨k x.val⟩).val⟩
   cont2 body := ⟨fun k => (body fun x => ⟨k x.val⟩).val⟩
 
-  mapEff f inst g x :=
-    letI : Functor f.dom := inst
-    ⟨g.val <$> x.val⟩
-  pureEff f inst x :=
-    letI : Applicative f.dom := inst
-    ⟨pure x.val⟩
-  apEff f inst g x :=
-    letI : Applicative f.dom := inst
-    ⟨g.val <*> x.val⟩
-  joinEff f inst x :=
-    letI : Monad f.dom := inst
-    ⟨x.val >>= id⟩
+  mapEff f ok g x :=
+    match h : functor f with
+    | some inst =>
+        letI : Functor f.dom := inst
+        ⟨g.val <$> x.val⟩
+    | none => by simp [h] at ok
+  pureEff f ok x :=
+    match h : applicative f with
+    | some inst =>
+        letI : Applicative f.dom := inst
+        ⟨pure x.val⟩
+    | none => by simp [h] at ok
+  apEff f ok g x :=
+    match h : applicative f with
+    | some inst =>
+        letI : Applicative f.dom := inst
+        ⟨g.val <*> x.val⟩
+    | none => by simp [h] at ok
+  joinEff f ok x :=
+    match h : monad f with
+    | some inst =>
+        letI : Monad f.dom := inst
+        ⟨x.val >>= id⟩
+    | none => by simp [h] at ok
   lower x := ⟨x.val id⟩
   scopeMap2 h xs ys := ⟨fun k => xs.val fun a => ys.val fun b => k (h.val a b)⟩
   joinScope x := ⟨fun k => x.val fun y => y k⟩
-  counit f g instF instG adj x :=
-    letI : Functor f.dom := instF
-    letI : Functor g.dom := instG
-    letI : Adjoint f.dom g.dom := adj
-    ⟨Adjoint.counit x.val⟩
-  extend f inst x k :=
-    letI : Comonad f.dom := inst
-    ⟨Comonad.extend (fun v => (k ⟨v⟩).val) x.val⟩
+  counit f g ok x :=
+    match h : adjoint f g with
+    | some ⟨instF, instG, adj⟩ =>
+        letI : Functor f.dom := instF
+        letI : Functor g.dom := instG
+        letI : Adjoint f.dom g.dom := adj
+        ⟨Adjoint.counit x.val⟩
+    | none => by simp [h] at ok
+  extend f ok x k :=
+    match h : comonad f with
+    | some inst =>
+        letI : Comonad f.dom := inst
+        ⟨Comonad.extend (fun v => (k ⟨v⟩).val) x.val⟩
+    | none => by simp [h] at ok
   eject x := ⟨fun env a => x.val a env⟩
 
 def SemTerm.eval (m : Model) {t : Ty} (e : SemTerm t) : t.dom :=
@@ -336,9 +343,6 @@ def var (s : String) : Pretty t :=
 
 def op1 (name : String) (x : Pretty a) : Pretty b :=
   ofBuild (PBuild.op name [x.build])
-
-def op2 (name : String) (x : Pretty a) (y : Pretty b) : Pretty c :=
-  ofBuild (PBuild.op name [x.build, y.build])
 
 def app (f : Pretty (a ~> b)) (x : Pretty a) : Pretty b :=
   ⟨NVal.app f.val x.val⟩
@@ -394,12 +398,6 @@ def selectWhere (body : Pretty E -> Pretty T) : Pretty E :=
 
 def chooseIn (restrict : Pretty (E ~> T)) : Pretty (S E) :=
   ⟨NSpawn.comp (fun x => NVal.app restrict.val x) id⟩
-
-def chooseStoreIn (restrict : Pretty (E ~> T)) : Pretty (S (W^E E)) :=
-  ⟨NSpawn.comp (fun x => NVal.app restrict.val x) (fun x => .inr (x, x))⟩
-
-def listStoreNat (xs : List Nat) : Pretty (S (W^E E)) :=
-  ⟨NSpawn.known (xs.map fun x => .inr (PBuild.nat x, PBuild.nat x))⟩
 
 def spawnMap {a b : Ty} (g : Pretty (a ~> b)) (x : Pretty (S a)) : Pretty (S b) :=
   ⟨match x.val with
@@ -466,40 +464,36 @@ def storeMap {out a b : Ty}
   let xv := NVal.storeView x.val
   ⟨.inr (xv.1, NVal.app g.val xv.2)⟩
 
-def storeUnit : (out : Ty) -> NVal out
-  | .bool => ⟨PBuild.bool true, some true⟩
-  | out => reflect out (PBuild.op "unit[W]" [])
+def storeUnit : NVal T :=
+  ⟨PBuild.bool true, some true⟩
 
-def storeSeq : (out : Ty) -> String -> NVal out -> NVal out -> NVal out
-  | .bool, _, x, y => (conj ⟨x⟩ ⟨y⟩).val
-  | out, name, x, y => reflect out (PBuild.op name [reify out x, reify out y])
+def storeSeq (x y : NVal T) : NVal T :=
+  (conj ⟨x⟩ ⟨y⟩).val
 
-def storePure {out a : Ty} (x : Pretty a) : Pretty (.comp (.store out) a) :=
-  ⟨.inr (storeUnit out, x.val)⟩
+def storePureBool {a : Ty} (x : Pretty a) : Pretty (W^T a) :=
+  ⟨.inr (storeUnit, x.val)⟩
 
-def storeAp {out a b : Ty}
-    (f : Pretty (.comp (.store out) (a ~> b))) (x : Pretty (.comp (.store out) a)) :
-    Pretty (.comp (.store out) b) :=
+def storeApBool {a b : Ty}
+    (f : Pretty (W^T (a ~> b))) (x : Pretty (W^T a)) : Pretty (W^T b) :=
   let fv := NVal.storeView f.val
   let xv := NVal.storeView x.val
-  ⟨.inr (storeSeq out "ap[W]" fv.1 xv.1, NVal.app fv.2 xv.2)⟩
+  ⟨.inr (storeSeq fv.1 xv.1, NVal.app fv.2 xv.2)⟩
 
-def storeJoin {out a : Ty}
-    (x : Pretty (.comp (.store out) (.comp (.store out) a))) :
-    Pretty (.comp (.store out) a) :=
+def storeJoinBool {a : Ty} (x : Pretty (W^T (W^T a))) : Pretty (W^T a) :=
   let xv := NVal.storeView x.val
   let inner := NVal.storeView xv.2
-  ⟨.inr (storeSeq out "join[W]" xv.1 inner.1, inner.2)⟩
+  ⟨.inr (storeSeq xv.1 inner.1, inner.2)⟩
 
 def storeCounit {out env a : Ty}
+    (ok : (adjoint (.store out) (.query env)).isSome = true)
     (x : Pretty (.comp (.store out) (.comp (.query env) a))) : Pretty a :=
   if h : out = env then
     by
       subst h
       let xv := NVal.storeView x.val
       exact ⟨NVal.queryApp xv.2 xv.1⟩
-  else
-    ofBuild (PBuild.op "counit[W,R]" [x.build])
+  else by
+    simp [adjoint, h] at ok
 
 def storeExtend {out a b : Ty}
     (x : Pretty (.comp (.store out) a))
@@ -513,13 +507,16 @@ def scopeMap {ret ans a b : Ty}
     Pretty (.comp (.scope ret ans) b) :=
   ⟨.inr fun k => NVal.scopeRun x.val (fun a => k (NVal.app g.val a))⟩
 
-def scopePure {ret ans a : Ty} (x : Pretty a) : Pretty (.comp (.scope ret ans) a) :=
+def scopePure {ret ans a : Ty}
+    (ok : (applicative (.scope ret ans)).isSome = true)
+    (x : Pretty a) : Pretty (.comp (.scope ret ans) a) :=
   if h : ret = ans then
     by subst h; exact ⟨.inr fun k => k x.val⟩
-  else
-    ⟨.inr fun _ => reflect ret (PBuild.op "pure[C]" [x.build])⟩
+  else by
+    simp [applicative, h] at ok
 
 def scopeApEff {ret ans a b : Ty}
+    (ok : (applicative (.scope ret ans)).isSome = true)
     (f : Pretty (.comp (.scope ret ans) (a ~> b)))
     (x : Pretty (.comp (.scope ret ans) a)) :
     Pretty (.comp (.scope ret ans) b) :=
@@ -530,16 +527,17 @@ def scopeApEff {ret ans a b : Ty}
         NVal.scopeRun f.val fun g =>
           NVal.scopeRun x.val fun a =>
             k (NVal.app g a)⟩
-  else
-    ⟨.inr fun _ => reflect ret (PBuild.op "ap[C]" [f.build, x.build])⟩
+  else by
+    simp [applicative, h] at ok
 
 def scopeJoinEff {ret ans a : Ty}
+    (ok : (monad (.scope ret ans)).isSome = true)
     (x : Pretty (.comp (.scope ret ans) (.comp (.scope ret ans) a))) :
     Pretty (.comp (.scope ret ans) a) :=
   if h : ret = ans then
     by subst h; exact ⟨.inr fun k => NVal.scopeRun x.val (fun y => NVal.scopeRun y k)⟩
-  else
-    ⟨.inr fun _ => reflect ret (PBuild.op "join[C]" [x.build])⟩
+  else by
+    simp [monad, h] at ok
 
 def scopeLower {r a : Ty} (x : Pretty (.comp (.scope r a) a)) : Pretty r :=
   ⟨NVal.scopeRun x.val id⟩
@@ -561,12 +559,6 @@ def scopeJoinPretty {r s q a : Ty}
 
 end Pretty
 
-def fxName : FX -> String
-  | .query _ => "R"
-  | .spawn => "S"
-  | .store _ => "W"
-  | .scope _ _ => "C"
-
 instance : Semantics Pretty where
   prim name := Pretty.atom name
 
@@ -586,13 +578,7 @@ instance : Semantics Pretty where
   existsIn restrict p := Pretty.quantIn "∃" restrict p
   selectWhere p := Pretty.selectWhere p
   chooseIn restrict := Pretty.chooseIn restrict
-  chooseStoreIn restrict := Pretty.chooseStoreIn restrict
-  forallStoreIn restrict p := Pretty.quantIn "∀" restrict fun x =>
-    p ⟨.inr (x.val, x.val)⟩
   listNat xs := ⟨NSpawn.known (xs.map PBuild.nat)⟩
-  listStoreNat xs := Pretty.listStoreNat xs
-  forallStoreNat xs p := Pretty.quantNat "∀" xs fun x =>
-    p ⟨.inr (x.val, x.val)⟩
   filterNat xs p := Pretty.op1 ("filter[" ++ PExpr.render (PExpr.listNat xs) 0 ++ "]") (Pretty.lam p)
 
   ask := ⟨.inr fun x => x⟩
@@ -616,42 +602,54 @@ instance : Semantics Pretty where
         Pretty.readerPure x
     | .spawn, _, x =>
         Pretty.spawnPure x
-    | .store _, _, x =>
-        Pretty.storePure x
-    | .scope _ _, _, x =>
-        Pretty.scopePure x
+    | .store .bool, _, x =>
+        Pretty.storePureBool x
+    | .store (.nat), ok, _ => by simp [applicative] at ok
+    | .store (.fn _ _), ok, _ => by simp [applicative] at ok
+    | .store (.comp _ _), ok, _ => by simp [applicative] at ok
+    | .scope ret ans, ok, x =>
+        Pretty.scopePure ok x
   apEff
     | .query _, _, f, x =>
         Pretty.readerAp f x
     | .spawn, _, f, x =>
         Pretty.spawnAp f x
-    | .store _, _, f, x =>
-        Pretty.storeAp f x
-    | .scope _ _, _, f, x =>
-        Pretty.scopeApEff f x
+    | .store .bool, _, f, x =>
+        Pretty.storeApBool f x
+    | .store (.nat), ok, _, _ => by simp [applicative] at ok
+    | .store (.fn _ _), ok, _, _ => by simp [applicative] at ok
+    | .store (.comp _ _), ok, _, _ => by simp [applicative] at ok
+    | .scope ret ans, ok, f, x =>
+        Pretty.scopeApEff ok f x
   joinEff
     | .query _, _, x =>
         Pretty.readerJoin x
     | .spawn, _, x =>
         Pretty.spawnJoin x
-    | .store _, _, x =>
-        Pretty.storeJoin x
-    | .scope _ _, _, x =>
-        Pretty.scopeJoinEff x
+    | .store .bool, _, x =>
+        Pretty.storeJoinBool x
+    | .store (.nat), ok, _ => by simp [monad] at ok
+    | .store (.fn _ _), ok, _ => by simp [monad] at ok
+    | .store (.comp _ _), ok, _ => by simp [monad] at ok
+    | .scope ret ans, ok, x =>
+        Pretty.scopeJoinEff ok x
   lower x := Pretty.scopeLower x
   scopeMap2 h x y :=
     Pretty.scopeMap2Pretty h x y
   joinScope x :=
     Pretty.scopeJoinPretty x
   counit
-    | .store _, .query _, _, _, _, x =>
-        Pretty.storeCounit x
-    | f, g, _, _, _, x => Pretty.op1 ("counit[" ++ fxName f ++ "," ++ fxName g ++ "]") x
+    | .store _, .query _, ok, x =>
+        Pretty.storeCounit ok x
+    | .query _, g, ok, _ => by cases g <;> simp [adjoint] at ok
+    | .spawn, g, ok, _ => by cases g <;> simp [adjoint] at ok
+    | .scope _ _, g, ok, _ => by cases g <;> simp [adjoint] at ok
   extend
     | .store _, _, x, k =>
         Pretty.storeExtend x k
-    | f, _, x, k =>
-        Pretty.op2 ("extend[" ++ fxName f ++ "]") x (Pretty.lam k)
+    | .query _, ok, _, _ => by simp [comonad] at ok
+    | .spawn, ok, _, _ => by simp [comonad] at ok
+    | .scope _ _, ok, _, _ => by simp [comonad] at ok
   eject x :=
     Pretty.readerEject x
 

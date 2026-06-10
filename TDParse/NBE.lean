@@ -16,8 +16,7 @@ structure NBool where
   known? : Option Bool := none
 
 structure SpawnComp (A : Type) where
-  restricts : List (PBuild -> NBool)
-  body : List PBuild -> A
+  run : Nat -> List (String × PExpr) × A × Nat
 
 inductive SpawnVal (A : Type) where
   | neutral : PBuild -> SpawnVal A
@@ -46,14 +45,8 @@ def reify : (t : Ty) -> NVal t -> PBuild
   | .comp .spawn a, .known xs => PBuild.list (xs.map (reify a))
   | .comp .spawn a, .comp c =>
       fun n =>
-        let (binds, vars, n) := c.restricts.foldl
-          (fun (binds, vars, n) restrict =>
-            let v := "x" ++ toString n
-            let x := PBuild.var v
-            let (re, n) := reify T (restrict x) (n + 1)
-            ((v, re) :: binds, x :: vars, n))
-          ([], [], n)
-        let (be, n) := reify a (c.body vars.reverse) n
+        let (binds, body, n) := c.run n
+        let (be, n) := reify a body n
         (PExpr.comp binds.reverse be, n)
   | .comp (.query _) _, .inl x => x
   | .comp (.query e) a, .inr f =>
@@ -97,26 +90,25 @@ def compVal {a : Ty} (c : SpawnComp (NVal a)) : NVal (S a) :=
 
 def comp {a : Ty} (restrict : PBuild -> NBool) (body : PBuild -> NVal a) : NVal (S a) :=
   .comp {
-    restricts := [restrict]
-    -- Reification supplies one fresh variable per restriction.  The fallback
-    -- is therefore unreachable unless a `SpawnComp` is built inconsistently.
-    body := fun
-      | [x] => body x
-      | _ => reflect a (PBuild.op "arity[S]" [])
+    run := fun n =>
+      let v := "x" ++ toString n
+      let x := PBuild.var v
+      let (re, n) := reify T (restrict x) (n + 1)
+      ([(v, re)], body x, n)
   }
 
 def mapComp {a b : Ty} (g : NVal (a ~> b)) (c : SpawnComp (NVal a)) : SpawnComp (NVal b) :=
-  { restricts := c.restricts
-    body := fun xs => apply g (c.body xs) }
+  { run := fun n =>
+      let (binds, body, n) := c.run n
+      (binds, apply g body, n) }
 
 def apComp {a b : Ty}
     (f : SpawnComp (NVal (a ~> b))) (x : SpawnComp (NVal a)) :
     SpawnComp (NVal b) :=
-  { restricts := f.restricts ++ x.restricts
-    body := fun xs =>
-      let fs := xs.take f.restricts.length
-      let ys := xs.drop f.restricts.length
-      apply (f.body fs) (x.body ys) }
+  { run := fun n =>
+      let (fbinds, fbody, n) := f.run n
+      let (xbinds, xbody, n) := x.run n
+      (xbinds ++ fbinds, apply fbody xbody, n) }
 
 end NSpawn
 

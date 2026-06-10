@@ -207,13 +207,24 @@ Lexical entries are usually built with the surface constructors in the
 `Expr.entity`, `Expr.fun1`, and `Expr.ask`. Internally, a lexeme stores a
 tagless-final `SemTerm`, so lexical meanings are written once against the
 `Semantics` interface and can then be evaluated or rendered by different
-interpreters. `Expr.den` evaluates an expression to its Lean denotation, while
-`Expr.eval` evaluates it in a supplied model. The pretty interpreter keeps
-known functions, booleans, pairs, and lists alongside their printable rendering,
-so common redexes are reduced during interpretation instead of by a final
+interpreters. This follows the usual tagless-final pattern: `Semantics` is the
+object-language signature, `Eval` is the metacircular interpreter into Lean
+values, and `Pretty`/`NVal` are the inspectable interpreter that keeps known
+host-language values alongside printable neutral syntax.
+
+`Expr.den` evaluates an expression to its Lean denotation, while `Expr.eval`
+evaluates it in a supplied model. The pretty interpreter keeps known functions,
+booleans, pairs, and lists alongside their printable rendering, so common
+redexes are reduced during interpretation instead of by a final
 syntax-normalization pass. Spawn comprehensions accumulate their binders in the
 NBE value, so independent indefinites render as one comprehension rather than as
-nested opaque applicative terms.
+nested applicative syntax.
+
+Lexical helpers for composed effects are ordinary tagless-final definitions.
+For instance, `chooseStore` is not a primitive semantic operation; it maps
+`storePair x x` over `chooseIn restrict`.  This keeps the `Semantics` interface
+focused on primitive denotational structure rather than on every useful
+combination of effects.
 
 ## Parsing
 
@@ -403,9 +414,12 @@ use an equality proof to rewrite the local typing context. This is how symbolic
 type equality, such as `a = b`, becomes an actual type equality that Lean can
 use to build a semantic operator.
 
-Square-bracket arguments such as `[Functor f]` are typeclass arguments, much as
-in Haskell. The functions in `TDParse/Combine.lean` use them to build lifted
-composition modes only when the relevant algebraic structure is available.
+Square-bracket arguments such as `[Semantics repr]` are typeclass arguments,
+much as in Haskell.  The effect operations in the `Semantics` interface take
+proofs that the object-language predicates `functor`, `applicative`, `monad`,
+`adjoint`, or `comonad` have licensed the requested structure.  This prevents an
+interpreter from accepting arbitrary host-language instances that the
+type-driven composition search would never generate.
 
 ## Extending the Project
 

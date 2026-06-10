@@ -105,58 +105,36 @@ def ModeOp.sem {a b c : Ty} (op : ModeOp a b c)
       TDParse.Semantics.conj (TDParse.Semantics.app p x) (TDParse.Semantics.app q x)
   | .fc => fun f g => TDParse.Semantics.lam fun x =>
       TDParse.Semantics.app f (TDParse.Semantics.app g x)
-  | .ml f _ m => fun xs y =>
-      match h : functor f with
-      | some inst =>
-          TDParse.Semantics.mapEff f inst
-            (TDParse.Semantics.lam fun x => m.sem x y)
-            xs
-      | none => by cases f <;> simp [functor] at h
-  | .mr f _ m => fun x ys =>
-      match h : functor f with
-      | some inst =>
-          TDParse.Semantics.mapEff f inst
-            (TDParse.Semantics.lam fun y => m.sem x y)
-            ys
-      | none => by cases f <;> simp [functor] at h
+  | .ml f ok m => fun xs y =>
+      TDParse.Semantics.mapEff f ok
+        (TDParse.Semantics.lam fun x => m.sem x y)
+        xs
+  | .mr f ok m => fun x ys =>
+      TDParse.Semantics.mapEff f ok
+        (TDParse.Semantics.lam fun y => m.sem x y)
+        ys
   | .ap f ok m => fun xs ys =>
-      match h : applicative f with
-      | some inst =>
-          letI : Applicative f.dom := inst
-          let instF := inferInstanceAs (Functor f.dom)
-          TDParse.Semantics.apEff f inst
-            (TDParse.Semantics.mapEff f instF
-              (TDParse.Semantics.lam fun x => TDParse.Semantics.lam fun y => m.sem x y)
-              xs)
-            ys
-      | none => by simp [h] at ok
+      TDParse.Semantics.apEff f ok
+        (TDParse.Semantics.mapEff f f.functorOk
+          (TDParse.Semantics.lam fun x => TDParse.Semantics.lam fun y => m.sem x y)
+          xs)
+        ys
   | .ul f ok m => fun x y =>
-      match h : applicative f with
-      | some inst =>
-          m.sem x (TDParse.Semantics.lam fun b =>
-            TDParse.Semantics.app y (TDParse.Semantics.pureEff f inst b))
-      | none => by simp [h] at ok
+      m.sem x (TDParse.Semantics.lam fun b =>
+        TDParse.Semantics.app y (TDParse.Semantics.pureEff f ok b))
   | .ur f ok m => fun x y =>
-      match h : applicative f with
-      | some inst =>
-          m.sem (TDParse.Semantics.lam fun a =>
-            TDParse.Semantics.app x (TDParse.Semantics.pureEff f inst a)) y
-      | none => by simp [h] at ok
+      m.sem (TDParse.Semantics.lam fun a =>
+        TDParse.Semantics.app x (TDParse.Semantics.pureEff f ok a)) y
   | .cu f g ok m => fun xs ys =>
-      match h : adjoint f g with
-      | some ⟨instF, instG, adj⟩ =>
-          TDParse.Semantics.counit f g instF instG adj
-            (TDParse.Semantics.mapEff f instF
-              (TDParse.Semantics.lam fun x =>
-                TDParse.Semantics.mapEff g instG
-                  (TDParse.Semantics.lam fun y => m.sem x y)
-                  ys)
-              xs)
-      | none => by simp [h] at ok
+      TDParse.Semantics.counit f g ok
+        (TDParse.Semantics.mapEff f f.functorOk
+          (TDParse.Semantics.lam fun x =>
+            TDParse.Semantics.mapEff g g.functorOk
+              (TDParse.Semantics.lam fun y => m.sem x y)
+              ys)
+          xs)
   | .jn f ok m => fun x y =>
-      match h : monad f with
-      | some inst => TDParse.Semantics.joinEff f inst (m.sem x y)
-      | none => by simp [h] at ok
+      TDParse.Semantics.joinEff f ok (m.sem x y)
   | .dn m => fun x y => TDParse.Semantics.lower (m.sem x y)
   | .scopeAp m => fun xs ys =>
       TDParse.Semantics.scopeMap2
@@ -165,9 +143,7 @@ def ModeOp.sem {a b c : Ty} (op : ModeOp a b c)
         ys
   | .scopeJn m => fun x y => TDParse.Semantics.joinScope (m.sem x y)
   | .xl f ok m => fun xs y =>
-      match h : comonad f with
-      | some inst => TDParse.Semantics.extend f inst xs (fun xs' => m.sem xs' y)
-      | none => by simp [h] at ok
+      TDParse.Semantics.extend f ok xs (fun xs' => m.sem xs' y)
   | .el _ m => fun x y => m.sem (TDParse.Semantics.eject x) y
   | .er _ m => fun x y => m.sem x (TDParse.Semantics.eject y)
 
@@ -231,16 +207,14 @@ def ask {a : Ty} (name : String) : Expr (R^a a) :=
 
 def askStore {a : Ty} (name : String) : Expr (R^a (W^a a)) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
-    let inst := inferInstanceAs (Functor (FX.query a).dom)
-    TDParse.Semantics.mapEff (FX.query a) inst
+    TDParse.Semantics.mapEff (FX.query a) (FX.query a).functorOk
       (TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
       (TDParse.Semantics.ask (a := a)))
 
 def askStoreRel (name : String) : Expr ((E ~> E) ~> R^E (W^E E)) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.lam fun rel =>
-      let inst := inferInstanceAs (Functor (FX.query E).dom)
-      TDParse.Semantics.mapEff (FX.query E) inst
+      TDParse.Semantics.mapEff (FX.query E) (FX.query E).functorOk
         (TDParse.Semantics.lam fun x =>
           TDParse.Semantics.storePair x (TDParse.Semantics.app rel x))
         TDParse.Semantics.ask)
@@ -248,10 +222,9 @@ def askStoreRel (name : String) : Expr ((E ~> E) ~> R^E (W^E E)) :=
 def askStoreRelFn (name : String) : Expr ((E ~> E) ~> R^E (W^(R^E E) E)) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.lam fun rel =>
-      let inst := inferInstanceAs (Functor (FX.query E).dom)
       let relReader :=
-        TDParse.Semantics.mapEff (FX.query E) inst rel TDParse.Semantics.ask
-      TDParse.Semantics.mapEff (FX.query E) inst
+        TDParse.Semantics.mapEff (FX.query E) (FX.query E).functorOk rel TDParse.Semantics.ask
+      TDParse.Semantics.mapEff (FX.query E) (FX.query E).functorOk
         (TDParse.Semantics.lam fun x =>
           TDParse.Semantics.storePair relReader (TDParse.Semantics.app rel x))
         TDParse.Semantics.ask)
@@ -292,7 +265,9 @@ def choose (name restrict : String) : Expr (S E) :=
 
 def chooseStore (name restrict : String) : Expr (S (W^E E)) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
-    TDParse.Semantics.chooseStoreIn (TDParse.Semantics.prim restrict))
+    TDParse.Semantics.mapEff .spawn FX.spawn.functorOk
+      (TDParse.Semantics.lam fun x => TDParse.Semantics.storePair x x)
+      (TDParse.Semantics.chooseIn (TDParse.Semantics.prim restrict)))
 
 def existsE (name restrict : String) : Expr (C^T T E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
@@ -307,7 +282,8 @@ def forallE (name restrict : String) : Expr (C^T T E) :=
 def forallStore (name restrict : String) : Expr (C^T T (W^E E)) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
     TDParse.Semantics.cont fun k =>
-      TDParse.Semantics.forallStoreIn (TDParse.Semantics.prim restrict) k)
+      TDParse.Semantics.forallIn (TDParse.Semantics.prim restrict) fun x =>
+        k (TDParse.Semantics.storePair x x))
 
 def someDet (name : String) : Expr ((E ~> T) ~> S E) :=
   lexWith name (fun {repr} [TDParse.Semantics repr] =>
@@ -365,20 +341,6 @@ def Expr.eval (m : TDParse.Model) (e : Expr ty) : ty.dom :=
 
 def Expr.pretty {ty : Ty} (e : Expr ty) : String :=
   TDParse.SemTerm.pretty (Expr.sem e)
-
--- x exceeds y
-def exprTest (x y : Nat) : Expr T :=
-  .moc ba sub (.moc fa exc obj)
-  where sub : Expr E := .litNat "sub" x
-        obj : Expr E := .litNat "obj" y
-        exc : Expr (E~>E~>T) := .fun2 "exceeds"
-        fa : Mode (E~>E~>T) E (E~>T) :=
-          ⟨.fa⟩
-        ba : Mode E (E~>T) T :=
-          ⟨.ba⟩
-
-#eval exprTest 5 2 |>.den
-#eval exprTest 2 5 |>.den
 
 -- convenience type synonyms (used for custom displays)
 def TypedExpr := (t : Ty) × Expr t

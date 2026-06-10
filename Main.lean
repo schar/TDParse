@@ -176,6 +176,32 @@ def tree0 :=
 
 #eval tree0
 
+-- Library smoke checks, kept here so library builds stay quiet.
+#eval (S ((S (E ~> T)) ~> (S E)) ~> T)
+
+#eval List.map (fun ⟨w, m⟩ => (w, m.mode)) (prims (E ~> T) E)
+#eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)
+#eval combine (E ~> S T) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)
+
+#eval
+  let cfg | DP, VP => [CP]
+          | TV, DP => [VP]
+          | Det,NP => [DP]
+          | _  ,_  => []
+  let lex :=
+    {[ (Det, @Expr.lex T "this"),
+       (NP , @Expr.lex T "string"),
+       (TV , @Expr.lex T "has"),
+       (Det, @Expr.lex T "five"),
+       (NP , @Expr.lex T "letters") ]}
+  parse cfg lex "this string has five letters".splitOn
+
+#eval
+  let exprTest (x y : Nat) : Expr T :=
+    .moc Mode.ba (.litNat "sub" x)
+      (.moc Mode.fa (.fun2 "exceeds") (.litNat "obj" y))
+  [exprTest 5 2 |>.den, exprTest 2 5 |>.den]
+
 
 -- Example derivations
 -- ------------------------------------------------------------------------
@@ -234,6 +260,9 @@ def englishPrettyDeriveAs (t : Ty) (u : String) : List String :=
 
 #guard englishPrettyDeriveAs (S T) "someone2 left and she whistled" ==
   ["[left x0 ∧ whistled x0 | person x0]"]
+
+#guard englishPrettyDeriveAs (R^E (W^E T)) "someone left and she2 whistled" ==
+  ["λx0. ⟨x0, (∃x1[person x1]. left x1) ∧ whistled x0⟩"]
 
 #guard englishPrettyDeriveAs (S T) "someone3 left and someone3 left and someone3 whistled" ==
   [ "[left x0 ∧ left x1 ∧ whistled x2 | person x0, person x1, person x2]"

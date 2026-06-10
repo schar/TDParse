@@ -79,6 +79,9 @@ end
 def functor : (f : FX) -> Option (Functor f.dom)
   | .spawn | .query _ | .store _ | .scope _ _ => some (inferInstanceAs _)
 
+def FX.functorOk (f : FX) : (functor f).isSome = true := by
+  cases f <;> simp [functor]
+
 def applicative : (f : FX) -> Option (Applicative f.dom)
   | .spawn | .query _ => some (inferInstanceAs _)
   | .store o => if h : o = T then by subst h; exact some (inferInstanceAs _)

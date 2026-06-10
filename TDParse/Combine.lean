@@ -1,6 +1,5 @@
 import TDParse.Data.Ty
 import TDParse.Data.Derivation
-import TDParse.Display -- just used for #eval tests
 import TDParse.Memoize
 
 -- Modes of combination
@@ -123,9 +122,6 @@ def prims : (u : Ty) -> (v : Ty) -> List ((w : Ty) × Mode u v w)
   | a ~> b, c      => if h : a = c then by subst h; exact [⟨b     , .fa⟩] else []
   | a     , b ~> c => if h : a = b then by subst h; exact [⟨c     , .ba⟩] else []
   | _     , _      => []
-
-#eval List.map (fun ⟨w, m⟩ => (w, m.mode)) (prims (E ~> T) E)
-
 
 -- Derivational normalization
 -- ------------------------------------------------------------------------
@@ -295,6 +291,3 @@ def combine : (u v : Ty) -> List (Combo u v) := memoFix2 go
     let uns e := addDN e ++ addJN e ++ pure e
 
     bins >>= uns
-
-#eval combine (S (E ~> T)) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)
-#eval combine (E ~> S T) (S E) <&> fun ⟨w, m⟩ => (w, m.mode)
