@@ -517,7 +517,7 @@ counitTerm = m ! _2 m % _1 m
 joinTerm = \case
   S     -> mm ! conc mm
   R _   -> mm ! g ! mm % g % g
-  W t   -> mm !  mplusTerm t (_1 mm) (_1 (_1 mm)) * _2 (_2 mm)
+  W t   -> mm ! mplusTerm t (_1 mm) (_1 (_2 mm)) * _2 (_2 mm)
   C _ _ -> mm ! c ! mm % (m ! m % c)
   _     -> mm ! make_con "join" % mm
 extendTerm = \case
