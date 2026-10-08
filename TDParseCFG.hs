@@ -459,7 +459,7 @@ opTerm = \case
   ML f -> op ! l ! r ! fmapTerm f % (a ! (op % a % r)) % l
 
        --    \l R -> op (\a -> R (pure a)) l
-  UL f -> op ! l ! r ! op % (a ! r % (pureTerm f % a)) % l
+  UL f -> op ! l ! r ! op % l % (a ! r % (pureTerm f % a))
 
        --    \L r -> op (\a -> L (pure a)) r
   UR f -> op ! l ! r ! op % (a ! l % (pureTerm f % a)) % r
